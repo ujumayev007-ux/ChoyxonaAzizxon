@@ -61,20 +61,26 @@
                     </div>
                 </div>
 
-                <!-- Xonalarni boshqarish bo'limi -->
+                <!-- Xonalarni va Stollarni boshqarish bo'limi -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-gray-800">Yangi Xona qo'shish</h2>
+                    </div>
+                    <form onsubmit="createRoom(event)" class="flex gap-4">
+                        <input type="text" id="roomName" placeholder="Xona nomi (masalan: VIP zal, 1-qavat)" required class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                        <button type="submit" class="bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Xona qo'shish</button>
+                    </form>
+                </div>
+
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-gray-800">Restoran Xonalari</h2>
-                        <button onclick="loadRooms()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Yangilash</button>
+                        <h2 class="text-lg font-bold text-gray-800">Restoran Xonalari va Stollar</h2>
+                        <button onclick="loadRooms()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
                     </div>
-                    <div id="rooms-container" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <!-- Ma'lumotlar dinamik ravishda yuklanadi -->
+                    <div id="rooms-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <p class="text-gray-500 text-sm">Xonalar yuklanmoqda...</p>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
 
     <!-- JavaScript - API bilan bog'lanish -->
     <script>
@@ -101,6 +107,84 @@
         }
 
         // Sahifa ochilganda xonalarni yuklash
+            async function loadRooms() {
+            try {
+                const response = await fetch('/api/rooms');
+                const rooms = await response.json();
+                const container = document.getElementById('rooms-container');
+                
+                if (rooms.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo\'shilmagan.</p>';
+                    return;
+                }
+
+                container.innerHTML = rooms.map(room => `
+                    <div class="border border-gray-200 p-5 rounded-xl bg-gray-50 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
+                                <h3 class="font-bold text-gray-800 text-lg">${room.name}</h3>
+                                <button onclick="deleteRoom(${room.id})" class="text-red-500 hover:text-red-700 text-xs font-semibold">Xonani o'chirish 🗑️</button>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-xs text-gray-500 mb-2">Stollar:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    ${room.tables && room.tables.length > 0 ? room.tables.map(table => `
+                                        <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xs">
+                                            <span class="text-xs font-bold text-gray-700">Stol #${table.number}</span>
+                                            <button onclick="deleteTable(${table.id})" class="text-red-400 hover:text-red-600 text-xs">×</button>
+                                        </div>
+                                    `).join('') : '<span class="text-xs text-gray-400">Stollar yo\'q</span>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-gray-200 flex gap-2">
+                            <input type="number" id="table-input-${room.id}" placeholder="Stol raqami" class="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
+                            <button onclick="addTable(${room.id})" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Stol qo'shish</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Xatolik:', error);
+            }
+        }
+
+        async function createRoom(event) {
+            event.preventDefault();
+            const name = document.getElementById('roomName').value;
+            await fetch('/api/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            document.getElementById('roomName').value = '';
+            loadRooms();
+        }
+
+        async function deleteRoom(id) {
+            if (confirm('Haqiqatan ham bu xonani va uning barcha stollarini oʻchirmoqchimisiz?')) {
+                await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
+                loadRooms();
+            }
+        }
+
+        async function addTable(roomId) {
+            const input = document.getElementById(`table-input-${roomId}`);
+            const number = input.value;
+            if (!number) return alert('Stol raqamini kiriting!');
+            
+            await fetch('/api/tables', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number, roomId })
+            });
+            loadRooms();
+        }
+
+        async function deleteTable(id) {
+            await fetch(`/api/tables/${id}`, { method: 'DELETE' });
+            loadRooms();
+        }
+
         loadRooms();
     </script>
 </body>
