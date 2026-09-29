@@ -1,0 +1,408 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. FOYDALANUVCHILAR VA ROLLAR (RBAC)
+// ==========================================
+
+enum RoleType {
+  ADMIN
+  CASHIER
+  WAITER
+  KITCHEN
+  CUSTOMER
+}
+
+model User {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  passwordHash String
+  fullName     String
+  role         RoleType      @default(WAITER)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Aloqalar
+  waiterProfile   WaiterProfile?
+  cashierProfile  CashierProfile?
+  orders          Order[]          @relation("WaiterOrders")
+  payments        Payment[]
+  auditLogs       AuditLog[]
+  purchases       Purchase[]
+  inventoryTxns   InventoryTransaction[]
+
+  @@index([username])
+}
+
+model WaiterProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commissionPercent  Decimal  @default(10.0) // 5%, 7%, 10%, 12%
+  phone              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model CashierProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// 2. RESTORAN TUZILMASI (ZALLAR VA STOLLAR)
+// ==========================================
+
+model Room {
+  id        String   @id @default(uuid())
+  name      String   // Masalan: "Asosiy zal", "Terrasa", "VIP xona"
+  isActive  Boolean  @default(true)
+  tables    Table[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Table {
+  id          String   @id @default(uuid())
+  number      String   // Stol raqami: "12", "VIP-1"
+  roomId      String
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  capacity    Int      @default(4)
+  qrCodeToken String   @unique // Xavfsiz QR identifikatori
+  isActive    Boolean  @default(true)
+  orders      Order[]
+  waiterCalls WaiterCall[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([roomId])
+}
+
+// ==========================================
+// 3. MENYU VA RETSEPTLAR
+// ==========================================
+
+model MenuCategory {
+  id        String     @id @default(uuid())
+  name      String     // "Osh", "Kaboblar", "Ichimliklar" va h.k.
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  menuItems MenuItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model MenuItem {
+  id               String          @id @default(uuid())
+  name             String          // Taom nomi
+  categoryId       String
+  category         MenuCategory    @relation(fields: [categoryId], references: [id])
+  description      String?
+  imageUrl         String?
+  sellingPrice     Decimal         // Sotish narxi (Hamma ko'radi)
+  internalCostPrice Decimal        @default(0) // Ichki tannarx (Faqat Admin)
+  unit             String          @default("porsiya") // g, kg, dona, porsiya
+  preparationTime  Int             @default(15) // daqiqada
+  kitchenSection   String          @default("Umumiy oshxona") // Bo'lim/Printer yo'nalishi
+  isActive         Boolean         @default(true)
+  
+  recipes          Recipe[]
+  orderItems       OrderItem[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([categoryId])
+}
+
+model Recipe {
+  id             String           @id @default(uuid())
+  menuItemId     String
+  menuItem       MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryId    String
+  inventory      InventoryProduct @relation(fields: [inventoryId], references: [id])
+  quantity       Decimal          // 1 porsiya uchun sarf miqdori (masalan: 100g)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([menuItemId, inventoryId])
+}
+
+// ==========================================
+// 4. OMBORXONA VA XARIDLAR (INVENTORY)
+// ==========================================
+
+model InventoryProduct {
+  id            String                 @id @default(uuid())
+  name          String                 // "Guruch", "Sabzi", "Go'sht"
+  unit          String                 // kg, g, litr, dona
+  quantity      Decimal                @default(0) // Qoldiq miqdor
+  minQuantity   Decimal                @default(5) // Minimal xavfsiz qoldiq (Kam qolganda ogohlantirish)
+  isActive      Boolean                @default(true)
+  
+  recipes       Recipe[]
+  transactions  InventoryTransaction[]
+  purchaseItems PurchaseItem[]
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+}
+
+model InventoryTransaction {
+  id              String           @id @default(uuid())
+  inventoryId     String
+  inventory       InventoryProduct @relation(fields: [inventoryId], references: [id])
+  type            String           // "XARID", "SOTUV", "QAYTARISH", "TUZATISH", "CHIQIM"
+  quantityChange  Decimal          // O'zgarish miqdori (+ yoki -)
+  quantityBefore  Decimal
+  quantityAfter   Decimal
+  reason          String?
+  referenceOrderId String?
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  createdAt       DateTime         @default(now())
+
+  @@index([inventoryId])
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  totalAmount   Decimal        @default(0)
+  comment       String?
+  items         PurchaseItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model PurchaseItem {
+  id          String           @id @default(uuid())
+  purchaseId  String
+  purchase    Purchase         @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  inventoryId String
+  inventory   InventoryProduct @relation(fields: [inventoryId], references: [id])
+  quantity    Decimal
+  unitPrice   Decimal
+  totalCost   Decimal
+  createdAt   DateTime         @default(now())
+}
+
+// ==========================================
+// 5. BUYURTMALAR VA STATUSLAR (ORDER LIFECYCLE)
+// ==========================================
+
+enum OrderStatus {
+  YANGI
+  KUTILMOQDA
+  ADMIN_TASDIGINI_KUTMOQDA
+  TASDIQLANDI
+  OSHXONAGA_YUBORILDI
+  TAYYORLANMOQDA
+  TAYYOR
+  STOLGA_YETKAZILDI
+  TOLOV_KUTILMOQDA
+  QISMAN_TOLANDI
+  TOLANDI
+  YAKUNLANDI
+  BEKOR_QILINDI
+  QAYTARILDI
+}
+
+model Order {
+  id              String         @id @default(uuid())
+  orderNumber     String         @unique // Masalan: 20260929-001
+  tableId         String
+  table           Table          @relation(fields: [tableId], references: [id])
+  waiterId        String
+  waiter          User           @relation("WaiterOrders", fields: [waiterId], references: [id])
+  guestCount      Int            @default(1)
+  status          OrderStatus    @default(YANGI)
+  subtotal        Decimal        @default(0)
+  discount        Decimal        @default(0)
+  totalAmount     Decimal        @default(0)
+  
+  // Vaqt belgilari
+  approvedAt      DateTime?
+  sentToKitchenAt DateTime?
+  completedAt     DateTime?
+  paidAt          DateTime?
+
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+  payments        Payment[]
+  receipts        Receipt[]
+  simulations     KitchenSimulation[]
+  printJobs       PrintJob[]
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([tableId])
+  @@index([waiterId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id          String      @id @default(uuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId  String
+  menuItem    MenuItem    @relation(fields: [menuItemId], references: [id])
+  quantity    Decimal     @default(1)
+  unitPrice   Decimal     // Sotilish vaqtidagi narx saqlanadi
+  totalPrice  Decimal
+  status      String      @default("YANGI") // "Yangi", "Tayyorlanmoqda", "Tayyor", "Bekor qilingan"
+  notes       String?     // Maxsus izoh (masalan: piyozsiz)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  comment   String?
+  userId    String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+// ==========================================
+// 6. TO'LOV VA CHEKLAR
+// ==========================================
+
+enum PaymentMethod {
+  NAQD
+  PLASTIK
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String
+  order         Order         @relation(fields: [orderId], references: [id])
+  amount        Decimal
+  method        PaymentMethod @default(NAQD)
+  cashierId     String
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@index([orderId])
+}
+
+model Receipt {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
+  receiptNumber String   @unique
+  qrHash        String   // Chek tekshiruvi uchun xavfsiz hash
+  createdAt     DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// ==========================================
+// 7. OSHXONA SIMULATSIYASI VA PRINTERLAR
+// ==========================================
+
+model KitchenSimulation {
+  id             String    @id @default(uuid())
+  orderId        String
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishName       String    // Masalan: "Osh (1 kg)"
+  totalDurationMinutes Int @default(40)
+  remainingSeconds Int
+  currentStage   String    // "Tayyorlanmoqda", "Qovurilmoqda", "Guruch qo'shilmoqda", "Dimlanmoqda", "Tayyor"
+  isCompleted    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([orderId])
+}
+
+model Printer {
+  id         String   @id @default(uuid())
+  name       String   // "Oshxona printeri", "Shashlikxona printeri"
+  department String   // Bo'lim nomi
+  ipAddress  String   // 192.168.x.x yoki virtual
+  port       Int      @default(9100)
+  paperWidth Int      @default(80) // mm
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model PrintJob {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  printerId String?
+  payload   String   // Chop etiladigan ma'lumot JSON formatida
+  status    String   @default("KUTILMOQDA") // "KUTILMOQDA", "YUBORILDI", "XATOLIK"
+  createdAt DateTime @default(now())
+}
+
+// ==========================================
+// 8. QOSHIMCHA: OFITSIANT CHAQIRUV, FIKR-MULOHAZA VA AUDIT
+// ==========================================
+
+model WaiterCall {
+  id        String   @id @default(uuid())
+  tableId   String
+  table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  status    String   @default("YANGI") // "YANGI", "QABUL_QILINDI", "YOLDA", "YAKUNLANDI"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tableId])
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  authorName String? // Ism (agar anonim bo'lmasa)
+  comment   String   // Fikr-mulohaza matni
+  rating    Int      @default(5) // Baho (1-5)
+  tableName String?  // Stol ma'lumoti
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // "MENU_PRICE_CHANGE", "ORDER_CANCEL", "INVENTORY_ADJUST" etc.
+  entity     String   // Qaysi jadval/obyekt
+  entityId   String?
+  oldValue   String?  // JSON
+  newValue   String?  // JSON
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}
+
+model RestaurantSetting {
+  id                    String   @id @default(uuid())
+  restaurantName        String   @default("Azamatjon & Umidjon Restarani")
+  address               String   @default("O'zbekiston")
+  phone                 String   @default("+998 90 000-00-00")
+  timezone              String   @default("Asia/Tashkent")
+  oshSimulationMinutes  Int      @default(40)
+  voiceEnabled          Boolean  @default(true)
+  negativeStockAllowed  Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
+}
