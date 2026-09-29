@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.x.x",
@@ -22,14 +23,8 @@
     "prisma": "^5.x.x",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.3"
-  }
-}
-"scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
-  },
+  }
+}
