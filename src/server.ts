@@ -63,12 +63,40 @@ app.post('/api/rooms', async (req, res) => {
 app.delete('/api/rooms/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.room.delete({
-      where: { id: id as any }
-    });
-    res.json({ message: "Xona muvaffaqiyatli o'chirildi" });
+    // Avval xonaga tegishli stollarni o'chiramiz (Foreign key xatoligi chiqmasligi uchun)
+    await prisma.table.deleteMany({ where: { roomId: Number(id) as any } });
+    await prisma.room.delete({ where: { id: Number(id) as any } });
+    res.json({ message: "Xona o'chirildi" });
   } catch (error) {
-    res.status(500).json({ error: "Xonani o'chirishda xatolik yuz berdi" });
+    res.status(500).json({ error: "Xonani o'chirishda xatolik" });
+  }
+});
+
+// 4. Stol qo'shish (Xonaga tegishli)
+app.post('/api/tables', async (req, res) => {
+  try {
+    const { number, roomId } = req.body;
+    const newTable = await prisma.table.create({
+      data: {
+        number: Number(number) as any,
+        roomId: Number(roomId) as any,
+        status: 'EMPTY' // Bo'sh holatda boshlanadi
+      }
+    });
+    res.json(newTable);
+  } catch (error) {
+    res.status(500).json({ error: "Stol qo'shishda xatolik" });
+  }
+});
+
+// 5. Stolni o'chirish
+app.delete('/api/tables/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.table.delete({ where: { id: Number(id) as any } });
+    res.json({ message: "Stol o'chirildi" });
+  } catch (error) {
+    res.status(500).json({ error: "Stolni o'chirishda xatolik" });
   }
 });
 
