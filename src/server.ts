@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import path from 'path'; // 1. Shu qatorni qo'shasiz
 
 dotenv.config();
 
@@ -20,6 +21,9 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// 2. Statik fayllar (admin, cashier, waiter, kitchen, customer) uchun public papkasini ulaymiz
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Asosiy tekshiruv yo'li
 app.get('/', (req, res) => {
@@ -47,7 +51,7 @@ app.post('/api/rooms', async (req, res) => {
   try {
     const { name } = req.body;
     const newRoom = await prisma.room.create({
-      data: { name: name as any }
+      data: { name }
     });
     res.json(newRoom);
   } catch (error) {
@@ -60,7 +64,7 @@ app.delete('/api/rooms/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.room.delete({
-      where: { id: id as any }
+      where: { id: Number(id) }
     });
     res.json({ message: "Xona muvaffaqiyatli o'chirildi" });
   } catch (error) {
