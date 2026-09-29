@@ -1,1 +1,116 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChoyxonaAzizxon - QR Menyu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-gray-50 font-sans pb-24">
 
+    <!-- Header -->
+    <header class="bg-amber-600 text-white p-4 text-center shadow-md sticky top-0 z-50">
+        <h1 class="text-xl font-bold">Azamatjon & Umidjon Choyxonasi</h1>
+        <p class="text-xs text-amber-100 mt-0.5">Xush kelibsiz! Marhamat, menyudan tanlang.</p>
+    </header>
+
+    <main class="max-w-md mx-auto p-4 space-y-4">
+        <!-- Stol raqami bloki -->
+        <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+            <div>
+                <p class="text-xs text-gray-400">Sizning stolingiz:</p>
+                <h3 class="text-lg font-bold text-gray-800" id="table-badge">Stol #1</h3>
+            </div>
+            <button onclick="callWaiter()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
+                🔔 Ofitsiantni chaqirish
+            </button>
+        </div>
+
+        <!-- Taomlar kategoriyalari -->
+        <div class="space-y-3">
+            <h2 class="font-bold text-gray-800 text-base">Asosiy Taomlar</h2>
+            
+            <!-- Namuna taom kartochkasi -->
+            <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-gray-800">Osh (Milliy taom)</h4>
+                    <p class="text-xs text-gray-500 mt-0.5">Mol go'shti, guruch, navvot...</p>
+                    <p class="text-amber-600 font-bold text-sm mt-2">35,000 so'm</p>
+                </div>
+                <button onclick="addToOrder('Osh', 35000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition">
+                    + Qo'shish
+                </button>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-gray-800">Mastava</h4>
+                    <p class="text-xs text-gray-500 mt-0.5">Guruch, sabzavotlar va go'shtli sho'rva</p>
+                    <p class="text-amber-600 font-bold text-sm mt-2">25,000 so'm</p>
+                </div>
+                <button onclick="addToOrder('Mastava', 25000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition">
+                    + Qo'shish
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Savatcha Paneli (Pastda qotirilgan) -->
+    <div id="cart-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg hidden max-w-md mx-auto rounded-t-2xl">
+        <div class="flex justify-between items-center mb-3">
+            <div>
+                <p class="text-xs text-gray-500">Tanlanganlar:</p>
+                <p class="font-bold text-gray-800 text-base" id="cart-total">0 so'm</p>
+            </div>
+            <button onclick="sendOrder()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition">
+                Buyurtma berish 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript va Socket.io -->
+    <script>
+        const socket = io();
+        let cart = [];
+
+        function callWaiter() {
+            socket.emit('call_waiter', { table: 'Stol #1', time: new Date().toLocaleTimeString() });
+            alert('Ofitsiantga chaqiruv yuborildi! Tez orada kelishadi.');
+        }
+
+        function addToOrder(name, price) {
+            cart.push({ name, price, quantity: 1 });
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const cartBar = document.getElementById('cart-bar');
+            const totalEl = document.getElementById('cart-total');
+
+            if (cart.length > 0) {
+                cartBar.classList.remove('hidden');
+                const total = cart.reduce((sum, item) => sum + item.price, 0);
+                totalEl.innerText = total.toLocaleString() + " so'm";
+            } else {
+                cartBar.classList.add('hidden');
+            }
+        }
+
+        function sendOrder() {
+            const orderData = {
+                tableNumber: 1,
+                items: cart,
+                total: cart.reduce((sum, item) => sum + item.price, 0)
+            };
+
+            socket.emit('new_order', orderData);
+            alert('Buyurtmangiz muvaffaqiyatli oshxonaga yuborildi!');
+            cart = [];
+            updateCartUI();
+        }
+    </script>
+</body>
+</html>
