@@ -60,7 +60,7 @@ app.delete('/api/rooms/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.room.delete({
-      where: { id: Number(id) }
+      where: { id: id as any }
     });
     res.json({ message: "Xona muvaffaqiyatli o'chirildi" });
   } catch (error) {
