@@ -3,11 +3,14 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+const prisma = new PrismaClient(); // Prisma client ni ishga tushiramiz
+
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -23,7 +26,51 @@ app.get('/', (req, res) => {
   res.json({ message: "Azamatjon & Umidjon Restarani API ishlayapti!" });
 });
 
-// Socket.io ulanishlarini boshqarish (Ofitsiant chaqiruv, oshxona va buyurtmalar uchun)
+// ==========================================
+// XONALAR (ROOMS) UCHUN CRUD API'LARI
+// ==========================================
+
+// 1. Barcha xonalarni va ularga tegishli stollarni olish
+app.get('/api/rooms', async (req, res) => {
+  try {
+    const rooms = await prisma.room.findMany({
+      include: { tables: true }
+    });
+    res.json(rooms);
+  } catch (error) {
+    res.status(500).json({ error: "Xonalarni olishda xatolik yuz berdi" });
+  }
+});
+
+// 2. Yangi xona qo'shish
+app.post('/api/rooms', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const newRoom = await prisma.room.create({
+      data: { name }
+    });
+    res.json(newRoom);
+  } catch (error) {
+    res.status(500).json({ error: "Xona qo'shishda xatolik yuz berdi" });
+  }
+});
+
+// 3. Xonani o'chirish
+app.delete('/api/rooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.room.delete({
+      where: { id: Number(id) }
+    });
+    res.json({ message: "Xona muvaffaqiyatli o'chirildi" });
+  } catch (error) {
+    res.status(500).json({ error: "Xonani o'chirishda xatolik yuz berdi" });
+  }
+});
+
+// ==========================================
+// SOCKET.IO QISMI
+// ==========================================
 io.on('connection', (socket) => {
   console.log(`Foydalanuvchi ulandi: ${socket.id}`);
 
