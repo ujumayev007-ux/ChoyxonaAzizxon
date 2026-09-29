@@ -1,1 +1,115 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oshxona Paneli - ChoyxonaAzizxon</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans">
 
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-slate-950 border-r border-slate-800 flex flex-col">
+            <div class="p-5 text-2xl font-bold tracking-wider text-orange-400 border-b border-slate-800">
+                ChoyxonaOshxona
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" class="block px-4 py-2.5 rounded-lg bg-orange-600 text-white font-medium">Yangi Buyurtmalar</a>
+                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Tayyorlanmoqda</a>
+                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Tarix</a>
+            </nav>
+            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
+                Azamatjon & Umidjon Restarani
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-y-auto">
+            <!-- Header -->
+            <header class="bg-slate-950 border-b border-slate-800 h-16 flex items-center justify-between px-8">
+                <h1 class="text-xl font-semibold text-white">Oshxona Navbati (Real-Time)</h1>
+                <div class="flex items-center space-x-4">
+                    <span class="bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold px-3 py-1 rounded-full animate-pulse">● Live Ulangan</span>
+                    <div class="w-10 h-10 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold">Osh</div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content -->
+            <main class="p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-bold text-slate-200">Kelib tushgan buyurtmalar</h2>
+                    <span id="order-count" class="bg-slate-800 text-slate-300 px-3 py-1 rounded-lg text-sm">0 ta buyurtma</span>
+                </div>
+
+                <!-- Orders Grid -->
+                <div id="kitchen-orders-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Buyurtmalar shu yerga dinamik chiqadi -->
+                    <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400 col-span-3 py-12">
+                        Hozircha yangi buyurtmalar yo'q. Buyurtma kelishi bilan bu yerda ko'rinadi.
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Socket.io Logikasi -->
+    <script>
+        const socket = io();
+        let orders = [];
+
+        socket.on('kitchen_new_order', (order) => {
+            orders.unshift(order); // Yangi buyurtmani boshiga qo'shamiz
+            renderOrders();
+            
+            // Ovozli signal (agar brauzer ruxsat bersa)
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        });
+
+        function renderOrders() {
+            const container = document.getElementById('kitchen-orders-container');
+            const countBadge = document.getElementById('order-count');
+            
+            countBadge.innerText = `${orders.length} ta buyurtma`;
+
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400 col-span-3 py-12">
+                        Hozircha yangi buyurtmalar yo'q.
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = orders.map((order, index) => `
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-700">
+                            <span class="font-bold text-orange-400 text-base">Stol #${order.tableNumber || 'Nomaʼlum'}</span>
+                            <span class="text-xs text-slate-400">${new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <ul class="space-y-2 mb-4 text-sm">
+                            ${order.items ? order.items.map(item => `
+                                <li class="flex justify-between text-slate-200">
+                                    <span>${item.name}</span>
+                                    <span class="font-semibold text-orange-300">x${item.quantity}</span>
+                                </li>
+                            `).join('') : '<li class="text-slate-400">Taomlar ro\'yxati yo\'q</li>'}
+                        </ul>
+                    </div>
+                    <button onclick="completeOrder(${index})" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-sm font-medium transition">
+                        Tayyor ✅
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function completeOrder(index) {
+            orders.splice(index, 1);
+            renderOrders();
+        }
+    </script>
+</body>
+</html>
