@@ -1,1 +1,102 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ofitsiant Paneli - ChoyxonaAzizxon</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
 
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-slate-900 text-white flex flex-col">
+            <div class="p-5 text-2xl font-bold tracking-wider text-sky-400 border-b border-slate-800">
+                ChoyxonaOfitsiant
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" class="block px-4 py-2.5 rounded-lg bg-sky-600 text-white font-medium">Stollar Xaritasi</a>
+                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Buyurtmalarim</a>
+                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Chaqiruvlar</a>
+            </nav>
+            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
+                Azamatjon & Umidjon Restarani
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-y-auto">
+            <!-- Header -->
+            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
+                <h1 class="text-xl font-semibold text-gray-800">Ofitsiant Ishchi Stoli</h1>
+                <div class="flex items-center space-x-4">
+                    <span id="call-alert" class="hidden bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full animate-pulse">🔴 Chaqiruv bor!</span>
+                    <div class="w-10 h-10 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold">O</div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content -->
+            <main class="p-8">
+                <!-- Stollar va Xonalar Ro'yxati -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-gray-800">Stollar Holati</h2>
+                        <button onclick="loadRooms()" class="bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-700 transition">Yangilash</button>
+                    </div>
+                    <div id="waiter-rooms-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <p class="text-gray-500 text-sm">Xonalar yuklanmoqda...</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Socket.io va Interfeys Logikasi -->
+    <script>
+        const socket = io();
+
+        socket.on('waiter_called', (data) => {
+            const alertBadge = document.getElementById('call-alert');
+            alertBadge.classList.remove('hidden');
+            alertBadge.innerText = `🔴 Stol chaqirmoqda: ${data.table || 'Nomaʼlum'}`;
+            
+            // Ovozli yoki vizual signal berish mumkin
+            if (navigator.vibrate) navigator.vibrate(200);
+        });
+
+        async function loadRooms() {
+            try {
+                const response = await fetch('/api/rooms');
+                const rooms = await response.json();
+                const container = document.getElementById('waiter-rooms-container');
+                
+                if (rooms.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar yo\'q.</p>';
+                    return;
+                }
+
+                container.innerHTML = rooms.map(room => `
+                    <div class="border border-gray-200 p-4 rounded-xl bg-gray-50">
+                        <h3 class="font-bold text-gray-800 text-base mb-3 border-b pb-2">${room.name}</h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${room.tables && room.tables.length > 0 ? room.tables.map(table => `
+                                <div class="bg-white p-3 rounded-lg border border-gray-200 text-center shadow-xs hover:border-sky-500 cursor-pointer transition">
+                                    <p class="font-semibold text-gray-800">Stol #${table.number || table.id}</p>
+                                    <span class="text-xs text-emerald-600 font-medium">Bo'sh</span>
+                                </div>
+                            `).join('') : '<p class="text-xs text-gray-400 col-span-2">Stollar mavjud emas</p>'}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Xonalarni yuklashda xatolik:', error);
+            }
+        }
+
+        loadRooms();
+    </script>
+</body>
+</html>
