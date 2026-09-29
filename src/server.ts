@@ -47,7 +47,7 @@ app.post('/api/rooms', async (req, res) => {
   try {
     const { name } = req.body;
     const newRoom = await prisma.room.create({
-      data: { name: String(name) } // Type xatoligining oldini olish uchun String ga o'raldi
+      data: { name: name as any }
     });
     res.json(newRoom);
   } catch (error) {
