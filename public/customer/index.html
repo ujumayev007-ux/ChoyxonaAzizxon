@@ -2,87 +2,143 @@
 <html lang="uz">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChoyxonaAzizxon - QR Menyu</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Socket.io client -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ChoyxonaAzizxon - Telegram Mini App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-gray-50 font-sans pb-24">
+<body class="bg-gray-50 text-gray-900 font-sans pb-28">
 
     <!-- Header -->
     <header class="bg-amber-600 text-white p-4 text-center shadow-md sticky top-0 z-50">
-        <h1 class="text-xl font-bold">Azamatjon & Umidjon Choyxonasi</h1>
+        <h1 class="text-lg font-bold">ChoyxonaAzizxon</h1>
         <p class="text-xs text-amber-100 mt-0.5">Xush kelibsiz! Marhamat, menyudan tanlang.</p>
     </header>
 
     <main class="max-w-md mx-auto p-4 space-y-4">
-        <!-- Stol raqami bloki -->
-        <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+        <!-- Table Identification Badge -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
             <div>
                 <p class="text-xs text-gray-400">Sizning stolingiz:</p>
-                <h3 class="text-lg font-bold text-gray-800" id="table-badge">Stol #1</h3>
+                <h3 class="text-base font-bold text-gray-800" id="table-badge">Stol ma’lumoti topilmadi</h3>
             </div>
-            <button onclick="callWaiter()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
+            <button onclick="callWaiter()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
                 🔔 Ofitsiantni chaqirish
             </button>
         </div>
 
-        <!-- Taomlar kategoriyalari -->
+        <!-- Menu Categories -->
         <div class="space-y-3">
             <h2 class="font-bold text-gray-800 text-base">Asosiy Taomlar</h2>
             
-            <!-- Namuna taom kartochkasi -->
-            <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
                 <div>
-                    <h4 class="font-semibold text-gray-800">Osh (Milliy taom)</h4>
+                    <h4 class="font-semibold text-gray-800 text-sm">Osh (Milliy taom)</h4>
                     <p class="text-xs text-gray-500 mt-0.5">Mol go'shti, guruch, navvot...</p>
-                    <p class="text-amber-600 font-bold text-sm mt-2">35,000 so'm</p>
+                    <p class="text-amber-600 font-bold text-xs mt-1.5">35,000 so'm</p>
                 </div>
-                <button onclick="addToOrder('Osh', 35000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition">
+                <button onclick="addToOrder(1, 'Osh', 35000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition">
                     + Qo'shish
                 </button>
             </div>
 
-            <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex justify-between items-center">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
                 <div>
-                    <h4 class="font-semibold text-gray-800">Mastava</h4>
+                    <h4 class="font-semibold text-gray-800 text-sm">Mastava</h4>
                     <p class="text-xs text-gray-500 mt-0.5">Guruch, sabzavotlar va go'shtli sho'rva</p>
-                    <p class="text-amber-600 font-bold text-sm mt-2">25,000 so'm</p>
+                    <p class="text-amber-600 font-bold text-xs mt-1.5">25,000 so'm</p>
                 </div>
-                <button onclick="addToOrder('Mastava', 25000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition">
+                <button onclick="addToOrder(2, 'Mastava', 25000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition">
                     + Qo'shish
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- Savatcha Paneli (Pastda qotirilgan) -->
-    <div id="cart-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg hidden max-w-md mx-auto rounded-t-2xl">
-        <div class="flex justify-between items-center mb-3">
+    <!-- Cart Floating Bar -->
+    <div id="cart-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-xl hidden max-w-md mx-auto rounded-t-3xl">
+        <div class="flex justify-between items-center">
             <div>
                 <p class="text-xs text-gray-500">Tanlanganlar:</p>
-                <p class="font-bold text-gray-800 text-base" id="cart-total">0 so'm</p>
+                <p class="font-bold text-gray-800 text-sm" id="cart-total">0 so'm</p>
             </div>
-            <button onclick="sendOrder()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition">
+            <button onclick="sendOrder()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-2xl text-xs font-semibold transition shadow-lg shadow-emerald-900/30">
                 Buyurtma berish 🚀
             </button>
         </div>
     </div>
 
-    <!-- JavaScript va Socket.io -->
     <script>
         const socket = io();
         let cart = [];
+        let authenticatedCustomer = null;
+        let verifiedTableId = null;
+
+        // Initialize Telegram WebApp
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+
+                // Apply Telegram Theme Colors if available
+                if (tg.colorScheme === 'dark') {
+                    document.body.className = "bg-gray-950 text-gray-100 font-sans pb-28";
+                }
+
+                // Extract Table from URL parameters or Telegram startParam
+                const urlParams = new URLSearchParams(window.location.search);
+                let tableParam = urlParams.get('table');
+                if (!tableParam && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+                    const sp = tg.initDataUnsafe.start_param;
+                    if (sp.startsWith('table_')) {
+                        tableParam = sp.replace('table_', '');
+                    }
+                }
+
+                if (tableParam) {
+                    verifiedTableId = parseInt(tableParam, 10);
+                    document.getElementById('table-badge').innerText = `Stol #${verifiedTableId}`;
+                } else {
+                    document.getElementById('table-badge').innerText = "Stol ma’lumoti topilmadi";
+                }
+
+                // Authenticate via Backend API using initData
+                try {
+                    const res = await fetch('/api/customer/telegram/auth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ initData: tg.initData, tableId: verifiedTableId })
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        authenticatedCustomer = json.data.customer;
+                    } else {
+                        alert(json.message || "Telegram orqali autentifikatsiya qilishda xatolik yuz berdi");
+                    }
+                } catch (e) {
+                    console.error('Auth request failed', e);
+                }
+            }
+        });
 
         function callWaiter() {
-            socket.emit('call_waiter', { table: 'Stol #1', time: new Date().toLocaleTimeString() });
+            if (!verifiedTableId) {
+                alert("Stol ma’lumoti topilmadi");
+                return;
+            }
+            socket.emit('call_waiter', { tableNumber: verifiedTableId, time: new Date().toLocaleTimeString() });
             alert('Ofitsiantga chaqiruv yuborildi! Tez orada kelishadi.');
         }
 
-        function addToOrder(name, price) {
-            cart.push({ name, price, quantity: 1 });
+        function addToOrder(dishId, name, price) {
+            const existing = cart.find(i => i.dishId === dishId);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({ dishId, name, price, quantity: 1 });
+            }
             updateCartUI();
         }
 
@@ -92,24 +148,49 @@
 
             if (cart.length > 0) {
                 cartBar.classList.remove('hidden');
-                const total = cart.reduce((sum, item) => sum + item.price, 0);
+                const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                 totalEl.innerText = total.toLocaleString() + " so'm";
             } else {
                 cartBar.classList.add('hidden');
             }
         }
 
-        function sendOrder() {
-            const orderData = {
-                tableNumber: 1,
-                items: cart,
-                total: cart.reduce((sum, item) => sum + item.price, 0)
+        async function sendOrder() {
+            if (!verifiedTableId) {
+                alert("Stol ma’lumoti topilmadi. Buyurtma berib bo'lmaydi.");
+                return;
+            }
+
+            if (!authenticatedCustomer) {
+                alert("Telegram sessiyasi yaroqsiz");
+                return;
+            }
+
+            const orderPayload = {
+                tableId: verifiedTableId,
+                customerId: authenticatedCustomer.id,
+                items: cart.map(i => ({ dishId: i.dishId, quantity: i.quantity }))
             };
 
-            socket.emit('new_order', orderData);
-            alert('Buyurtmangiz muvaffaqiyatli oshxonaga yuborildi!');
-            cart = [];
-            updateCartUI();
+            try {
+                const res = await fetch('/api/customer/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderPayload)
+                });
+                const json = await res.json();
+
+                if (json.success) {
+                    const totalSum = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString();
+                    alert(`Buyurtmangiz yuborildi, ofitsiant tez orada kelib tasdiqlaydi\n\nBuyurtma №${json.data.orderId}\nStol №${verifiedTableId}\nJami summa: ${totalSum} so'm`);
+                    cart = [];
+                    updateCartUI();
+                } else {
+                    alert(json.message || "Buyurtma yuborilmadi");
+                }
+            } catch (e) {
+                alert("Server bilan aloqa uzildi");
+            }
         }
     </script>
 </body>
