@@ -8,95 +8,1494 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Socket.io client -->
     <script src="/socket.io/socket.io.js"></script>
+    <!-- FontAwesome icons for professional touch -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-slate-100 font-sans text-slate-800 antialiased selection:bg-sky-500 selection:text-white">
 
+    <!-- Connection Banner Status -->
+    <div id="connection-banner" class="hidden bg-amber-500 text-white text-xs py-1 text-center font-medium transition-all duration-300">
+        Qayta ulanilmoqda...
+    </div>
+
+    <!-- Main Container -->
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-slate-900 text-white flex flex-col">
-            <div class="p-5 text-2xl font-bold tracking-wider text-sky-400 border-b border-slate-800">
-                ChoyxonaOfitsiant
+        
+        <!-- Sidebar Navigation (Desktop) -->
+        <aside class="hidden md:flex w-64 bg-slate-900 text-white flex-col shadow-xl z-20">
+            <div class="p-6 text-xl font-bold tracking-wider text-sky-400 border-b border-slate-800 flex items-center justify-between">
+                <span>ChoyxonaAzizxon</span>
+                <span class="text-xs bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30">Ofitsiant</span>
             </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <a href="#" class="block px-4 py-2.5 rounded-lg bg-sky-600 text-white font-medium">Stollar Xaritasi</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Buyurtmalarim</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Chaqiruvlar</a>
+            <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-sky-600 text-white font-medium transition shadow-md shadow-sky-900/20">
+                    <i class="fa-solid fa-house w-5"></i> Bosh sahifa
+                </button>
+                <button onclick="switchTab('tables')" id="nav-tables" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition">
+                    <i class="fa-solid fa-chair w-5"></i> Stollar
+                </button>
+                <button onclick="switchTab('orders')" id="nav-orders" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition relative">
+                    <i class="fa-solid fa-receipt w-5"></i> Buyurtmalar
+                    <span id="badge-pending-orders" class="absolute right-3 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </button>
+                <button onclick="switchTab('menu')" id="nav-menu" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition">
+                    <i class="fa-solid fa-utensils w-5"></i> Yangi buyurtma
+                </button>
+                <button onclick="switchTab('calls')" id="nav-calls" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition relative">
+                    <i class="fa-solid fa-bell w-5"></i> Chaqiruvlar
+                    <span id="badge-active-calls" class="absolute right-3 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </button>
+                <button onclick="switchTab('bills')" id="nav-bills" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition">
+                    <i class="fa-solid fa-file-invoice-dollar w-5"></i> Hisoblar
+                </button>
+                <button onclick="switchTab('profile')" id="nav-profile" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition">
+                    <i class="fa-solid fa-user w-5"></i> Profil
+                </button>
             </nav>
-            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
-                Azamatjon & Umidjon Restarani
+            <div class="p-4 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                <span>Azamatjon & Umidjon</span>
+                <span id="current-time-display" class="font-mono text-slate-300">00:00</span>
             </div>
-        </div>
+        </aside>
 
-        <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
+        <!-- Main Content Wrapper -->
+        <div class="flex-1 flex flex-col overflow-hidden bg-slate-50">
+            
             <!-- Header -->
-            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
-                <h1 class="text-xl font-semibold text-gray-800">Ofitsiant Ishchi Stoli</h1>
-                <div class="flex items-center space-x-4">
-                    <span id="call-alert" class="hidden bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full animate-pulse">🔴 Chaqiruv bor!</span>
-                    <div class="w-10 h-10 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold">O</div>
+            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6 z-10">
+                <div class="flex items-center gap-4">
+                    <button class="md:hidden text-slate-600 focus:outline-none" onclick="toggleMobileSidebar()">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                    <h1 id="page-title" class="text-lg font-bold text-slate-800">Bosh sahifa</h1>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Real-time Call Alert Badge Header -->
+                    <div id="call-alert" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-3 py-1.5 rounded-full animate-pulse flex items-center gap-2 cursor-pointer" onclick="switchTab('calls')">
+                        <i class="fa-solid fa-bell"></i> <span id="call-alert-text">🔴 Chaqiruv bor!</span>
+                    </div>
+
+                    <!-- Connection Status Pill -->
+                    <div id="connection-pill" class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="connection-text">Ulangan</span>
+                    </div>
+
+                    <!-- Waiter Avatar Dropdown Toggle -->
+                    <div class="flex items-center gap-3 pl-2 border-l border-slate-200">
+                        <div class="text-right hidden sm:block">
+                            <p id="header-waiter-name" class="text-sm font-bold text-slate-800">Ofitsiant</p>
+                            <p class="text-xs text-slate-500">Faol holatda</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold shadow-sm" id="waiter-avatar-initial">
+                            O
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <!-- Dashboard Content -->
-            <main class="p-8">
-                <!-- Stollar va Xonalar Ro'yxati -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-gray-800">Stollar Holati</h2>
-                        <button onclick="loadRooms()" class="bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-700 transition">Yangilash</button>
-                    </div>
-                    <div id="waiter-rooms-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <p class="text-gray-500 text-sm">Xonalar yuklanmoqda...</p>
+            <!-- Dynamic Views Container -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+                
+                <!-- 1. LOGIN VIEW (Shown if unauthenticated) -->
+                <div id="view-login" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-slate-100">
+                        <div class="text-center mb-8">
+                            <div class="w-16 h-16 bg-sky-100 text-sky-600 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold mb-4 shadow-inner">
+                                <i class="fa-solid fa-utensils"></i>
+                            </div>
+                            <h2 class="text-2xl font-black text-slate-900">ChoyxonaAzizxon</h2>
+                            <p class="text-sm text-slate-500 mt-1">Ofitsiant tizimiga kirish</p>
+                        </div>
+
+                        <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Login</label>
+                                <input type="text" id="login-username" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium" placeholder="Loginni kiriting">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Parol</label>
+                                <input type="password" id="login-password" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm font-medium" placeholder="Parolni kiriting">
+                            </div>
+                            <div id="login-error" class="hidden text-red-600 text-xs font-medium bg-red-50 p-3 rounded-lg border border-red-100"></div>
+                            <button type="submit" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-sky-600/30 text-sm">
+                                Kirish
+                            </button>
+                        </form>
                     </div>
                 </div>
+
+                <!-- 2. DASHBOARD VIEW -->
+                <div id="tab-dashboard" class="space-y-6">
+                    <!-- Statistics Grid -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Bugungi buyurtmalar</p>
+                            <h3 id="stat-today-orders" class="text-2xl font-black text-slate-800">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Faol stollar</p>
+                            <h3 id="stat-active-tables" class="text-2xl font-black text-emerald-600">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Yangi chaqiruvlar</p>
+                            <h3 id="stat-pending-calls" class="text-2xl font-black text-red-500">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Bugungi savdo</p>
+                            <h3 id="stat-today-sales" class="text-xl font-black text-sky-600">0 so'm</h3>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions & Pending Customer Orders -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Pending Customer Web App Orders Section -->
+                        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="fa-solid fa-clock-rotate-left text-amber-500"></i> Kutilayotgan mijoz buyurtmalari (PENDING)
+                                </h3>
+                                <span id="pending-orders-count" class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">0 ta</span>
+                            </div>
+                            <div id="pending-orders-container" class="space-y-3">
+                                <p class="text-slate-400 text-sm text-center py-6">Kutilayotgan buyurtmalar mavjud emas</p>
+                            </div>
+                        </div>
+
+                        <!-- Quick Overview / Commission Box -->
+                        <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
+                            <div>
+                                <h3 class="font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100 flex items-center gap-2">
+                                    <i class="fa-solid fa-wallet text-emerald-500"></i> Ofitsiant ko'rsatkichlari
+                                </h3>
+                                <div class="space-y-4 text-sm">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-500">Komissiya foizi:</span>
+                                        <span id="waiter-commission-rate" class="font-bold text-slate-800">5%</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-500">Bugungi komissiya:</span>
+                                        <span id="waiter-today-commission" class="font-bold text-emerald-600">0 so'm</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-500">Yakunlanganlar:</span>
+                                        <span id="waiter-completed-count" class="font-bold text-slate-800">0 ta</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-500">Bekor qilinganlar:</span>
+                                        <span id="waiter-cancelled-count" class="font-bold text-red-500">0 ta</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="switchTab('tables')" class="mt-6 w-full bg-slate-900 text-white font-medium py-3 rounded-xl hover:bg-slate-800 transition text-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-chair"></i> Stollar xaritasiga o'tish
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. TABLES VIEW -->
+                <div id="tab-tables" class="hidden space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" id="table-search-input" oninput="filterTables()" placeholder="Stol qidirish..." class="px-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-64">
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Bo‘sh</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200"><span class="w-2 h-2 rounded-full bg-red-500"></span> Band</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Buyurtma kutilmoqda</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Hisob so‘ralgan</span>
+                            <button onclick="loadRoomsAndTables()" class="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm ml-auto">
+                                <i class="fa-solid fa-rotate-right mr-1"></i> Yangilash
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rooms & Tables Container -->
+                    <div id="waiter-rooms-container" class="space-y-6">
+                        <p class="text-slate-500 text-sm text-center py-10">Stollar yuklanmoqda...</p>
+                    </div>
+                </div>
+
+                <!-- 4. ORDERS VIEW -->
+                <div id="tab-orders" class="hidden space-y-6">
+                    <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                        <h2 class="font-bold text-slate-800 text-lg">Faol buyurtmalar ro'yxati</h2>
+                        <button onclick="loadActiveOrders()" class="bg-sky-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-sky-700 transition">
+                            <i class="fa-solid fa-rotate-right mr-1"></i> Yangilash
+                        </button>
+                    </div>
+                    <div id="waiter-orders-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <p class="text-slate-500 text-sm">Buyurtmalar yuklanmoqda...</p>
+                    </div>
+                </div>
+
+                <!-- 5. MENU & ORDER BUILDER VIEW (Yangi buyurtma) -->
+                <div id="tab-menu" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Menu Catalog (2 cols) -->
+                    <div class="lg:col-span-2 space-y-4">
+                        <!-- Table Selection & Search bar -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-4 justify-between items-center">
+                            <div class="w-full sm:w-1/2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stolni tanlang</label>
+                                <select id="builder-table-select" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                    <option value="">-- Stol tanlanmagan --</option>
+                                </select>
+                            </div>
+                            <div class="w-full sm:w-1/2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Taom qidirish</label>
+                                <input type="text" id="menu-search-input" oninput="filterMenuCatalog()" placeholder="Taom qidirish..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            </div>
+                        </div>
+
+                        <!-- Categories -->
+                        <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none" id="menu-categories-container">
+                            <button onclick="filterMenuCategory('ALL')" class="category-btn px-4 py-2 rounded-xl bg-sky-600 text-white font-medium text-xs whitespace-nowrap transition shadow-sm">Barchasi</button>
+                            <button onclick="filterMenuCategory('Osh')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Osh</button>
+                            <button onclick="filterMenuCategory('Suyuq ovqatlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Suyuq ovqatlar</button>
+                            <button onclick="filterMenuCategory('Quyuq taomlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Quyuq taomlar</button>
+                            <button onclick="filterMenuCategory('Hamirli taomlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Hamirli taomlar</button>
+                            <button onclick="filterMenuCategory('Kaboblar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Kaboblar</button>
+                            <button onclick="filterMenuCategory('Somsalar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Somsalar</button>
+                            <button onclick="filterMenuCategory('Fast Food')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Fast Food</button>
+                            <button onclick="filterMenuCategory('Ichimliklar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Ichimliklar</button>
+                        </div>
+
+                        <!-- Menu Items Grid -->
+                        <div id="menu-items-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <p class="text-slate-500 text-sm col-span-full text-center py-10">Menyu yuklanmoqda...</p>
+                        </div>
+                    </div>
+
+                    <!-- Order Builder / Cart (1 col sticky) -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col h-[calc(100vh-140px)] sticky top-6">
+                        <h2 class="text-lg font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+                            <span>Buyurtma</span>
+                            <span id="cart-item-count" class="text-xs bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full font-bold">0 taom</span>
+                        </h2>
+
+                        <!-- Cart Items List -->
+                        <div id="cart-items-container" class="flex-1 overflow-y-auto space-y-3 pr-1">
+                            <p class="text-slate-400 text-sm text-center py-12">Savat bo'sh. Menyudan taom tanlang.</p>
+                        </div>
+
+                        <!-- General Order Note -->
+                        <div class="mt-4 pt-3 border-t border-slate-100">
+                            <input type="text" id="order-general-note" placeholder="Buyurtmaga izoh (masalan: tuzsiz)..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+
+                        <!-- Total & Submit Button -->
+                        <div class="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                            <div class="flex justify-between items-center text-base font-bold text-slate-900">
+                                <span>Jami summa:</span>
+                                <span id="cart-total-amount" class="text-sky-600">0 so'm</span>
+                            </div>
+                            <button onclick="submitWaiterOrder()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> Buyurtmani yuborish
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. CALLS VIEW -->
+                <div id="tab-calls" class="hidden space-y-6">
+                    <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                        <h2 class="font-bold text-slate-800 text-lg">Mijozlar chaqiruvlari</h2>
+                        <button onclick="loadActiveCalls()" class="bg-sky-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-sky-700 transition">
+                            <i class="fa-solid fa-rotate-right mr-1"></i> Yangilash
+                        </button>
+                    </div>
+                    <div id="waiter-calls-list-container" class="space-y-3">
+                        <p class="text-slate-500 text-sm text-center py-10">Ayni paytda faol chaqiruvlar yo'q.</p>
+                    </div>
+                </div>
+
+                <!-- 7. BILLS & PAYMENT VIEW -->
+                <div id="tab-bills" class="hidden space-y-6">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+                        <h2 class="font-bold text-slate-800 text-lg mb-4">Hisob-kitob va to'lovlar</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stolni tanlang (Hisob chiqarish)</label>
+                                <select id="bill-table-select" onchange="loadTableBillDetails()" class="w-full px-4 py-3 rounded-xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                    <option value="">-- Stolni tanlang --</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bill Details Card -->
+                    <div id="bill-details-wrapper" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+                        <div class="flex justify-between items-center pb-4 border-b border-slate-100">
+                            <div>
+                                <h3 id="bill-table-title" class="text-xl font-black text-slate-800">Stol №</h3>
+                                <p class="text-xs text-slate-500">Ofitsiant: <span id="bill-waiter-name">-</span></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-slate-400">Jami hisob</p>
+                                <h3 id="bill-total-sum" class="text-2xl font-black text-sky-600">0 so'm</h3>
+                            </div>
+                        </div>
+
+                        <!-- Orders inside this table for billing -->
+                        <div id="bill-orders-container" class="space-y-4">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Payment Method selection -->
+                        <div class="pt-4 border-t border-slate-200 space-y-4">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">To'lov turi</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <button type="button" onclick="setPaymentMethod('Naqd')" id="pay-btn-Naqd" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-sky-600 bg-sky-50 text-sky-700 font-bold text-sm transition">Naqd</button>
+                                <button type="button" onclick="setPaymentMethod('Plastik karta')" id="pay-btn-Plastik karta" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition">Plastik karta</button>
+                                <button type="button" onclick="setPaymentMethod('Elektron to‘lov')" id="pay-btn-Elektron to‘lov" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition">Elektron to‘lov</button>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button onclick="processPayment()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-check"></i> To'lovni qabul qilish
+                                </button>
+                                <button onclick="printReceipt()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-print"></i> Chek chiqarish
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. PROFILE VIEW -->
+                <div id="tab-profile" class="hidden space-y-6">
+                    <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xs max-w-2xl mx-auto">
+                        <div class="flex items-center gap-4 pb-6 border-b border-slate-100">
+                            <div class="w-16 h-16 rounded-full bg-sky-600 text-white flex items-center justify-center text-2xl font-bold shadow-md" id="profile-avatar-initial">
+                                O
+                            </div>
+                            <div>
+                                <h2 id="profile-name" class="text-xl font-bold text-slate-800">Ofitsiant Ismi</h2>
+                                <p class="text-xs text-slate-500">Rol: <span class="font-semibold text-sky-600">Ofitsiant</span></p>
+                            </div>
+                        </div>
+
+                        <div class="py-6 space-y-4 text-sm">
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Ism:</span>
+                                <span id="profile-val-name" class="font-bold text-slate-800">-</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Login:</span>
+                                <span id="profile-val-login" class="font-bold text-slate-800">-</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Ish holati:</span>
+                                <span class="font-bold text-emerald-600">Faol</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Bugungi buyurtmalar:</span>
+                                <span id="profile-val-orders" class="font-bold text-slate-800">0 ta</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Bugungi savdo:</span>
+                                <span id="profile-val-sales" class="font-bold text-sky-600">0 so'm</span>
+                            </div>
+                            <div class="flex justify-between py-2 border-b border-slate-100">
+                                <span class="text-slate-500">Komissiya:</span>
+                                <span id="profile-val-commission" class="font-bold text-emerald-600">0 so'm</span>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex gap-4">
+                            <button onclick="logout()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2 border border-red-200">
+                                <i class="fa-solid fa-right-from-bracket"></i> Tizimdan chiqish
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </main>
+
+            <!-- Mobile Bottom Navigation Bar -->
+            <nav class="md:hidden bg-white border-t border-slate-200 h-16 flex items-center justify-around fixed bottom-0 left-0 right-0 z-30 shadow-lg">
+                <button onclick="switchTab('dashboard')" id="mob-nav-dashboard" class="flex flex-col items-center justify-center flex-1 text-sky-600">
+                    <i class="fa-solid fa-house text-lg"></i>
+                    <span class="text-[10px] font-medium mt-1">Bosh sahifa</span>
+                </button>
+                <button onclick="switchTab('tables')" id="mob-nav-tables" class="flex flex-col items-center justify-center flex-1 text-slate-400">
+                    <i class="fa-solid fa-chair text-lg"></i>
+                    <span class="text-[10px] font-medium mt-1">Stollar</span>
+                </button>
+                <button onclick="switchTab('orders')" id="mob-nav-orders" class="flex flex-col items-center justify-center flex-1 text-slate-400 relative">
+                    <i class="fa-solid fa-receipt text-lg"></i>
+                    <span class="text-[10px] font-medium mt-1">Buyurtmalar</span>
+                    <span id="mob-badge-orders" class="absolute top-1 right-5 bg-amber-500 text-white text-[9px] px-1.5 py-0.2 rounded-full hidden">0</span>
+                </button>
+                <button onclick="switchTab('calls')" id="mob-nav-calls" class="flex flex-col items-center justify-center flex-1 text-slate-400 relative">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                    <span class="text-[10px] font-medium mt-1">Chaqiruvlar</span>
+                    <span id="mob-badge-calls" class="absolute top-1 right-5 bg-red-500 text-white text-[9px] px-1.5 py-0.2 rounded-full hidden">0</span>
+                </button>
+                <button onclick="switchTab('profile')" id="mob-nav-profile" class="flex flex-col items-center justify-center flex-1 text-slate-400">
+                    <i class="fa-solid fa-user text-lg"></i>
+                    <span class="text-[10px] font-medium mt-1">Profil</span>
+                </button>
+            </nav>
+
         </div>
     </div>
 
-    <!-- Socket.io va Interfeys Logikasi -->
+    <!-- MODAL: TABLE DETAILS -->
+    <div id="modal-table-details" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                <div>
+                    <h3 id="modal-table-number" class="text-lg font-bold text-slate-800">Stol №</h3>
+                    <p class="text-xs text-slate-500">Holat: <span id="modal-table-status" class="font-semibold">-</span></p>
+                </div>
+                <button onclick="closeTableModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="text-xs text-slate-400 block">Mijozlar soni</span>
+                        <span id="modal-table-guests" class="font-bold text-slate-800">-</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 block">Faol ofitsiant</span>
+                        <span id="modal-table-waiter" class="font-bold text-slate-800">-</span>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Faol buyurtmalar</h4>
+                    <div id="modal-table-active-orders" class="space-y-3">
+                        <!-- Orders inside table -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 flex flex-wrap gap-3">
+                <button onclick="openMenuForCurrentTable()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Yangi buyurtma
+                </button>
+                <button onclick="goToBillForCurrentTable()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> Hisob chiqarish
+                </button>
+                <button onclick="freeCurrentTable()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-check"></i> Bo'shatish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REJECT ORDER REASON -->
+    <div id="modal-reject-order" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 class="text-lg font-bold text-slate-800">Buyurtmani rad etishni tasdiqlaysizmi?</h3>
+            <p class="text-xs text-slate-500">Iltimos, rad etish sababini ko'rsating (ixtiyoriy):</p>
+            <input type="hidden" id="reject-order-id">
+            <textarea id="reject-reason-input" placeholder="Rad etish sababi..." class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 h-24 resize-none"></textarea>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeRejectModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl transition text-sm">Bekor qilish</button>
+                <button onclick="confirmRejectOrder()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition text-sm">Rad etish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: RETURN / REFUND ITEM -->
+    <div id="modal-return-item" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 class="text-lg font-bold text-slate-800">Ushbu taomni qaytarishni tasdiqlaysizmi?</h3>
+            <input type="hidden" id="return-order-id">
+            <input type="hidden" id="return-item-index">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Qaytarish sababi</label>
+                <textarea id="return-reason-input" placeholder="Sababini kiriting..." class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 h-24 resize-none"></textarea>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeReturnModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl transition text-sm">Bekor qilish</button>
+                <button onclick="confirmReturnItem()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-xl transition text-sm">Tasdiqlash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
     <script>
         const socket = io();
 
-        socket.on('waiter_called', (data) => {
-            const alertBadge = document.getElementById('call-alert');
-            alertBadge.classList.remove('hidden');
-            alertBadge.innerText = `🔴 Stol chaqirmoqda: ${data.table || 'Nomaʼlum'}`;
-            
-            // Ovozli yoki vizual signal berish mumkin
-            if (navigator.vibrate) navigator.vibrate(200);
+        // State variables
+        let currentWaiter = null;
+        let currentTab = 'dashboard';
+        let allRooms = [];
+        let menuCatalog = [];
+        let selectedCategory = 'ALL';
+        let cartItems = [];
+        let activeTablesList = [];
+        let activeOrdersList = [];
+        let pendingOrdersList = [];
+        let activeCallsList = [];
+        let selectedTableForModal = null;
+        let selectedPaymentMethod = 'Naqd';
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            updateClock();
+            setInterval(updateClock, 1000);
+            checkAuth();
         });
 
-        async function loadRooms() {
-            try {
-                const response = await fetch('/api/rooms');
-                const rooms = await response.json();
-                const container = document.getElementById('waiter-rooms-container');
-                
-                if (rooms.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar yo\'q.</p>';
-                    return;
-                }
+        function updateClock() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('current-time-display').innerText = timeStr;
+        }
 
-                container.innerHTML = rooms.map(room => `
-                    <div class="border border-gray-200 p-4 rounded-xl bg-gray-50">
-                        <h3 class="font-bold text-gray-800 text-base mb-3 border-b pb-2">${room.name}</h3>
-                        <div class="grid grid-cols-2 gap-2">
-                            ${room.tables && room.tables.length > 0 ? room.tables.map(table => `
-                                <div class="bg-white p-3 rounded-lg border border-gray-200 text-center shadow-xs hover:border-sky-500 cursor-pointer transition">
-                                    <p class="font-semibold text-gray-800">Stol #${table.number || table.id}</p>
-                                    <span class="text-xs text-emerald-600 font-medium">Bo'sh</span>
-                                </div>
-                            `).join('') : '<p class="text-xs text-gray-400 col-span-2">Stollar mavjud emas</p>'}
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Xonalarni yuklashda xatolik:', error);
+        // Authentication checks
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/waiter/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.waiter) {
+                        currentWaiter = data.waiter;
+                        initWaiterSession();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Auth check error:', e);
+            }
+            // Show Login Modal if not authenticated
+            document.getElementById('view-login').classList.remove('hidden');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('login-username').value;
+            const passwordInput = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+
+            try {
+                const res = await fetch('/api/waiter/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: usernameInput, password: passwordInput })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    currentWaiter = data.waiter;
+                    document.getElementById('view-login').classList.add('hidden');
+                    initWaiterSession();
+                } else {
+                    errorDiv.innerText = data.error || 'Login yoki parol xato!';
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorDiv.innerText = 'Serverga ulanishda xatolik yuz berdi';
+                errorDiv.classList.remove('hidden');
             }
         }
 
-        loadRooms();
+        async function logout() {
+            try {
+                await fetch('/api/waiter/logout', { method: 'POST' });
+            } catch(e) {}
+            window.location.reload();
+        }
+
+        function initWaiterSession() {
+            if (!currentWaiter) return;
+            document.getElementById('header-waiter-name').innerText = currentWaiter.name;
+            document.getElementById('waiter-avatar-initial').innerText = currentWaiter.name.charAt(0).toUpperCase();
+            document.getElementById('profile-avatar-initial').innerText = currentWaiter.name.charAt(0).toUpperCase();
+            document.getElementById('profile-name').innerText = currentWaiter.name;
+            document.getElementById('profile-val-name').innerText = currentWaiter.name;
+            document.getElementById('profile-val-login').innerText = currentWaiter.login || '-';
+            
+            // Load initial data
+            loadRoomsAndTables();
+            loadMenuCatalog();
+            loadPendingOrders();
+            loadActiveOrders();
+            loadActiveCalls();
+            loadWaiterStatistics();
+
+            // Setup Socket Listeners
+            setupSocketEvents();
+        }
+
+        // Socket.io Real-time Events
+        function setupSocketEvents() {
+            socket.on('connect', () => {
+                document.getElementById('connection-banner').classList.add('hidden');
+                document.getElementById('connection-pill').classList.remove('hidden');
+                document.getElementById('connection-text').innerText = 'Ulangan';
+                // Reload data upon reconnect
+                loadRoomsAndTables();
+                loadPendingOrders();
+                loadActiveOrders();
+                loadActiveCalls();
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connection-banner').classList.remove('hidden');
+                document.getElementById('connection-pill').classList.add('hidden');
+                document.getElementById('connection-banner').innerText = 'Internet aloqasi uzildi. Qayta ulanilmoqda...';
+            });
+
+            socket.on('pending_order', (data) => {
+                playAlertSound();
+                showNotification('Yangi mijoz buyurtmasi qabul qilindi!');
+                loadPendingOrders();
+            });
+
+            socket.on('call_waiter', (data) => {
+                playAlertSound();
+                const alertBadge = document.getElementById('call-alert');
+                alertBadge.classList.remove('hidden');
+                document.getElementById('call-alert-text').innerText = `🔴 Stol #${data.tableNumber || data.table} ofitsiantni chaqirmoqda`;
+                if (navigator.vibrate) navigator.vibrate(250);
+                loadActiveCalls();
+            });
+
+            socket.on('table_status_updated', (data) => {
+                loadRoomsAndTables();
+            });
+
+            socket.on('order_status_updated', (data) => {
+                loadActiveOrders();
+                loadRoomsAndTables();
+                if (data.status === 'READY') {
+                    showNotification(`Buyurtma tayyor! Stol #${data.tableNumber || '-'}`);
+                    playAlertSound();
+                }
+            });
+        }
+
+        function playAlertSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 587.33; // D5
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {}
+        }
+
+        function showNotification(msg) {
+            const div = document.createElement('div');
+            div.className = 'fixed top-5 right-5 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl z-50 text-sm font-bold flex items-center gap-3 border border-slate-700 animate-bounce';
+            div.innerHTML = `<i class="fa-solid fa-bell text-amber-400"></i> <span>${msg}</span>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 4000);
+        }
+
+        // Tab Switching
+        function switchTab(tabId) {
+            currentTab = tabId;
+            const tabs = ['dashboard', 'tables', 'orders', 'menu', 'calls', 'bills', 'profile'];
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
+                const navBtn = document.getElementById(`nav-${t}`);
+                if (navBtn) {
+                    navBtn.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-300 font-medium transition';
+                }
+                const mobBtn = document.getElementById(`mob-nav-${t}`);
+                if (mobBtn) {
+                    mobBtn.className = 'flex flex-col items-center justify-center flex-1 text-slate-400';
+                }
+            });
+
+            const activeEl = document.getElementById(`tab-${tabId}`);
+            if (activeEl) activeEl.classList.remove('hidden');
+
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.className = 'w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-sky-600 text-white font-medium transition shadow-md shadow-sky-900/20';
+            }
+            const activeMob = document.getElementById(`mob-nav-${tabId}`);
+            if (activeMob) {
+                activeMob.className = 'flex flex-col items-center justify-center flex-1 text-sky-600';
+            }
+
+            // Titles
+            const titles = {
+                'dashboard': 'Bosh sahifa',
+                'tables': 'Stollar Xaritasi',
+                'orders': 'Faol Buyurtmalar',
+                'menu': 'Yangi Buyurtma Yaratish',
+                'calls': 'Mijoz Chaqiruvlari',
+                'bills': 'Hisob va To‘lovlar',
+                'profile': 'Ofitsiant Profili'
+            };
+            document.getElementById('page-title').innerText = titles[tabId] || 'Ofitsiant Paneli';
+
+            // Refresh specific data
+            if (tabId === 'tables') loadRoomsAndTables();
+            if (tabId === 'orders') loadActiveOrders();
+            if (tabId === 'menu') { loadMenuCatalog(); loadTableDropdowns(); }
+            if (tabId === 'calls') loadActiveCalls();
+            if (tabId === 'bills') loadTableDropdowns();
+            if (tabId === 'dashboard') loadWaiterStatistics();
+        }
+
+        // Rooms & Tables Management
+        async function loadRoomsAndTables() {
+            try {
+                const res = await fetch('/api/rooms');
+                if (!res.ok) return;
+                allRooms = await res.json();
+                renderRoomsAndTables(allRooms);
+                loadTableDropdowns();
+            } catch (e) {
+                console.error('Rooms load error:', e);
+            }
+        }
+
+        function renderRoomsAndTables(rooms) {
+            const container = document.getElementById('waiter-rooms-container');
+            if (!rooms || rooms.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-sm text-center py-10">Hozircha xonalar va stollar mavjud emas.</p>';
+                return;
+            }
+
+            let activeCount = 0;
+            container.innerHTML = rooms.map(room => `
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                    <h3 class="font-bold text-slate-800 text-base mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+                        <span>${room.name}</span>
+                        <span class="text-xs font-normal text-slate-400">${room.tables ? room.tables.length : 0} ta stol</span>
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        ${room.tables && room.tables.length > 0 ? room.tables.map(table => {
+                            if (table.status === 'OCCUPIED' || table.status === 'BAND') activeCount++;
+                            const statusColor = getTableStatusColorClass(table.status);
+                            const statusText = getTableStatusUzText(table.status);
+                            return `
+                                <div onclick="openTableModal('${table.id}', '${table.number || table.id}', '${table.status}')" class="bg-white p-4 rounded-xl border-2 ${statusColor} text-center shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between">
+                                    <div>
+                                        <p class="font-black text-slate-800 text-base">Stol #${table.number || table.id}</p>
+                                        <p class="text-[11px] text-slate-500 mt-0.5">${room.name}</p>
+                                    </div>
+                                    <span class="mt-3 text-xs font-bold px-2 py-1 rounded-lg ${getStatusBadgeClass(table.status)}">${statusText}</span>
+                                </div>
+                            `;
+                        }).join('') : '<p class="text-xs text-slate-400 col-span-full text-center py-4">Stollar mavjud emas</p>'}
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('stat-active-tables').innerText = activeCount;
+        }
+
+        function getTableStatusColorClass(status) {
+            switch(status) {
+                case 'OCCUPIED':
+                case 'BAND': return 'border-red-200 bg-red-50/50 hover:border-red-400';
+                case 'PENDING':
+                case 'ORDER_PENDING': return 'border-amber-200 bg-amber-50/50 hover:border-amber-400';
+                case 'BILL_REQUESTED': return 'border-purple-200 bg-purple-50/50 hover:border-purple-400';
+                default: return 'border-emerald-200 bg-emerald-50/50 hover:border-emerald-400';
+            }
+        }
+
+        function getTableStatusUzText(status) {
+            switch(status) {
+                case 'OCCUPIED':
+                case 'BAND': return 'Band';
+                case 'PENDING':
+                case 'ORDER_PENDING': return 'Buyurtma kutilmoqda';
+                case 'BILL_REQUESTED': return 'Hisob so‘ralgan';
+                default: return 'Bo‘sh';
+            }
+        }
+
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'OCCUPIED':
+                case 'BAND': return 'bg-red-100 text-red-700';
+                case 'PENDING':
+                case 'ORDER_PENDING': return 'bg-amber-100 text-amber-700';
+                case 'BILL_REQUESTED': return 'bg-purple-100 text-purple-700';
+                default: return 'bg-emerald-100 text-emerald-700';
+            }
+        }
+
+        function filterTables() {
+            const q = document.getElementById('table-search-input').value.toLowerCase();
+            if (!allRooms) return;
+            const filtered = allRooms.map(room => ({
+                ...room,
+                tables: room.tables.filter(t => String(t.number || t.id).toLowerCase().includes(q))
+            })).filter(room => room.tables.length > 0);
+            renderRoomsAndTables(filtered);
+        }
+
+        // Table Details Modal
+        async function openTableModal(tableId, tableNumber, status) {
+            selectedTableForModal = tableId;
+            document.getElementById('modal-table-number').innerText = `Stol #${tableNumber}`;
+            document.getElementById('modal-table-status').innerText = getTableStatusUzText(status);
+            document.getElementById('modal-table-guests').innerText = '2-4 kishi';
+            document.getElementById('modal-table-waiter').innerText = currentWaiter ? currentWaiter.name : '-';
+            
+            const ordersContainer = document.getElementById('modal-table-active-orders');
+            ordersContainer.innerHTML = '<p class="text-xs text-slate-400">Buyurtmalar yuklanmoqda...</p>';
+            document.getElementById('modal-table-details').classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/api/orders?tableId=${tableId}`);
+                if (res.ok) {
+                    const orders = await res.json();
+                    if (!orders || orders.length === 0) {
+                        ordersContainer.innerHTML = '<p class="text-xs text-slate-400">Bu stolda faol buyurtmalar yo‘q.</p>';
+                        return;
+                    }
+                    ordersContainer.innerHTML = orders.map(ord => `
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-sm">
+                            <div class="flex justify-between font-bold text-slate-800">
+                                <span>Buyurtma №${ord.id}</span>
+                                <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
+                            </div>
+                            <div class="text-xs text-slate-500">Holat: <span class="font-semibold text-slate-700">${getOrderStatusUz(ord.status)}</span></div>
+                            <div class="space-y-1 pt-1 border-t border-slate-200">
+                                ${ord.items && ord.items.map((it, idx) => `
+                                    <div class="flex justify-between text-xs">
+                                        <span>${it.name || it.productName} (x${it.quantity})</span>
+                                        <div class="flex items-center gap-2">
+                                            <span>${(it.price || 0) * it.quantity} so'm</span>
+                                            <button onclick="openReturnModal('${ord.id}', ${idx})" class="text-red-500 hover:text-red-700 text-[10px] font-bold">Qaytarish</button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                ordersContainer.innerHTML = '<p class="text-xs text-red-500">Buyurtmalarni yuklashda xatolik.</p>';
+            }
+        }
+
+        function closeTableModal() {
+            document.getElementById('modal-table-details').classList.add('hidden');
+            selectedTableForModal = null;
+        }
+
+        function openMenuForCurrentTable() {
+            if (!selectedTableForModal) return;
+            document.getElementById('builder-table-select').value = selectedTableForModal;
+            closeTableModal();
+            switchTab('menu');
+        }
+
+        function goToBillForCurrentTable() {
+            if (!selectedTableForModal) return;
+            document.getElementById('bill-table-select').value = selectedTableForModal;
+            closeTableModal();
+            switchTab('bills');
+            loadTableBillDetails();
+        }
+
+        async function freeCurrentTable() {
+            if (!selectedTableForModal) return;
+            if (!confirm('Stolni bo‘shatishni tasdiqlaysizmi?')) return;
+            try {
+                const res = await fetch(`/api/tables/${selectedTableForModal}/free`, { method: 'POST' });
+                if (res.ok) {
+                    showNotification('Stol bo‘shatildi');
+                    closeTableModal();
+                    loadRoomsAndTables();
+                } else {
+                    alert('Faol buyurtmalar mavjud bo‘lgan stolni bo‘shatib bo‘lmaydi!');
+                }
+            } catch(e) {
+                alert('Xatolik yuz berdi');
+            }
+        }
+
+        // Pending Customer Orders
+        async function loadPendingOrders() {
+            try {
+                const res = await fetch('/api/orders?status=PENDING');
+                if (!res.ok) return;
+                pendingOrdersList = await res.json();
+                renderPendingOrders(pendingOrdersList);
+                
+                const countBadge = document.getElementById('badge-pending-orders');
+                const mobBadge = document.getElementById('mob-badge-orders');
+                const headerCount = document.getElementById('pending-orders-count');
+                
+                if (pendingOrdersList.length > 0) {
+                    countBadge.innerText = pendingOrdersList.length;
+                    countBadge.classList.remove('hidden');
+                    mobBadge.innerText = pendingOrdersList.length;
+                    mobBadge.classList.remove('hidden');
+                    headerCount.innerText = `${pendingOrdersList.length} ta`;
+                } else {
+                    countBadge.classList.add('hidden');
+                    mobBadge.classList.add('hidden');
+                    headerCount.innerText = '0 ta';
+                }
+            } catch(e) {}
+        }
+
+        function renderPendingOrders(orders) {
+            const container = document.getElementById('pending-orders-container');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<p class="text-slate-400 text-sm text-center py-6">Kutilayotgan buyurtmalar mavjud emas</p>';
+                return;
+            }
+
+            container.innerHTML = orders.map(ord => `
+                <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-black text-slate-900">Buyurtma №${ord.id}</span>
+                            <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded">Stol #${ord.tableNumber || ord.tableId || '-'}</span>
+                        </div>
+                        <p class="text-xs text-slate-600">Mijoz: <span class="font-bold text-slate-800">${ord.customerName || 'Telegram foydalanuvchisi'}</span></p>
+                        <div class="text-xs text-slate-500 space-y-0.5">
+                            ${ord.items && ord.items.map(it => `<div>• ${it.name || it.productName} (x${it.quantity}) -${(it.price || 0) * it.quantity} so'm</div>`).join('')}
+                        </div>
+                        <p class="text-xs font-bold text-sky-600 pt-1">Jami: ${ord.totalAmount || 0} so'm</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <button onclick="approveOrder('${ord.id}')" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
+                            Tasdiqlash
+                        </button>
+                        <button onclick="openRejectModal('${ord.id}')" class="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
+                            Rad etish
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function approveOrder(orderId) {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/approve`, { method: 'POST' });
+                if (res.ok) {
+                    showNotification('Buyurtma tasdiqlandi va oshxonaga yuborildi');
+                    loadPendingOrders();
+                    loadActiveOrders();
+                    loadRoomsAndTables();
+                } else {
+                    const data = await res.json();
+                    alert(data.error || 'Xatolik yuz berdi');
+                }
+            } catch(e) {
+                alert('Internet aloqasi xatoligi');
+            }
+        }
+
+        function openRejectModal(orderId) {
+            document.getElementById('reject-order-id').value = orderId;
+            document.getElementById('reject-reason-input').value = '';
+            document.getElementById('modal-reject-order').classList.remove('hidden');
+        }
+
+        function closeRejectModal() {
+            document.getElementById('modal-reject-order').classList.add('hidden');
+        }
+
+        async function confirmRejectOrder() {
+            const orderId = document.getElementById('reject-order-id').value;
+            const reason = document.getElementById('reject-reason-input').value;
+            try {
+                const res = await fetch(`/api/orders/${orderId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason })
+                });
+                if (res.ok) {
+                    showNotification('Buyurtma rad etildi');
+                    closeRejectModal();
+                    loadPendingOrders();
+                } else {
+                    alert('Xatolik yuz berdi');
+                }
+            } catch(e) {
+                alert('Internet aloqasi xatoligi');
+            }
+        }
+
+        // Active Orders List
+        async function loadActiveOrders() {
+            try {
+                const res = await fetch('/api/orders?active=true');
+                if (!res.ok) return;
+                activeOrdersList = await res.json();
+                renderActiveOrders(activeOrdersList);
+            } catch(e) {}
+        }
+
+        function renderActiveOrders(orders) {
+            const container = document.getElementById('waiter-orders-list-container');
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-sm col-span-full text-center py-10">Faol buyurtmalar mavjud emas.</p>';
+                return;
+            }
+
+            container.innerHTML = orders.map(ord => `
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <span class="font-black text-slate-800">Buyurtma №${ord.id}</span>
+                        <span class="text-xs font-bold px-2.5 py-1 rounded-lg ${getOrderStatusBadgeClass(ord.status)}">${getOrderStatusUz(ord.status)}</span>
+                    </div>
+                    <div class="text-xs text-slate-600">
+                        <p>Stol: <span class="font-bold text-slate-800">Stol #${ord.tableNumber || ord.tableId || '-'}</span></p>
+                        <p>Vaqt: <span class="font-medium text-slate-800">${ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('uz-UZ', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></p>
+                    </div>
+                    <div class="space-y-1 text-xs pt-2 border-t border-slate-100">
+                        ${ord.items && ord.items.map(it => `
+                            <div class="flex justify-between">
+                                <span>${it.name \vert{}\vert{} it.productName} (x${it.quantity})</span>
+                                <span class="font-semibold">${(it.price || 0) * it.quantity} so'm</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="pt-2 border-t border-slate-100 flex justify-between items-center text-sm font-black">
+                        <span>Jami:</span>
+                        <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getOrderStatusUz(status) {
+            switch(status) {
+                case 'PENDING': return 'Ofitsiant tasdig‘i kutilmoqda';
+                case 'APPROVED': return 'Tasdiqlandi';
+                case 'KITCHEN': return 'Oshxonaga yuborildi';
+                case 'PREPARING': return 'Tayyorlanmoqda';
+                case 'READY': return 'Tayyor';
+                case 'SERVED': return 'Taqdim etildi';
+                case 'COMPLETED': return 'Yakunlandi';
+                case 'REJECTED': return 'Rad etildi';
+                case 'CANCELLED': return 'Bekor qilindi';
+                default: return status;
+            }
+        }
+
+        function getOrderStatusBadgeClass(status) {
+            switch(status) {
+                case 'READY': return 'bg-emerald-100 text-emerald-700 animate-pulse';
+                case 'PREPARING': return 'bg-amber-100 text-amber-700';
+                case 'COMPLETED': return 'bg-slate-100 text-slate-700';
+                case 'REJECTED': case 'CANCELLED': return 'bg-red-100 text-red-700';
+                default: return 'bg-sky-100 text-sky-700';
+            }
+        }
+
+        // Menu & Order Builder
+        async function loadMenuCatalog() {
+            try {
+                const res = await fetch('/api/menu');
+                if (!res.ok) return;
+                menuCatalog = await res.json();
+                renderMenuCatalog(menuCatalog);
+            } catch(e) {}
+        }
+
+        function renderMenuCatalog(items) {
+            const grid = document.getElementById('menu-items-grid');
+            const filtered = items.filter(it => {
+                if (selectedCategory !== 'ALL' && it.category !== selectedCategory) return false;
+                const q = document.getElementById('menu-search-input').value.toLowerCase();
+                if (q && !it.name.toLowerCase().includes(q)) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<p class="text-slate-500 text-sm col-span-full text-center py-10">Taomlar topilmadi.</p>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(it => `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between hover:border-sky-500 transition">
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm mb-1">${it.name}</h4>
+                        <p class="text-xs text-sky-600 font-black">${it.price || it.sellingPrice || 0} so'm</p>
+                    </div>
+                    <button onclick='addToCart(${JSON.stringify(it)})' class="mt-4 w-full bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-1.5 border border-sky-200">
+                        <i class="fa-solid fa-plus"></i> Qo‘shish
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function filterMenuCategory(cat) {
+            selectedCategory = cat;
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.className = 'category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition';
+            });
+            event.target.className = 'category-btn px-4 py-2 rounded-xl bg-sky-600 text-white font-medium text-xs whitespace-nowrap transition shadow-sm';
+            renderMenuCatalog(menuCatalog);
+        }
+
+        function filterMenuCatalog() {
+            renderMenuCatalog(menuCatalog);
+        }
+
+        function addToCart(item) {
+            const existing = cartItems.find(c => c.id === item.id);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cartItems.push({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price || item.sellingPrice || 0,
+                    quantity: 1,
+                    note: ''
+                });
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items-container');
+            const countBadge = document.getElementById('cart-item-count');
+            countBadge.innerText = `${cartItems.reduce((acc, i) => acc + i.quantity, 0)} taom`;
+
+            if (cartItems.length === 0) {
+                container.innerHTML = '<p class="text-slate-400 text-sm text-center py-12">Savat bo‘sh. Menyudan taom tanlang.</p>';
+                document.getElementById('cart-total-amount').innerText = "0 so'm";
+                return;
+            }
+
+            let total = 0;
+            container.innerHTML = cartItems.map((item, idx) => {
+                const sub = item.price * item.quantity;
+                total += sub;
+                return `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-800 text-sm">${item.name}</span>
+                            <button onclick="removeFromCart(${idx})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-600">
+                            <span>${item.price} x ${item.quantity}</span>
+                            <span class="font-bold text-sky-600">${sub} so'm</span>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <div class="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white">
+                                <button onclick="updateCartQty(${idx}, -1)" class="px-2.5 py-1 hover:bg-slate-100 font-bold">-</button>
+                                <span class="px-3 py-1 font-bold">${item.quantity}</span>
+                                <button onclick="updateCartQty(${idx}, 1)" class="px-2.5 py-1 hover:bg-slate-100 font-bold">+</button>
+                            </div>
+                            <input type="text" oninput="updateCartItemNote(${idx}, this.value)" value="${item.note || ''}" placeholder="Izoh..." class="flex-1 px-2.5 py-1 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('cart-total-amount').innerText = `${total} so'm`;
+        }
+
+        function updateCartQty(idx, delta) {
+            cartItems[idx].quantity += delta;
+            if (cartItems[idx].quantity <= 0) {
+                cartItems.splice(idx, 1);
+            }
+            renderCart();
+        }
+
+        function removeFromCart(idx) {
+            cartItems.splice(idx, 1);
+            renderCart();
+        }
+
+        function updateCartItemNote(idx, val) {
+            cartItems[idx].note = val;
+        }
+
+        async function submitWaiterOrder() {
+            const tableId = document.getElementById('builder-table-select').value;
+            if (!tableId) {
+                alert('Iltimos, stolni tanlang!');
+                return;
+            }
+            if (cartItems.length === 0) {
+                alert('Savat bo‘sh!');
+                return;
+            }
+            const generalNote = document.getElementById('order-general-note').value;
+
+            try {
+                const res = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tableId,
+                        items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity, note: i.note })),
+                        note: generalNote
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showNotification('Buyurtma muvaffaqiyatli yuborildi!');
+                    cartItems = [];
+                    document.getElementById('order-general-note').value = '';
+                    renderCart();
+                    switchTab('orders');
+                } else {
+                    alert(data.error || 'Xatolik yuz berdi');
+                }
+            } catch(e) {
+                alert('Internet aloqasi xatoligi');
+            }
+        }
+
+        async function loadTableDropdowns() {
+            try {
+                const res = await fetch('/api/rooms');
+                if (!res.ok) return;
+                const rooms = await res.json();
+                let optionsHtml = '<option value="">-- Stolni tanlang --</option>';
+                rooms.forEach(room => {
+                    if (room.tables) {
+                        room.tables.forEach(t => {
+                            optionsHtml += `<option value="${t.id}">${room.name} - Stol #${t.number || t.id}</option>`;
+                        });
+                    }
+                });
+                const builderSelect = document.getElementById('builder-table-select');
+                if (builderSelect) builderSelect.innerHTML = optionsHtml;
+                const billSelect = document.getElementById('bill-table-select');
+                if (billSelect) billSelect.innerHTML = optionsHtml;
+            } catch(e) {}
+        }
+
+        // Waiter Calls System
+        async function loadActiveCalls() {
+            try {
+                const res = await fetch('/api/waiter/calls');
+                if (!res.ok) return;
+                activeCallsList = await res.json();
+                renderActiveCalls(activeCallsList);
+                
+                const countBadge = document.getElementById('badge-active-calls');
+                const mobBadge = document.getElementById('mob-badge-calls');
+                const statCalls = document.getElementById('stat-pending-calls');
+                
+                if (activeCallsList.length > 0) {
+                    countBadge.innerText = activeCallsList.length;
+                    countBadge.classList.remove('hidden');
+                    mobBadge.innerText = activeCallsList.length;
+                    mobBadge.classList.remove('hidden');
+                    statCalls.innerText = activeCallsList.length;
+                } else {
+                    countBadge.classList.add('hidden');
+                    mobBadge.classList.add('hidden');
+                    statCalls.innerText = '0';
+                }
+            } catch(e) {}
+        }
+
+        function renderActiveCalls(calls) {
+            const container = document.getElementById('waiter-calls-list-container');
+            if (!calls || calls.length === 0) {
+                container.innerHTML = '<p class="text-slate-500 text-sm text-center py-10">Ayni paytda faol chaqiruvlar yo‘q.</p>';
+                return;
+            }
+
+            container.innerHTML = calls.map(call => `
+                <div class="bg-white p-5 rounded-2xl border border-red-200 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-red-50/20">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-black text-slate-900 text-base">Stol #${call.tableNumber || call.tableId}</span>
+                            <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded animate-pulse">Yangi chaqiruv</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Vaqt: ${call.createdAt ? new Date(call.createdAt).toLocaleTimeString('uz-UZ', {hour: '2-digit', minute:'2-digit'}) : '-'}</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="acceptCall('${call.id}')" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
+                            Qabul qilish
+                        </button>
+                        <button onclick="completeCall('${call.id}')" class="flex-1 sm:flex-none bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
+                            Yakunlash
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function acceptCall(callId) {
+            try {
+                const res = await fetch(`/api/waiter/calls/${callId}/accept`, { method: 'POST' });
+                if (res.ok) {
+                    showNotification('Chaqiruv qabul qilindi');
+                    loadActiveCalls();
+                }
+            } catch(e) {}
+        }
+
+        async function completeCall(callId) {
+            try {
+                const res = await fetch(`/api/waiter/calls/${callId}/complete`, { method: 'POST' });
+                if (res.ok) {
+                    showNotification('Chaqiruv yakunlandi');
+                    loadActiveCalls();
+                }
+            } catch(e) {}
+        }
+
+        // Bills & Payment
+        async function loadTableBillDetails() {
+            const tableId = document.getElementById('bill-table-select').value;
+            const wrapper = document.getElementById('bill-details-wrapper');
+            if (!tableId) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/orders?tableId=${tableId}&active=true`);
+                if (!res.ok) return;
+                const orders = await res.json();
+                wrapper.classList.remove('hidden');
+                document.getElementById('bill-table-title').innerText = `Stol №${tableId}`;
+                document.getElementById('bill-waiter-name').innerText = currentWaiter ? currentWaiter.name : '-';
+
+                const container = document.getElementById('bill-orders-container');
+                if (!orders || orders.length === 0) {
+                    container.innerHTML = '<p class="text-xs text-slate-400">Bu stolda faol buyurtmalar yo‘q.</p>';
+                    document.getElementById('bill-total-sum').innerText = "0 so'm";
+                    return;
+                }
+
+                let totalSum = 0;
+                container.innerHTML = orders.map(ord => {
+                    totalSum += (ord.totalAmount || 0);
+                    return `
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-sm">
+                            <div class="flex justify-between font-bold text-slate-800">
+                                <span>Buyurtma №${ord.id}</span>
+                                <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
+                            </div>
+                            <div class="space-y-1 pt-1 border-t border-slate-200 text-xs">
+                                ${ord.items && ord.items.map(it => `
+                                    <div class="flex justify-between">
+                                        <span>${it.name \vert{}\vert{} it.productName} (x${it.quantity})</span>
+                                        <span class="font-semibold">${(it.price || 0) * it.quantity} so'm</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('bill-total-sum').innerText = `${totalSum} so'm`;
+            } catch(e) {}
+        }
+
+        function setPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.pay-method-btn').forEach(btn => {
+                btn.className = 'pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition';
+            });
+            document.getElementById(`pay-btn-${method}`).className = 'pay-method-btn px-4 py-3 rounded-xl border-2 border-sky-600 bg-sky-50 text-sky-700 font-bold text-sm transition';
+        }
+
+        async function processPayment() {
+            const tableId = document.getElementById('bill-table-select').value;
+            if (!tableId) return;
+            if (!confirm('To‘lovni tasdiqlaysizmi?')) return;
+
+            try {
+                const res = await fetch(`/api/tables/${tableId}/pay`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paymentMethod: selectedPaymentMethod })
+                });
+                if (res.ok) {
+                    showNotification('To‘lov muvaffaqiyatli qabul qilindi');
+                    document.getElementById('bill-details-wrapper').classList.add('hidden');
+                    loadTableDropdowns();
+                    loadRoomsAndTables();
+                } else {
+                    alert('To‘lovni amalga oshirishda xatolik');
+                }
+            } catch(e) {
+                alert('Internet aloqasi xatoligi');
+            }
+        }
+
+        function printReceipt() {
+            window.print();
+        }
+
+        // Return / Refund Item
+        function openReturnModal(orderId, itemIndex) {
+            document.getElementById('return-order-id').value = orderId;
+            document.getElementById('return-item-index').value = itemIndex;
+            document.getElementById('return-reason-input').value = '';
+            document.getElementById('modal-return-item').classList.remove('hidden');
+        }
+
+        function closeReturnModal() {
+            document.getElementById('modal-return-item').classList.add('hidden');
+        }
+
+        async function confirmReturnItem() {
+            const orderId = document.getElementById('return-order-id').value;
+            const itemIndex = document.getElementById('return-item-index').value;
+            const reason = document.getElementById('return-reason-input').value;
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/return-item`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemIndex: Number(itemIndex), reason })
+                });
+                if (res.ok) {
+                    showNotification('Taom muvaffaqiyatli qaytarildi');
+                    closeReturnModal();
+                    closeTableModal();
+                    loadRoomsAndTables();
+                } else {
+                    alert('Ruxsat yo‘q yoki xatolik yuz berdi');
+                }
+            } catch(e) {
+                alert('Internet aloqasi xatoligi');
+            }
+        }
+
+        // Statistics
+        async function loadWaiterStatistics() {
+            try {
+                const res = await fetch('/api/waiter/stats');
+                if (!res.ok) return;
+                const stats = await res.json();
+                document.getElementById('stat-today-orders').innerText = stats.todayOrdersCount || 0;
+                document.getElementById('stat-today-sales').innerText = `${stats.todaySales || 0} so'm`;
+                document.getElementById('waiter-today-commission').innerText = `${stats.todayCommission || 0} so'm`;
+                document.getElementById('waiter-completed-count').innerText = `${stats.completedCount || 0} ta`;
+                document.getElementById('waiter-cancelled-count').innerText = `${stats.cancelledCount || 0} ta`;
+                document.getElementById('profile-val-orders').innerText = `${stats.todayOrdersCount || 0} ta`;
+                document.getElementById('profile-val-sales').innerText = `${stats.todaySales || 0} so'm`;
+                document.getElementById('profile-val-commission').innerText = `${stats.todayCommission || 0} so'm`;
+                if (stats.commissionRate) {
+                    document.getElementById('waiter-commission-rate').innerText = `${stats.commissionRate}%`;
+                }
+            } catch(e) {}
+        }
+
+        function toggleMobileSidebar() {
+            // Handled via responsive header navigation
+        }
     </script>
 </body>
 </html>
+```[cite: 1, 2, 5]
