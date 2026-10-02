@@ -5,7 +5,34 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
-import { Telegraf } from 'telegraf';
+import { Context, Telegraf } from 'telegraf';
+
+const bot = new Telegraf('8988086533:AAE3R-n4epHKRASk_8hCO-vvX-nnk-OckEc');
+
+bot.start((ctx: Context) => {
+    // @ts-ignore
+    const startPayload = ctx.startPayload;
+    let webAppUrl = 'https://choyxonaazizxon.onrender.com/customer/';
+
+    if (startPayload && typeof startPayload === 'string' && startPayload.startsWith('table_')) {
+        const tableNumber = startPayload.replace('table_', '');
+        webAppUrl = `https://choyxonaazizxon.onrender.com/customer/?table=${tableNumber}`;
+    }
+
+    ctx.reply('Assalomu alaykum! "ChoyxonaAzizxon" restoraniga xush kelibsiz. Marhamat, quyidagi tugmani bosib menyuni oching:', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🍽 Menyuni ochish', web_app: { url: webAppUrl } }]
+            ]
+        }
+    });
+});
+
+bot.launch().then(() => {
+    console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
+}).catch((err: any) => {
+    console.error('Botni ishga tushirishda xatolik:', err);
+});
 
 dotenv.config();
 
@@ -26,28 +53,7 @@ const io = new Server(server, {
   }
 });
 
-// ==========================================
-// 1. TELEGRAM BOT (Telegraf)
-// ==========================================
-const bot = new Telegraf('8988086533:AAE3R-n4epHKRASk_8hCO-vvX-nnk-OckEc');
 
-bot.start((ctx) => {
-    const startPayload = ctx.startPayload; // masalan: "table_1"
-    let webAppUrl = 'https://choyxonaazizxon.onrender.com/customer/';
-
-    if (startPayload && startPayload.startsWith('table_')) {
-        const tableNumber = startPayload.replace('table_', '');
-        webAppUrl = `https://choyxonaazizxon.onrender.com/customer/?table=${tableNumber}`;
-    }
-
-    ctx.reply('Assalomu alaykum! "ChoyxonaAzizxon" restoraniga xush kelibsiz. Marhamat, quyidagi tugmani bosib menyuni oching:', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🍽 Menyuni ochish', web_app: { url: webAppUrl } }]
-            ]
-        }
-    });
-});
 
 bot.launch().then(() => {
     console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
