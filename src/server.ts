@@ -7,6 +7,29 @@ import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import { Context, Telegraf } from 'telegraf';
 
+// 1. Muhit o'zgaruvchilarini eng boshida yuklash
+dotenv.config();
+
+const app = express();
+const server = http.createServer(app);
+const prisma = new PrismaClient();
+
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"]
+}));
+app.use(express.json());
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
+});
+
+// ==========================================
+// 2. TELEGRAM BOT (Telegraf)
+// ==========================================
 const bot = new Telegraf('8988086533:AAE3R-n4epHKRASk_8hCO-vvX-nnk-OckEc');
 
 bot.start((ctx: Context) => {
@@ -34,38 +57,11 @@ bot.launch().then(() => {
     console.error('Botni ishga tushirishda xatolik:', err);
 });
 
-dotenv.config();
-
-const app = express();
-const server = http.createServer(app);
-const prisma = new PrismaClient();
-
-app.use(cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"]
-}));
-app.use(express.json());
-
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"]
-  }
-});
-
-
-
-bot.launch().then(() => {
-    console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
-}).catch((err) => {
-    console.error('Botni ishga tushirishda xatolik:', err);
-});
-
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 // ==========================================
-// 2. ADMIN PANEL VA API ROUTELARI
+// 3. ADMIN PANEL VA API ROUTELARI
 // ==========================================
 
 // Xonalar va stollar
@@ -189,7 +185,7 @@ io.on('connection', (socket) => {
 });
 
 // ==========================================
-// 3. SERVERNI ISHGA TUSHIRISH
+// 4. SERVERNI ISHGA TUSHIRISH
 // ==========================================
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
