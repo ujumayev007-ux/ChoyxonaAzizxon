@@ -3,112 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oshxona Paneli - ChoyxonaAzizxon</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Oshxona Boshqaruv Paneli - ChoyxonaAzizxon</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Socket.io client -->
     <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-slate-900 text-white font-sans">
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col">
 
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-slate-950 border-r border-slate-800 flex flex-col">
-            <div class="p-5 text-2xl font-bold tracking-wider text-orange-400 border-b border-slate-800">
-                ChoyxonaOshxona
+    <!-- Top Header -->
+    <header class="bg-slate-800 border-b border-slate-700 h-16 px-6 flex items-center justify-between sticky top-0 z-20">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🍳</span>
+            <h1 class="text-lg font-bold tracking-wide">Oshxona Boshqaruv Paneli</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <a href="/kitchen/tv" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-900/40">📺 TV Ekranni ochish</a>
+            <div id="connection-status" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Ulangan</div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+        
+        <!-- Summary Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Yangi buyurtmalar</p>
+                <h3 id="count-approved" class="text-3xl font-bold text-amber-400 mt-1">0</h3>
             </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <a href="#" class="block px-4 py-2.5 rounded-lg bg-orange-600 text-white font-medium">Yangi Buyurtmalar</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Tayyorlanmoqda</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Tarix</a>
-            </nav>
-            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
-                Azamatjon & Umidjon Restarani
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tayyorlanmoqda</p>
+                <h3 id="count-preparing" class="text-3xl font-bold text-blue-400 mt-1">0</h3>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tayyor</p>
+                <h3 id="count-ready" class="text-3xl font-bold text-emerald-400 mt-1">0</h3>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Kilolik osh</p>
+                <h3 id="count-osh" class="text-3xl font-bold text-orange-400 mt-1">0</h3>
+            </div>
+            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faol buyurtmalar</p>
+                <h3 id="count-total" class="text-3xl font-bold text-purple-400 mt-1">0</h3>
             </div>
         </div>
 
-        <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
-            <!-- Header -->
-            <header class="bg-slate-950 border-b border-slate-800 h-16 flex items-center justify-between px-8">
-                <h1 class="text-xl font-semibold text-white">Oshxona Navbati (Real-Time)</h1>
-                <div class="flex items-center space-x-4">
-                    <span class="bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold px-3 py-1 rounded-full animate-pulse">● Live Ulangan</span>
-                    <div class="w-10 h-10 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold">Osh</div>
-                </div>
-            </header>
-
-            <!-- Dashboard Content -->
-            <main class="p-8">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-bold text-slate-200">Kelib tushgan buyurtmalar</h2>
-                    <span id="order-count" class="bg-slate-800 text-slate-300 px-3 py-1 rounded-lg text-sm">0 ta buyurtma</span>
-                </div>
-
-                <!-- Orders Grid -->
-                <div id="kitchen-orders-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Buyurtmalar shu yerga dinamik chiqadi -->
-                    <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400 col-span-3 py-12">
-                        Hozircha yangi buyurtmalar yo'q. Buyurtma kelishi bilan bu yerda ko'rinadi.
-                    </div>
-                </div>
-            </main>
+        <!-- Orders Grid Container -->
+        <div id="kitchen-orders-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="col-span-full py-16 text-center text-slate-500">
+                Hozircha faol buyurtmalar mavjud emas.
+            </div>
         </div>
-    </div>
 
-    <!-- Socket.io Logikasi -->
+    </main>
+
     <script>
         const socket = io();
-        let orders = [];
 
-        socket.on('kitchen_new_order', (order) => {
-            orders.unshift(order); // Yangi buyurtmani boshiga qo'shamiz
-            renderOrders();
-            
-            // Ovozli signal (agar brauzer ruxsat bersa)
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        socket.on('connect', () => {
+            document.getElementById('connection-status').className = 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold';
+            document.getElementById('connection-status').innerText = 'Ulangan';
+            loadKitchenOrders();
         });
 
-        function renderOrders() {
-            const container = document.getElementById('kitchen-orders-container');
-            const countBadge = document.getElementById('order-count');
-            
-            countBadge.innerText = `${orders.length} ta buyurtma`;
+        socket.on('disconnect', () => {
+            document.getElementById('connection-status').className = 'px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 text-xs font-semibold';
+            document.getElementById('connection-status').innerText = 'Qayta ulanilmoqda...';
+        });
 
+        socket.on('kitchen_new_order', () => loadKitchenOrders());
+        socket.on('order_status_updated', () => loadKitchenOrders());
+
+        async function loadKitchenOrders() {
+            try {
+                const res = await fetch('/api/kitchen/orders');
+                const json = await res.json();
+                if (json.success) {
+                    renderKitchenOrders(json.data);
+                }
+            } catch (e) {
+                console.error('Failed to load kitchen orders', e);
+            }
+        }
+
+        function renderKitchenOrders(orders) {
+            let approved = 0, preparing = 0, ready = 0, oshCount = 0;
+            
+            orders.forEach(o => {
+                if (o.status === 'approved') approved++;
+                if (o.status === 'preparing') preparing++;
+                if (o.status === 'ready') ready++;
+                if ((o.OrderItems || []).some(i => i.isKilogramOsh)) oshCount++;
+            });
+
+            document.getElementById('count-approved').innerText = approved;
+            document.getElementById('count-preparing').innerText = preparing;
+            document.getElementById('count-ready').innerText = ready;
+            document.getElementById('count-osh').innerText = oshCount;
+            document.getElementById('count-total').innerText = orders.length;
+
+            const grid = document.getElementById('kitchen-orders-grid');
             if (orders.length === 0) {
-                container.innerHTML = `
-                    <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400 col-span-3 py-12">
-                        Hozircha yangi buyurtmalar yo'q.
-                    </div>`;
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
                 return;
             }
 
-            container.innerHTML = orders.map((order, index) => `
-                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-between">
-                    <div>
-                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-700">
-                            <span class="font-bold text-orange-400 text-base">Stol #${order.tableNumber || 'Nomaʼlum'}</span>
-                            <span class="text-xs text-slate-400">${new Date().toLocaleTimeString()}</span>
+            grid.innerHTML = orders.map(order => {
+                const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateStr = new Date(order.createdAt).toLocaleDateString();
+                return `
+                    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
+                        <div class="flex justify-between items-start border-b border-slate-700 pb-4">
+                            <div>
+                                <h3 class="text-xl font-bold text-white">Buyurtma №${order.id}</h3>
+                                <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.name : 'Nomaʼlum'}</p>
+                            </div>
+                            <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'approved' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'preparing' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+                                ${order.status === 'approved' ? 'Tayyorlash kutilmoqda' : order.status === 'preparing' ? 'Tayyorlanmoqda' : 'Tayyor'}
+                            </span>
                         </div>
-                        <ul class="space-y-2 mb-4 text-sm">
-                            ${order.items ? order.items.map(item => `
-                                <li class="flex justify-between text-slate-200">
-                                    <span>${item.name}</span>
-                                    <span class="font-semibold text-orange-300">x${item.quantity}</span>
-                                </li>
-                            `).join('') : '<li class="text-slate-400">Taomlar ro\'yxati yo\'q</li>'}
-                        </ul>
+
+                        <div class="space-y-3 flex-1">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
+                            <ul class="space-y-2">
+                                ${(order.OrderItems || []).map(item => `
+                                    <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
+                                        <span class="font-semibold text-slate-200">${item.Dish ? item.Dish.name : 'Taom'}</span>
+                                        <span class="text-emerald-400 font-bold">${item.isKilogramOsh ? (item.quantityGrams >= 1000 ? `${item.quantityGrams / 1000} kg` : `${item.quantityGrams} g`) : `${item.quantity} dona`}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                            ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
+                        </div>
+
+                        <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
+                            <span>Sana: ${dateStr} | Vaqt: ${timeStr}</span>
+                            <div class="flex gap-2">
+                                ${order.status === 'approved' ? `<button onclick="updateOrderStatus(${order.id}, 'preparing')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
+                                ${order.status === 'preparing' ? `<button onclick="updateOrderStatus(${order.id}, 'ready')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
+                                ${order.status === 'ready' ? `<button onclick="updateOrderStatus(${order.id}, 'completed')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+                            </div>
+                        </div>
                     </div>
-                    <button onclick="completeOrder(${index})" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-sm font-medium transition">
-                        Tayyor ✅
-                    </button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
-        function completeOrder(index) {
-            orders.splice(index, 1);
-            renderOrders();
+        async function updateOrderStatus(orderId, status) {
+            try {
+                const res = await fetch(`/api/kitchen/orders/${orderId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                const json = await res.json();
+                if (json.success) {
+                    loadKitchenOrders();
+                } else {
+                    alert(json.message || 'Buyurtmani yangilashda xatolik');
+                }
+            } catch (e) {
+                alert('Server bilan aloqa uzildi');
+            }
         }
     </script>
 </body>
