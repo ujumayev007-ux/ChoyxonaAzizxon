@@ -5,13 +5,19 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import path from 'path';
-import { Telegraf } from 'telegraf'; // 1. Telegraf kutubxonasini import qilamiz
+import { Telegraf } from 'telegraf';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const prisma = new PrismaClient(); // Prisma client ni ishga tushiramiz
+const prisma = new PrismaClient();
+
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"]
+}));
+app.use(express.json());
 
 const io = new Server(server, {
   cors: {
@@ -20,7 +26,9 @@ const io = new Server(server, {
   }
 });
 
-// 2. Telegram botni siz bergan token orqali ishga tushiramiz
+// ==========================================
+// 1. TELEGRAM BOT (Telegraf)
+// ==========================================
 const bot = new Telegraf('8988086533:AAE3R-n4epHKRASk_8hCO-vvX-nnk-OckEc');
 
 bot.start((ctx) => {
@@ -41,123 +49,143 @@ bot.start((ctx) => {
     });
 });
 
-// Botni ishga tushiramiz
 bot.launch().then(() => {
     console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
 }).catch((err) => {
     console.error('Botni ishga tushirishda xatolik:', err);
 });
 
-// Dastur to'xtaganda botni ham to'xtatish
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
-// (Bu yerdan davom etib ketadigan sizning boshqa app.use / routes kodlaringiz...)
-app.use(cors());
-app.use(express.json());
-
-// Statik papkani ulaymiz (admin, cashier, waiter, kitchen, customer)
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Asosiy tekshiruv yo'li
-app.get('/', (req, res) => {
-  res.json({ message: "Azamatjon & Umidjon Restarani API ishlayapti!" });
-});
-
 // ==========================================
-// XONALAR (ROOMS) UCHUN CRUD API'LARI
+// 2. ADMIN PANEL VA API ROUTELARI
 // ==========================================
 
-// 1. Barcha xonalarni va ularga tegishli stollarni olish
+// Xonalar va stollar
 app.get('/api/rooms', async (req, res) => {
-  try {
-    const rooms = await prisma.room.findMany({
-      include: { tables: true }
-    });
-    res.json(rooms);
-  } catch (error) {
-    res.status(500).json({ error: "Xonalarni olishda xatolik yuz berdi" });
-  }
+    try {
+        const rooms = await prisma.room.findMany({
+            include: { tables: true }
+        });
+        res.json(rooms);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Xonalarni olishda xatolik" });
+    }
 });
 
-// 2. Yangi xona qo'shish
 app.post('/api/rooms', async (req, res) => {
-  try {
-    const { name } = req.body;
-    const newRoom = await prisma.room.create({
-      data: { name: name as any }
-    });
-    res.json(newRoom);
-  } catch (error) {
-    res.status(500).json({ error: "Xona qo'shishda xatolik yuz berdi" });
-  }
+    try {
+        const { name } = req.body;
+        const room = await prisma.room.create({ data: { name } });
+        res.json({ success: true, data: room });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Xona qo'shilmadi" });
+    }
 });
 
-// 3. Xonani o'chirish
 app.delete('/api/rooms/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Avval xonaga tegishli stollarni o'chiramiz (Foreign key xatoligi chiqmasligi uchun)
-    await prisma.table.deleteMany({ where: { roomId: Number(id) as any } });
-    await prisma.room.delete({ where: { id: Number(id) as any } });
-    res.json({ message: "Xona o'chirildi" });
-  } catch (error) {
-    res.status(500).json({ error: "Xonani o'chirishda xatolik" });
-  }
+    try {
+        const { id } = req.params;
+        await prisma.table.deleteMany({ where: { roomId: id } });
+        await prisma.room.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Xonani o'chirib bo'lmadi" });
+    }
 });
 
-// 4. Stol qo'shish (Xonaga tegishli)
 app.post('/api/tables', async (req, res) => {
-  try {
-    const { number, roomId } = req.body;
-    const newTable = await prisma.table.create({
-      data: {
-        number: Number(number) as any,
-        roomId: Number(roomId) as any,
-        status: 'EMPTY' // Bo'sh holatda boshlanadi
-      }
-    });
-    res.json(newTable);
-  } catch (error) {
-    res.status(500).json({ error: "Stol qo'shishda xatolik" });
-  }
+    try {
+        const { number, roomId } = req.body;
+        const qrCodeToken = `table_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const table = await prisma.table.create({
+            data: { 
+                number: String(number), 
+                roomId: String(roomId),
+                qrCodeToken: qrCodeToken
+            }
+        });
+        res.json({ success: true, data: table });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Stol qo'shilmadi" });
+    }
 });
 
-// 5. Stolni o'chirish
 app.delete('/api/tables/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.table.delete({ where: { id: Number(id) as any } });
-    res.json({ message: "Stol o'chirildi" });
-  } catch (error) {
-    res.status(500).json({ error: "Stolni o'chirishda xatolik" });
-  }
+    try {
+        const { id } = req.params;
+        await prisma.table.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Stolni o'chirib bo'lmadi" });
+    }
 });
 
-// ==========================================
-// SOCKET.IO QISMI
-// ==========================================
+// Menyu va tannarx
+app.get('/api/menu', async (req, res) => {
+    try {
+        const menuItems = await prisma.menuItem.findMany({
+            include: { category: true, recipes: { include: { inventory: true } } }
+        });
+        res.json(menuItems);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Menyuni olib kelishda xatolik" });
+    }
+});
+
+// Omborxona
+app.get('/api/inventory', async (req, res) => {
+    try {
+        const products = await prisma.inventoryProduct.findMany();
+        res.json(products);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Ombor ma'lumotlarini olishda xatolik" });
+    }
+});
+
+// Xodimlar
+app.get('/api/users', async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            include: { waiterProfile: true, cashierProfile: true }
+        });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Xodimlarni olishda xatolik" });
+    }
+});
+
+// Buyurtmalar
+app.get('/api/orders', async (req, res) => {
+    try {
+        const orders = await prisma.order.findMany({
+            include: { table: true, waiter: true, items: { include: { menuItem: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(orders);
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Buyurtmalarni olishda xatolik" });
+    }
+});
+
+// Ofitsiantni chaqirish Socket.io orqali
 io.on('connection', (socket) => {
-  console.log(`Foydalanuvchi ulandi: ${socket.id}`);
+    console.log('Foydalanuvchi ulandi:', socket.id);
 
-  // Stol uchun ofitsiant chaqirish
-  socket.on('call_waiter', (data) => {
-    console.log('Ofitsiant chaqirildi:', data);
-    io.emit('waiter_called', data);
-  });
+    socket.on('call_waiter', async (data) => {
+        io.emit('orderUpdate', data);
+    });
 
-  // Yangi buyurtma kelganda oshxonaga xabar berish
-  socket.on('new_order', (order) => {
-    console.log('Yangi buyurtma:', order);
-    io.emit('kitchen_new_order', order);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`Foydalanuvchi chiqib ketdi: ${socket.id}`);
-  });
+    socket.on('disconnect', () => {
+        console.log('Foydalanuvchi uzildi:', socket.id);
+    });
 });
 
-const PORT = process.env.PORT || 5000;
+// ==========================================
+// 3. SERVERNI ISHGA TUSHIRISH
+// ==========================================
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server ${PORT}-portda ishga tushdi!`);
+    console.log(`Server ${PORT}-portda ishga tushdi!`);
 });
