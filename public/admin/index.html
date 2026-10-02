@@ -16,12 +16,12 @@
                 ChoyxonaAdmin
             </div>
             <nav class="flex-1 p-4 space-y-2">
-                <a href="#" class="block px-4 py-2.5 rounded-lg bg-amber-600 text-white font-medium">Bosh sahifa</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Buyurtmalar</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Xonalar va Stollar</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Omborxona</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Menyu va Tannarx</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Xodimlar</a>
+                <button onclick="switchTab('bosh-sahifa', this)" class="w-full text-left block px-4 py-2.5 rounded-lg bg-amber-600 text-white font-medium transition">Bosh sahifa</button>
+                <button onclick="switchTab('buyurtmalar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Buyurtmalar</button>
+                <button onclick="switchTab('xonalar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Xonalar va Stollar</button>
+                <button onclick="switchTab('omborxona', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Omborxona</button>
+                <button onclick="switchTab('menyu', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Menyu va Tannarx</button>
+                <button onclick="switchTab('xodimlar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Xodimlar</button>
             </nav>
             <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
                 Azamatjon & Umidjon Restarani
@@ -32,7 +32,7 @@
         <div class="flex-1 flex flex-col overflow-y-auto">
             <!-- Header -->
             <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
-                <h1 class="text-xl font-semibold text-gray-800">Boshqaruv Paneli</h1>
+                <h1 id="page-title" class="text-xl font-semibold text-gray-800">Boshqaruv Paneli</h1>
                 <div class="flex items-center space-x-4">
                     <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Server Ishlayapti</span>
                     <div class="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold">A</div>
@@ -41,73 +41,120 @@
 
             <!-- Dashboard Content -->
             <main class="p-8">
-                <!-- Stats Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Bugungi Tushum</p>
-                        <h3 class="text-2xl font-bold text-gray-800 mt-1">0 so'm</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Faol Buyurtmalar</p>
-                        <h3 class="text-2xl font-bold text-gray-800 mt-1">0 ta</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Band Stollar</p>
-                        <h3 class="text-2xl font-bold text-gray-800 mt-1">0 / 0</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Kassa Holati</p>
-                        <h3 class="text-2xl font-bold text-green-600 mt-1">Ochiq</h3>
-                    </div>
-                </div>
-
-                <!-- Xonalarni va Stollarni boshqarish bo'limi -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-gray-800">Yangi Xona qo'shish</h2>
-                    </div>
-                    <form onsubmit="createRoom(event)" class="flex gap-4">
-                        <input type="text" id="roomName" placeholder="Xona nomi (masalan: VIP zal, 1-qavat)" required class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
-                        <button type="submit" class="bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Xona qo'shish</button>
-                    </form>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-gray-800">Restoran Xonalari va Stollar</h2>
-                        <button onclick="loadRooms()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
-                    </div>
-                    <div id="rooms-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <p class="text-gray-500 text-sm">Xonalar yuklanmoqda...</p>
-                    </div>
-                </div>
-
-    <!-- JavaScript - API bilan bog'lanish -->
-    <script>
-        async function loadRooms() {
-            try {
-                const response = await fetch('/api/rooms');
-                const rooms = await response.json();
-                const container = document.getElementById('rooms-container');
                 
-                if (rooms.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo\'shilmagan.</p>';
-                    return;
-                }
-
-                container.innerHTML = rooms.map(room => `
-                    <div class="border border-gray-200 p-4 rounded-lg bg-gray-50">
-                        <h3 class="font-bold text-gray-800 text-lg">${room.name}</h3>
-                        <p class="text-sm text-gray-500 mt-1">Stollar soni: ${room.tables ? room.tables.length : 0} ta</p>
+                <!-- 1. BOSH SAHIFA -->
+                <div id="section-bosh-sahifa" class="tab-content">
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <p class="text-sm text-gray-500 font-medium">Bugungi Tushum</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 so'm</h3>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <p class="text-sm text-gray-500 font-medium">Faol Buyurtmalar</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 ta</h3>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <p class="text-sm text-gray-500 font-medium">Band Stollar</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 / 0</h3>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                            <p class="text-sm text-gray-500 font-medium">Kassa Holati</p>
+                            <h3 class="text-2xl font-bold text-green-600 mt-1">Ochiq</h3>
+                        </div>
                     </div>
-                `).join('');
-            } catch (error) {
-                console.error('Xonalarni olishda xatolik:', error);
-            }
+                </div>
+
+                <!-- 2. BUYURTMALAR -->
+                <div id="section-buyurtmalar" class="tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Faol Buyurtmalar</h2>
+                        <p class="text-gray-500 text-sm">Hozircha buyurtmalar mavjud emas.</p>
+                    </div>
+                </div>
+
+                <!-- 3. XONALAR VA STOLLAR -->
+                <div id="section-xonalar" class="tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-gray-800">Yangi Xona qo'shish</h2>
+                        </div>
+                        <form onsubmit="createRoom(event)" class="flex gap-4">
+                            <input type="text" id="roomName" placeholder="Xona nomi (masalan: VIP zal, 1-qavat)" required class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            <button type="submit" class="bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Xona qo'shish</button>
+                        </form>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-gray-800">Restoran Xonalari va Stollar</h2>
+                            <button onclick="loadRooms()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
+                        </div>
+                        <div id="rooms-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <p class="text-gray-500 text-sm">Xonalar yuklanmoqda...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. OMBORXONA -->
+                <div id="section-omborxona" class="tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Omborxona Qoldiqlari</h2>
+                        <p class="text-gray-500 text-sm">Omborxona bo'limi tez kunda qo'shiladi.</p>
+                    </div>
+                </div>
+
+                <!-- 5. MENYU VA TANNARX -->
+                <div id="section-menyu" class="tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Menyu va Mahsulot Tannarxi</h2>
+                        <p class="text-gray-500 text-sm">Menyu bo'limi tez kunda qo'shiladi.</p>
+                    </div>
+                </div>
+
+                <!-- 6. XODIMLAR -->
+                <div id="section-xodimlar" class="tab-content hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Xodimlar Ro'yxati</h2>
+                        <p class="text-gray-500 text-sm">Xodimlar bo'limi tez kunda qo'shiladi.</p>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function switchTab(tabId, element) {
+            // Barcha bo'limlarni yashirish
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            
+            // Tanlangan bo'limni ochish
+            document.getElementById('section-' + tabId).classList.remove('hidden');
+
+            // Menyu tugmalarining rangini o'zgartirish
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('bg-amber-600', 'text-white');
+                btn.classList.add('hover:bg-slate-800', 'text-slate-300');
+            });
+
+            element.classList.remove('hover:bg-slate-800', 'text-slate-300');
+            element.classList.add('bg-amber-600', 'text-white');
+
+            // Sarlavhani o'zgartirish
+            const titles = {
+                'bosh-sahifa': 'Boshqaruv Paneli',
+                'buyurtmalar': 'Buyurtmalar Boshqaruvi',
+                'xonalar': 'Xonalar va Stollar',
+                'omborxona': 'Omborxona va Mahsulotlar',
+                'menyu': 'Menyu va Tannarx',
+                'xodimlar': 'Xodimlar Boshqaruvi'
+            };
+            document.getElementById('page-title').innerText = titles[tabId] || 'Admin Panel';
         }
 
-        // Sahifa ochilganda xonalarni yuklash
-            async function loadRooms() {
+        async function loadRooms() {
             try {
                 const response = await fetch('/api/rooms');
                 const rooms = await response.json();
@@ -150,7 +197,7 @@
 
         async function createRoom(event) {
             event.preventDefault();
-            const name = document.getElementById('roomName').value;
+            const name = document.getElementById('roomName'].value;
             await fetch('/api/rooms', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -185,6 +232,7 @@
             loadRooms();
         }
 
+        // Sahifa ochilganda xonalarni yuklab qo'yish
         loadRooms();
     </script>
 </body>
