@@ -3,85 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kassir Paneli - ChoyxonaAzizxon</title>
-    <!-- Tailwind CSS CDN -->
+    <title>Kassa Paneli - ChoyxonaAzizxon</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-slate-100 font-sans antialiased text-slate-800">
 
     <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-slate-900 text-white flex flex-col">
-            <div class="p-5 text-2xl font-bold tracking-wider text-emerald-400 border-b border-slate-800">
-                ChoyxonaKassa
+        
+        <!-- Desktop Sidebar -->
+        <aside class="w-64 bg-slate-900 text-slate-300 hidden md:flex flex-col justify-between border-r border-slate-800">
+            <div>
+                <div class="p-6 text-xl font-bold tracking-wider text-emerald-400 border-b border-slate-800 flex items-center gap-2">
+                    <span>🪙</span> ChoyxonaAzizxon
+                </div>
+                <nav class="p-4 space-y-1.5">
+                    <a href="#dashboard" onclick="switchTab('dashboard')" id="nav-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium transition shadow-lg shadow-emerald-900/20"><span>📊</span> Bosh sahifa</a>
+                    <a href="#orders" onclick="switchTab('orders')" id="nav-orders" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>🧾</span> Buyurtmalar</a>
+                    <a href="#tables" onclick="switchTab('tables')" id="nav-tables" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>🪑</span> Stollar</a>
+                    <a href="#register" onclick="switchTab('register')" id="nav-register" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>💰</span> Kassa</a>
+                    <a href="#expenses" onclick="switchTab('expenses')" id="nav-expenses" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>💸</span> Xarajatlar</a>
+                    <a href="#reports" onclick="switchTab('reports')" id="nav-reports" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>📈</span> Hisobotlar</a>
+                </nav>
             </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <a href="#" class="block px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-medium">Faol Hisoblar</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">To'lov Tarixi</a>
-                <a href="#" class="block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300">Kassa Smenasi</a>
-            </nav>
-            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
-                Azamatjon & Umidjon Restarani
+            <div class="p-4 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between">
+                <span>Azamatjon & Umidjon</span>
+                <span id="connection-status" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold">Ulangan</span>
             </div>
-        </div>
+        </aside>
 
-        <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
-            <!-- Header -->
-            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
-                <h1 class="text-xl font-semibold text-gray-800">Kassir Ishchi Stoli</h1>
-                <div class="flex items-center space-x-4">
-                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-1 rounded-full">Kassa Ochiq</span>
-                    <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold">K</div>
+        <!-- Main Workspace -->
+        <main class="flex-1 flex flex-col overflow-y-auto">
+            
+            <!-- Top Header -->
+            <header class="bg-white h-16 border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <h1 id="current-page-title" class="text-lg font-bold text-slate-800">Kassa Bosh sahifasi</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="live-datetime" class="text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                        02.10.2026 09:15
+                    </div>
+                    <div class="flex items-center gap-2 pl-4 border-l border-slate-200">
+                        <div class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">K</div>
+                        <span class="text-sm font-semibold text-slate-700 hidden sm:inline">Kassir</span>
+                    </div>
                 </div>
             </header>
 
-            <!-- Dashboard Content -->
-            <main class="p-8">
-                <!-- Stats Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Naqd Pul</p>
-                        <h3 class="text-2xl font-bold text-gray-800 mt-1">0 so'm</h3>
+            <!-- Dynamic Content Container -->
+            <div id="tab-content" class="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+                
+                <!-- DASHBOARD VIEW -->
+                <div id="view-dashboard" class="space-y-6">
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bugungi tushum</p>
+                            <h3 id="stat-revenue" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Naqd pul</p>
+                            <h3 id="stat-cash" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Plastik karta</p>
+                            <h3 id="stat-card" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bugungi xarajatlar</p>
+                            <h3 id="stat-expenses" class="text-2xl font-bold text-rose-600 mt-1">0 so'm</h3>
+                        </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Plastik Karta (Terminal)</p>
-                        <h3 class="text-2xl font-bold text-gray-800 mt-1">0 so'm</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Jami Tushum</p>
-                        <h3 class="text-2xl font-bold text-emerald-600 mt-1">0 so'm</h3>
+
+                    <!-- Active Table Accounts Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                            <h2 class="font-bold text-slate-800">Faol buyurtmalar va stollar</h2>
+                            <button onclick="loadDashboardData()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition">Yangilash</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                                        <th class="p-4">Buyurtma №</th>
+                                        <th class="p-4">Stol</th>
+                                        <th class="p-4">Ofitsiant</th>
+                                        <th class="p-4">Summasi</th>
+                                        <th class="p-4">Holat</th>
+                                        <th class="p-4 text-right">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="active-orders-table" class="text-sm divide-y divide-slate-100">
+                                    <tr>
+                                        <td colspan="6" class="p-6 text-center text-slate-400">Faol buyurtmalar mavjud emas.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Faol buyurtmalar va to'lovlar jadvali -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold text-gray-800">Hisob-kitob kutilayotgan stollar</h2>
-                        <button onclick="alert('Ma\'lumotlar yangilandi')" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition">Yangilash</button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="border-b border-gray-200 text-gray-400 text-sm">
-                                    <th class="pb-3 font-medium">Stol / Xona</th>
-                                    <th class="pb-3 font-medium">Ofitsiant</th>
-                                    <th class="pb-3 font-medium">Umumiy Summa</th>
-                                    <th class="pb-3 font-medium">Holati</th>
-                                    <th class="pb-3 font-medium text-right">Amallar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="active-bills" class="text-sm text-gray-600">
-                                <tr>
-                                    <td colspan="5" class="py-4 text-center text-gray-400">Hozircha faol hisoblar yo'q.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                <h3 class="font-bold text-lg text-slate-800">To‘lovni qabul qilish</h3>
+                <button onclick="closePaymentModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">To‘lov turi</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="setPaymentMethod('cash')" id="pm-cash" class="py-3 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-700 font-semibold text-sm transition">Naqd</button>
+                        <button type="button" onclick="setPaymentMethod('card')" id="pm-card" class="py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">Plastik karta</button>
+                        <button type="button" onclick="setPaymentMethod('electronic')" id="pm-electronic" class="py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">Elektron</button>
                     </div>
                 </div>
-            </main>
+                <div class="bg-slate-50 p-4 rounded-2xl space-y-2">
+                    <div class="flex justify-between text-sm"><span class="text-slate-500">To‘lanadigan summa:</span> <span id="modal-total-due" class="font-bold text-slate-800">0 so'm</span></div>
+                </div>
+                <div id="cash-given-container">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Mijoz bergan pul</label>
+                    <input type="number" id="customer-given-input" oninput="calculateChange()" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-600 font-bold text-lg" placeholder="100000">
+                    <div class="flex justify-between text-sm mt-2 font-medium"><span class="text-slate-500">Qaytim:</span> <span id="modal-change" class="text-emerald-600 font-bold">0 so'm</span></div>
+                </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="closePaymentModal()" class="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Bekor qilish</button>
+                <button onclick="confirmPayment()" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20">Tasdiqlash</button>
+            </div>
         </div>
     </div>
 
+    <script>
+        let currentSelectedOrderId = null;
+        let selectedPaymentMethod = 'cash';
+        let currentDueAmount = 0;
+
+        // Initialize Real-time Socket.io Connection
+        const socket = io();
+        socket.on('connect', () => {
+            document.getElementById('connection-status').className = 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold';
+            document.getElementById('connection-status').innerText = 'Ulangan';
+            loadDashboardData();
+        });
+        socket.on('disconnect', () => {
+            document.getElementById('connection-status').className = 'px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-semibold';
+            document.getElementById('connection-status').innerText = 'Uzildi';
+        });
+        socket.on('paymentReceived', () => {
+            loadDashboardData();
+        });
+
+        function switchTab(tab) {
+            document.querySelectorAll('aside nav a').forEach(el => el.className = "flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition");
+            document.getElementById(`nav-${tab}`).className = "flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium transition shadow-lg shadow-emerald-900/20";
+            document.getElementById('current-page-title').innerText = document.getElementById(`nav-${tab}`).innerText.trim();
+        }
+
+        async function loadDashboardData() {
+            try {
+                const res = await fetch('/api/cashier/dashboard');
+                const json = await res.json();
+                if (json.success) {
+                    const data = json.data;
+                    document.getElementById('stat-revenue').innerText = `${data.bugungiTushum.toLocaleString()} so'm`;
+                    document.getElementById('stat-cash').innerText = `${data.naqdPul.toLocaleString()} so'm`;
+                    document.getElementById('stat-card').innerText = `${data.plastikKarta.toLocaleString()} so'm`;
+                    document.getElementById('stat-expenses').innerText = `${data.bugungiXarajatlar.toLocaleString()} so'm`;
+                    
+                    const tbody = document.getElementById('active-orders-table');
+                    if (data.faolBuyurtmalar.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Faol buyurtmalar mavjud emas.</td></tr>`;
+                    } else {
+                        tbody.innerHTML = data.faolBuyurtmalar.map(o => `
+                            <tr class="hover:bg-slate-50/80 transition">
+                                <td class="p-4 font-semibold text-slate-700">#${o.id}</td>
+                                <td class="p-4 font-medium text-slate-600">Stol #${o.tableId}</td>
+                                <td class="p-4 text-slate-600">${o.waiter ? o.waiter.name : 'Noma\'lum'}</td>
+                                <td class="p-4 font-bold text-slate-900">${o.totalAmount.toLocaleString()} so'm</td>
+                                <td class="p-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">${o.status}</span></td>
+                                <td class="p-4 text-right">
+                                    <button onclick="openPaymentModal(${o.id}, ${o.totalAmount})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-emerald-600/20 transition">To‘lov qabul qilish</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load dashboard data', e);
+            }
+        }
+
+        function openPaymentModal(orderId, totalAmount) {
+            currentSelectedOrderId = orderId;
+            currentDueAmount = totalAmount;
+            document.getElementById('modal-total-due').innerText = `${totalAmount.toLocaleString()} so'm`;
+            document.getElementById('customer-given-input').value = totalAmount;
+            calculateChange();
+            document.getElementById('payment-modal').classList.remove('hidden');
+            document.getElementById('payment-modal').classList.add('flex');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.remove('flex');
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        function setPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            ['cash', 'card', 'electronic'].forEach(m => {
+                const btn = document.getElementById(`pm-${m}`);
+                if (m === method) {
+                    btn.className = "py-3 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-700 font-semibold text-sm transition";
+                } else {
+                    btn.className = "py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition";
+                }
+            });
+            document.getElementById('cash-given-container').style.display = method === 'cash' ? 'block' : 'none';
+        }
+
+        function calculateChange() {
+            const given = parseFloat(document.getElementById('customer-given-input').value) || 0;
+            const change = given - currentDueAmount;
+            document.getElementById('modal-change').innerText = `${change > 0 ? change.toLocaleString() : 0} so'm`;
+        }
+
+        async function confirmPayment() {
+            const given = parseFloat(document.getElementById('customer-given-input').value) || currentDueAmount;
+            try {
+                const res = await fetch('/api/cashier/payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: currentSelectedOrderId,
+                        method: selectedPaymentMethod,
+                        amountPaid: currentDueAmount,
+                        customerGiven: given
+                    })
+                });
+                const json = await res.json();
+                if (json.success) {
+                    alert('To‘lov muvaffaqiyatli qabul qilindi');
+                    closePaymentModal();
+                    loadDashboardData();
+                } else {
+                    alert(json.message || 'Xatolik yuz berdi');
+                }
+            } catch (e) {
+                alert('To‘lovni amalga oshirib bo‘lmadi');
+            }
+        }
+
+        // Clock updater
+        setInterval(() => {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('live-datetime').innerText = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        }, 1000);
+    </script>
 </body>
 </html>
