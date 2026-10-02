@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oshxona TV Ekrani - ChoyxonaAzizxon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-950 text-white font-sans antialiased h-screen overflow-hidden flex flex-col">
+
+    <!-- Top Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 px-8 py-4 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4">
+            <span class="text-3xl">📺</span>
+            <div>
+                <h1 class="text-xl font-black tracking-wider uppercase text-emerald-400">ChoyxonaAzizxon Oshxona Ekrani</h1>
+                <p class="text-xs text-slate-400 font-medium">Kilolik osh va issiq taomlar real vaqt monitoringi</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="toggleFullScreen()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-900/50">To‘liq ekran</button>
+            <div id="tv-clock" class="text-xl font-bold bg-slate-800 px-4 py-2 rounded-xl border border-slate-700">09:15:00</div>
+        </div>
+    </header>
+
+    <!-- Dynamic Auto-Layout Grid Container -->
+    <main id="tv-grid-container" class="flex-1 p-6 grid gap-6 overflow-hidden items-center justify-center">
+        <div class="text-center text-slate-600 text-3xl font-bold col-span-full">
+            Oshxonada faol buyurtmalar yo‘q
+        </div>
+    </main>
+
+    <script>
+        const socket = io();
+        let activeOrdersCache = [];
+        let announcedMilestones = new Set(); // Prevent duplicate voice announcements
+
+        socket.on('connect', () => loadTvOrders());
+        socket.on('kitchen_new_order', () => loadTvOrders());
+        socket.on('order_status_updated', () => loadTvOrders());
+
+        async function loadTvOrders() {
+            try {
+                const res = await fetch('/api/kitchen/orders');
+                const json = await res.json();
+                if (json.success) {
+                    activeOrdersCache = json.data.filter(o => o.status !== 'completed');
+                    renderTvGrid();
+                }
+            } catch (e) {
+                console.error('Failed to load TV orders', e);
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+
+        function renderTvGrid() {
+            const container = document.getElementById('tv-grid-container');
+            const count = activeOrdersCache.length;
+
+            if (count === 0) {
+                container.className = "flex-1 p-6 flex items-center justify-center";
+                container.innerHTML = `<div class="text-center text-slate-600 text-3xl font-bold">Oshxonada faol buyurtmalar yo‘q</div>`;
+                return;
+            }
+
+            // Automatic Responsive Grid Layout Rules based on active order count
+            let gridCols = "grid-cols-1";
+            if (count === 2) gridCols = "grid-cols-1 md:grid-cols-2";
+            else if (count >= 3 && count <= 4) gridCols = "grid-cols-1 md:grid-cols-2";
+            else if (count >= 5 && count <= 9) gridCols = "grid-cols-1 md:grid-cols-3";
+            else if (count >= 10 && count <= 16) gridCols = "grid-cols-1 md:grid-cols-4";
+            else gridCols = "grid-cols-1 md:grid-cols-5"; // For >16 orders
+
+            container.className = `flex-1 p-6 grid ${gridCols} gap-6 overflow-y-auto`;
+
+            container.innerHTML = activeOrdersCache.map(order => {
+                const isOsh = (order.OrderItems || []).some(i => i.isKilogramOsh);
+                const oshItem = (order.OrderItems || []).find(i => i.isKilogramOsh);
+                
+                // 40-Minute Kilogram Osh Simulation Calculation (Server-Authoritative Recovery)
+                let simHtml = '';
+                if (isOsh && oshItem) {
+                    const startTime = new Date(order.createdAt).getTime();
+                    const now = new Date().getTime();
+                    const elapsedSeconds = Math.floor((now - startTime) / 1000);
+                    const totalSeconds = 40 * 60; // 40 minutes
+                    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+                    const progressPercent = Math.min(100, (elapsedSeconds / totalSeconds) * 100);
+
+                    // 5 Stages
+                    let stageName = "Osh tayyorlanmoqda";
+                    let stageNum = 1;
+                    if (progressPercent > 80) { stageName = "Osh tayyor"; stageNum = 5; }
+                    else if (progressPercent > 60) { stageName = "Osh tayyor bo‘lish arafasida"; stageNum = 4; }
+                    else if (progressPercent > 40) { stageName = "Osh pishmoqda"; stageNum = 3; }
+                    else if (progressPercent > 20) { stageName = "Osh qizimoqda"; stageNum = 2; }
+
+                    const mins = Math.floor(remainingSeconds / 60);
+                    const secs = remainingSeconds % 60;
+                    const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+                    // Voice Alert Triggers (10 min, 5 min, 1 min, finished)
+                    checkVoiceAlerts(order.id, mins, remainingSeconds);
+
+                    simHtml = `
+                        <div class="bg-emerald-950/50 border border-emerald-500/40 p-4 rounded-2xl space-y-3 mt-4">
+                            <div class="flex justify-between items-center text-xs font-bold text-emerald-400">
+                                <span>OSHQOZON • ${oshItem.quantityGrams >= 1000 ? `${oshItem.quantityGrams / 1000} kg` : `${oshItem.quantityGrams} g`}</span>
+                                <span>${stageNum}-bosqich: ${stageName}</span>
+                            </div>
+                            <div class="w-full bg-slate-900 rounded-full h-3.5 overflow-hidden border border-emerald-500/30">
+                                <div class="bg-emerald-500 h-full transition-all duration-1000" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="flex justify-between items-center text-sm font-bold">
+                                <span class="text-slate-400">Qolgan vaqt:</span>
+                                <span class="text-emerald-400 text-xl">${timeFormatted}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="bg-slate-900 border ${order.status === 'ready' ? 'border-emerald-500 shadow-emerald-500/20' : 'border-slate-800'} rounded-3xl p-6 flex flex-col justify-between shadow-2xl h-full space-y-4">
+                        <div class="flex justify-between items-start border-b border-slate-800 pb-4">
+                            <div>
+                                <h2 class="text-2xl font-black text-white">Buyurtma №${order.id}</h2>
+                                <p class="text-base font-bold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.name : 'Nomaʼlum'}</p>
+                            </div>
+                            <span class="text-xs font-bold px-4 py-1.5 rounded-full ${order.status === 'ready' ? 'bg-emerald-500 text-slate-950' : 'bg-blue-600 text-white'} uppercase tracking-wider">
+                                ${order.status === 'ready' ? 'Tayyor' : 'Tayyorlanmoqda'}
+                            </span>
+                        </div>
+
+                        <div class="space-y-3 flex-1">
+                            <ul class="space-y-2">
+                                ${(order.OrderItems || []).map(item => `
+                                    <li class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-base">
+                                        <span class="font-bold text-slate-100">${item.Dish ? item.Dish.name : 'Taom'}</span>
+                                        <span class="text-emerald-400 font-extrabold">${item.isKilogramOsh ? (item.quantityGrams >= 1000 ? `${item.quantityGrams / 1000} kg` : `${item.quantityGrams} g`) : `${item.quantity} dona`}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                            ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
+                            ${simHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Browser SpeechSynthesis Voice Alerts
+        function checkVoiceAlerts(orderId, mins, totalSecs) {
+            if (!('speechSynthesis' in window)) return;
+            
+            const key10 = `${orderId}_10m`;
+            const key5 = `${orderId}_5m`;
+            const key1 = `${orderId}_1m`;
+            const key0 = `${orderId}_0m`;
+
+            if (mins === 10 && totalSecs % 60 === 0 && !announcedMilestones.has(key10)) {
+                speakText("Oshga 10 minut qoldi");
+                announcedMilestones.add(key10);
+            } else if (mins === 5 && totalSecs % 60 === 0 && !announcedMilestones.has(key5)) {
+                speakText("Oshga 5 minut qoldi");
+                announcedMilestones.add(key5);
+            } else if (mins === 1 && totalSecs % 60 === 0 && !announcedMilestones.has(key1)) {
+                speakText("Oshga 1 minut qoldi");
+                announcedMilestones.add(key1);
+            } else if (totalSecs === 0 && !announcedMilestones.has(key0)) {
+                speakText("Osh tayyor");
+                announcedMilestones.add(key0);
+            }
+        }
+
+        function speakText(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'uz-UZ';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Live clock and ticker refresh every second for smooth simulation timer updates
+        setInterval(() => {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            document.getElementById('tv-clock').innerText = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            if (activeOrdersCache.length > 0) {
+                renderTvGrid();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
