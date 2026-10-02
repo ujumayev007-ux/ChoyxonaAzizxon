@@ -1,87 +1,278 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="uz" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - ChoyxonaAzizxon</title>
+    <title>Boshqaruv paneli - ChoyxonaAzizxon</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-gray-100 font-sans h-full flex flex-col overflow-hidden">
 
-    <div class="flex h-screen overflow-hidden">
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-2"></div>
+
+    <div class="flex h-full overflow-hidden">
+        
         <!-- Sidebar -->
-        <div class="w-64 bg-slate-900 text-white flex flex-col">
-            <div class="p-5 text-2xl font-bold tracking-wider text-amber-400 border-b border-slate-800">
-                ChoyxonaAdmin
+        <aside class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-lg">
+            <div class="p-5 text-2xl font-bold tracking-wider text-amber-400 border-b border-slate-800 flex items-center justify-between">
+                <span>ChoyxonaAdmin</span>
             </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <button onclick="switchTab('bosh-sahifa', this)" class="w-full text-left block px-4 py-2.5 rounded-lg bg-amber-600 text-white font-medium transition">Bosh sahifa</button>
-                <button onclick="switchTab('buyurtmalar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Buyurtmalar</button>
-                <button onclick="switchTab('xonalar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Xonalar va Stollar</button>
-                <button onclick="switchTab('omborxona', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Omborxona</button>
-                <button onclick="switchTab('menyu', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Menyu va Tannarx</button>
-                <button onclick="switchTab('xodimlar', this)" class="w-full text-left block px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">Xodimlar</button>
+            <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                <button onclick="switchTab('bosh-sahifa', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg bg-amber-600 text-white font-medium transition shadow-sm">
+                    <span>📊</span> Boshqaruv paneli
+                </button>
+                <button onclick="switchTab('buyurtmalar', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>🛍️</span> Buyurtmalar
+                </button>
+                <button onclick="switchTab('stollar', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>🪑</span> Stollar
+                </button>
+                <button onclick="switchTab('menyu', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>🍲</span> Menyu
+                </button>
+                <button onclick="switchTab('ombor', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>📦</span> Ombor
+                </button>
+                <button onclick="switchTab('xodimlar', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>👥</span> Xodimlar
+                </button>
+                <button onclick="switchTab('moliya', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>💰</span> Moliya
+                </button>
+                <button onclick="switchTab('hisobotlar', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>📈</span> Hisobotlar
+                </button>
+                <button onclick="switchTab('sozlamalar', this)" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-800 text-slate-300 transition">
+                    <span>⚙️</span> Sozlamalar
+                </button>
             </nav>
-            <div class="p-4 border-t border-slate-800 text-sm text-slate-400">
+            <div class="p-4 border-t border-slate-800 text-xs text-slate-400">
                 Azamatjon & Umidjon Restarani
             </div>
-        </div>
+        </aside>
 
         <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
-            <!-- Header -->
-            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8">
-                <h1 id="page-title" class="text-xl font-semibold text-gray-800">Boshqaruv Paneli</h1>
-                <div class="flex items-center space-x-4">
-                    <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-1 rounded-full">Server Ishlayapti</span>
-                    <div class="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold">A</div>
+        <div class="flex-1 flex flex-col overflow-hidden">
+            
+            <!-- Top Header -->
+            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-8 z-10 flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <h1 id="page-title" class="text-xl font-bold text-gray-800">Boshqaruv paneli</h1>
+                </div>
+                
+                <div class="flex items-center space-x-6">
+                    <!-- Search -->
+                    <div class="relative">
+                        <input type="text" placeholder="Qidirish..." class="w-64 bg-gray-50 border border-gray-200 rounded-lg px-4 py-1.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                    </div>
+
+                    <!-- Date & Time -->
+                    <div class="text-xs text-gray-500 font-medium hidden md:block text-right">
+                        <div id="header-date">Bugun: 02.10.2026</div>
+                        <div id="header-clock" class="font-bold text-gray-700">09:15:00</div>
+                    </div>
+
+                    <!-- Notifications -->
+                    <div class="relative">
+                        <button class="p-2 text-gray-600 hover:text-amber-600 relative transition">
+                            🔔
+                            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                        </button>
+                    </div>
+
+                    <!-- Admin Profile -->
+                    <div class="flex items-center gap-3 border-l pl-6 border-gray-200">
+                        <div class="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-inner">A</div>
+                        <div class="hidden md:block text-left">
+                            <p class="text-xs font-bold text-gray-800">Profil</p>
+                            <button onclick="logout()" class="text-xs text-red-500 hover:underline">Tizimdan chiqish</button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <!-- Dashboard Content -->
-            <main class="p-8">
+            <!-- Main Scrollable Content -->
+            <main class="flex-1 overflow-y-auto p-8">
                 
-                <!-- 1. BOSH SAHIFA -->
-                <div id="section-bosh-sahifa" class="tab-content">
+                <!-- 1. BOSHRAV PANELI (DASHBOARD) -->
+                <div id="section-bosh-sahifa" class="tab-content space-y-8">
                     <!-- Stats Grid -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <p class="text-sm text-gray-500 font-medium">Bugungi Tushum</p>
-                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 so'm</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Bugungi tushum</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">1,450,000 so'm</h3>
+                                <p class="text-xs text-green-600 mt-1">↑ Kecha bilan solishtirganda +12%</p>
+                            </div>
+                            <span class="text-3xl bg-amber-50 p-3 rounded-xl">💵</span>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <p class="text-sm text-gray-500 font-medium">Faol Buyurtmalar</p>
-                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 ta</h3>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Bugungi buyurtmalar</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">48 ta</h3>
+                                <p class="text-xs text-green-600 mt-1">↑ O‘tgan haftaga nisbatan +8%</p>
+                            </div>
+                            <span class="text-3xl bg-blue-50 p-3 rounded-xl">🛍️</span>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <p class="text-sm text-gray-500 font-medium">Band Stollar</p>
-                            <h3 class="text-2xl font-bold text-gray-800 mt-1">0 / 0</h3>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Faol stollar</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">8 / 15</h3>
+                                <p class="text-xs text-gray-500 mt-1">Bandlik darajasi: 53%</p>
+                            </div>
+                            <span class="text-3xl bg-purple-50 p-3 rounded-xl">🪑</span>
                         </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                            <p class="text-sm text-gray-500 font-medium">Kassa Holati</p>
-                            <h3 class="text-2xl font-bold text-green-600 mt-1">Ochiq</h3>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Oshxonadagi buyurtmalar</p>
+                                <h3 class="text-2xl font-bold text-amber-600 mt-1">5 ta</h3>
+                                <p class="text-xs text-gray-500 mt-1">Tayyorlanmoqda</p>
+                            </div>
+                            <span class="text-3xl bg-amber-50 p-3 rounded-xl">🍳</span>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Ombordagi mahsulotlar</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">124 xil</h3>
+                                <p class="text-xs text-red-500 mt-1">⚠️ 2 ta mahsulot kam qoldi</p>
+                            </div>
+                            <span class="text-3xl bg-red-50 p-3 rounded-xl">📦</span>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500 font-medium">Bugungi xarajatlar</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">320,000 so'm</h3>
+                                <p class="text-xs text-gray-500 mt-1">Bozorlik va xaridlar</p>
+                            </div>
+                            <span class="text-3xl bg-orange-50 p-3 rounded-xl">🧾</span>
+                        </div>
+                    </div>
+
+                    <!-- Popular Products & Recent Orders Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <!-- Popular Products -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 lg:col-span-1">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Eng ko‘p sotilgan taomlar</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between border-b pb-3">
+                                    <div>
+                                        <p class="font-semibold text-sm text-gray-800">Osh (Milliy)</p>
+                                        <span class="text-xs text-gray-500">Sotilgan: 28 ta</span>
+                                    </div>
+                                    <span class="font-bold text-amber-600 text-sm">840,000 so'm</span>
+                                </div>
+                                <div class="flex items-center justify-between border-b pb-3">
+                                    <div>
+                                        <p class="font-semibold text-sm text-gray-800">Jizzax somsa</p>
+                                        <span class="text-xs text-gray-500">Sotilgan: 45 ta</span>
+                                    </div>
+                                    <span class="font-bold text-amber-600 text-sm">675,000 so'm</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-semibold text-sm text-gray-800">Qo'y shashlik</p>
+                                        <span class="text-xs text-gray-500">Sotilgan: 32 ta</span>
+                                    </div>
+                                    <span class="font-bold text-amber-600 text-sm">640,000 so'm</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Orders Summary -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 lg:col-span-2">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">So‘nggi buyurtmalar</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm text-gray-600">
+                                    <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
+                                        <tr>
+                                            <th class="py-3 px-4">Buyurtma №</th>
+                                            <th class="py-3 px-4">Stol</th>
+                                            <th class="py-3 px-4">Summa</th>
+                                            <th class="py-3 px-4">Holat</th>
+                                            <th class="py-3 px-4">Vaqt</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y">
+                                        <tr>
+                                            <td class="py-3 px-4 font-bold text-gray-800">#1048</td>
+                                            <td class="py-3 px-4">Stol 3 (1-zal)</td>
+                                            <td class="py-3 px-4">125,000 so'm</td>
+                                            <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium">Tayyorlanmoqda</span></td>
+                                            <td class="py-3 px-4">02.10.2026 09:10</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="py-3 px-4 font-bold text-gray-800">#1047</td>
+                                            <td class="py-3 px-4">VIP xona</td>
+                                            <td class="py-3 px-4">480,000 so'm</td>
+                                            <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Yetkazildi</span></td>
+                                            <td class="py-3 px-4">02.10.2026 08:45</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- 2. BUYURTMALAR -->
-                <div id="section-buyurtmalar" class="tab-content hidden">
+                <div id="section-buyurtmalar" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-wrap gap-4 items-center justify-between">
+                        <div class="flex gap-2">
+                            <button class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium">Barchasi</button>
+                            <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Yangi</button>
+                            <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyorlanmoqda</button>
+                            <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyor</button>
+                        </div>
+                        <input type="text" placeholder="Buyurtma qidirish..." class="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">Faol Buyurtmalar</h2>
-                        <p class="text-gray-500 text-sm">Hozircha buyurtmalar mavjud emas.</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-600">
+                                <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
+                                    <tr>
+                                        <th class="py-3 px-4">Buyurtma №</th>
+                                        <th class="py-3 px-4">Stol</th>
+                                        <th class="py-3 px-4">Mijoz</th>
+                                        <th class="py-3 px-4">Ofitsiant</th>
+                                        <th class="py-3 px-4">Summa</th>
+                                        <th class="py-3 px-4">Holat</th>
+                                        <th class="py-3 px-4">Vaqt</th>
+                                        <th class="py-3 px-4">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y" id="orders-table-body">
+                                    <tr>
+                                        <td class="py-3 px-4 font-bold text-gray-800">#1048</td>
+                                        <td class="py-3 px-4">Stol 3</td>
+                                        <td class="py-3 px-4">Azizbek</td>
+                                        <td class="py-3 px-4">Umid</td>
+                                        <td class="py-3 px-4">125,000 so'm</td>
+                                        <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium">Tayyorlanmoqda</span></td>
+                                        <td class="py-3 px-4">02.10.2026 09:10</td>
+                                        <td class="py-3 px-4 flex gap-2">
+                                            <button onclick="showToast('Ma’lumot yuklandi')" class="text-blue-600 hover:underline text-xs">Ko‘rish</button>
+                                            <button onclick="showToast('To‘lov qabul qilindi')" class="text-green-600 hover:underline text-xs">To‘lov</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 3. XONALAR VA STOLLAR -->
-                <div id="section-xonalar" class="tab-content hidden">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                <!-- 3. STOLLAR -->
+                <div id="section-stollar" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-lg font-bold text-gray-800">Yangi Xona qo'shish</h2>
                         </div>
                         <form onsubmit="createRoom(event)" class="flex gap-4">
-                            <input type="text" id="roomName" placeholder="Xona nomi (masalan: VIP zal, 1-qavat)" required class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
-                            <button type="submit" class="bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Xona qo'shish</button>
+                            <input type="text" id="roomName" placeholder="Xona nomi (masalan: VIP xona, 1-zal)" required class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            <button type="submit" class="bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">Xona qo‘shish</button>
                         </form>
                     </div>
 
@@ -96,27 +287,125 @@
                     </div>
                 </div>
 
-                <!-- 4. OMBORXONA -->
-                <div id="section-omborxona" class="tab-content hidden">
+                <!-- 4. MENYU -->
+                <div id="section-menyu" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-800">Menyu va Mahsulot Tannarxi</h2>
+                        <button onclick="showToast('Taom qo‘shish oynasi ochildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
+                    </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">Omborxona Qoldiqlari</h2>
-                        <p class="text-gray-500 text-sm">Omborxona bo'limi tez kunda qo'shiladi.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                                <h4 class="font-bold text-gray-800 text-base mb-1">Osh (Milliy)</h4>
+                                <p class="text-xs text-gray-500 mb-3">Kategoriya: Osh</p>
+                                <div class="flex justify-between text-sm py-1 border-t">
+                                    <span class="text-gray-500">Tannarx:</span>
+                                    <span class="font-semibold text-gray-700">22,000 so'm</span>
+                                </div>
+                                <div class="flex justify-between text-sm py-1">
+                                    <span class="text-gray-500">Sotuv narxi:</span>
+                                    <span class="font-semibold text-amber-600">30,000 so'm</span>
+                                </div>
+                                <div class="flex justify-between text-sm py-1 border-b pb-2">
+                                    <span class="text-gray-500">Foyda:</span>
+                                    <span class="font-semibold text-green-600">8,000 so'm</span>
+                                </div>
+                                <div class="mt-4 flex gap-2">
+                                    <button class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 rounded-lg text-xs font-medium">Tahrirlash</button>
+                                    <button class="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1.5 rounded-lg text-xs font-medium">O‘chirish</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 5. MENYU VA TANNARX -->
-                <div id="section-menyu" class="tab-content hidden">
+                <!-- 5. OMBOR -->
+                <div id="section-ombor" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-800">Omborxona Qoldiqlari</h2>
+                        <button onclick="showToast('Mahsulot qo‘shildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                    </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">Menyu va Mahsulot Tannarxi</h2>
-                        <p class="text-gray-500 text-sm">Menyu bo'limi tez kunda qo'shiladi.</p>
+                        <table class="w-full text-left text-sm text-gray-600">
+                            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
+                                <tr>
+                                    <th class="py-3 px-4">Mahsulot nomi</th>
+                                    <th class="py-3 px-4">Kategoriya</th>
+                                    <th class="py-3 px-4">Miqdor</th>
+                                    <th class="py-3 px-4">O‘lchov birligi</th>
+                                    <th class="py-3 px-4">Holat</th>
+                                    <th class="py-3 px-4">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                <tr>
+                                    <td class="py-3 px-4 font-bold text-gray-800">Guruch (Lazer)</td>
+                                    <td class="py-3 px-4">Asosiy</td>
+                                    <td class="py-3 px-4">45</td>
+                                    <td class="py-3 px-4">kg</td>
+                                    <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Yetarli</span></td>
+                                    <td class="py-3 px-4">
+                                        <button class="text-blue-600 hover:underline text-xs">Tahrirlash</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
                 <!-- 6. XODIMLAR -->
-                <div id="section-xodimlar" class="tab-content hidden">
+                <div id="section-xodimlar" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-800">Xodimlar Ro'yxati va Ofitsiantlar</h2>
+                        <button onclick="showToast('Xodim qo‘shish oynasi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
+                    </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">Xodimlar Ro'yxati</h2>
-                        <p class="text-gray-500 text-sm">Xodimlar bo'limi tez kunda qo'shiladi.</p>
+                        <table class="w-full text-left text-sm text-gray-600">
+                            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
+                                <tr>
+                                    <th class="py-3 px-4">Xodim</th>
+                                    <th class="py-3 px-4">Lavozim</th>
+                                    <th class="py-3 px-4">Telefon</th>
+                                    <th class="py-3 px-4">Holat</th>
+                                    <th class="py-3 px-4">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                <tr>
+                                    <td class="py-3 px-4 font-bold text-gray-800">Umidjon</td>
+                                    <td class="py-3 px-4">Ofitsiant</td>
+                                    <td class="py-3 px-4">+998 90 123-45-67</td>
+                                    <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Faol</span></td>
+                                    <td class="py-3 px-4">
+                                        <button class="text-blue-600 hover:underline text-xs">Tahrirlash</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 7. MOLIYA -->
+                <div id="section-moliya" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Moliya va Kassa Holati</h2>
+                        <p class="text-gray-500 text-sm">Kassa qoldig‘i va kunlik daromad/xarajat tahlili.</p>
+                    </div>
+                </div>
+
+                <!-- 8. HISOBOTLAR -->
+                <div id="section-hisobotlar" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Hisobotlar</h2>
+                        <p class="text-gray-500 text-sm">Kunlik, haftalik va oylik hisobotlarni ko‘rish va chop etish.</p>
+                    </div>
+                </div>
+
+                <!-- 9. SOZLAMALAR -->
+                <div id="section-sozlamalar" class="tab-content hidden space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 class="text-lg font-bold text-gray-800 mb-4">Tizim Sozlamalari</h2>
+                        <p class="text-gray-500 text-sm">Restoran ma’lumotlari, rejim va xavfsizlik sozlamalari.</p>
                     </div>
                 </div>
 
@@ -124,44 +413,71 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
+    <!-- JavaScript Implementation -->
     <script>
+        // Real-time Clock Update
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toTimeString().split(' ')[0];
+            const dateString = String(now.getDate()).padStart(2, '0') + '.' + 
+                               String(now.getMonth() + 1).padStart(2, '0') + '.' + 
+                               now.getFullYear();
+            document.getElementById('header-clock').innerText = timeString;
+            document.getElementById('header-date').innerText = 'Bugun: ' + dateString;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Toast Notification System
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-slate-900 text-white text-xs px-4 py-3 rounded-lg shadow-lg transition transform translate-y-2 opacity-0 flex items-center gap-2';
+            toast.innerHTML = `<span>✅</span> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Tab Switching Logic
         function switchTab(tabId, element) {
-            // Barcha bo'limlarni yashirish
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            
-            // Tanlangan bo'limni ochish
             document.getElementById('section-' + tabId).classList.remove('hidden');
 
-            // Menyu tugmalarining rangini o'zgartirish
-            document.querySelectorAll('nav button').forEach(btn => {
-                btn.classList.remove('bg-amber-600', 'text-white');
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-600', 'text-white', 'shadow-sm');
                 btn.classList.add('hover:bg-slate-800', 'text-slate-300');
             });
 
             element.classList.remove('hover:bg-slate-800', 'text-slate-300');
-            element.classList.add('bg-amber-600', 'text-white');
+            element.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
 
-            // Sarlavhani o'zgartirish
             const titles = {
-                'bosh-sahifa': 'Boshqaruv Paneli',
-                'buyurtmalar': 'Buyurtmalar Boshqaruvi',
-                'xonalar': 'Xonalar va Stollar',
-                'omborxona': 'Omborxona va Mahsulotlar',
-                'menyu': 'Menyu va Tannarx',
-                'xodimlar': 'Xodimlar Boshqaruvi'
+                'bosh-sahifa': 'Boshqaruv paneli',
+                'buyurtmalar': 'Buyurtmalar',
+                'stollar': 'Stollar',
+                'menyu': 'Menyu',
+                'ombor': 'Ombor',
+                'xodimlar': 'Xodimlar',
+                'moliya': 'Moliya',
+                'hisobotlar': 'Hisobotlar',
+                'sozlamalar': 'Sozlamalar'
             };
-            document.getElementById('page-title').innerText = titles[tabId] || 'Admin Panel';
+            document.getElementById('page-title').innerText = titles[tabId] || 'Boshqaruv paneli';
         }
 
+        // Room & Table Management API Functions
         async function loadRooms() {
             try {
                 const response = await fetch('/api/rooms');
                 const rooms = await response.json();
                 const container = document.getElementById('rooms-container');
                 
-                if (rooms.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo\'shilmagan.</p>';
+                if (!rooms || rooms.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo‘shilmagan.</p>';
                     return;
                 }
 
@@ -176,17 +492,17 @@
                                 <p class="text-xs text-gray-500 mb-2">Stollar:</p>
                                 <div class="flex flex-wrap gap-2">
                                     ${room.tables && room.tables.length > 0 ? room.tables.map(table => `
-                                        <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-2xs">
+                                        <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
                                             <span class="text-xs font-bold text-gray-700">Stol #${table.number}</span>
                                             <button onclick="deleteTable(${table.id})" class="text-red-400 hover:text-red-600 text-xs">×</button>
                                         </div>
-                                    `).join('') : '<span class="text-xs text-gray-400">Stollar yo\'q</span>'}
+                                    `).join('') : '<span class="text-xs text-gray-400">Stollar yo‘q</span>'}
                                 </div>
                             </div>
                         </div>
                         <div class="mt-4 pt-3 border-t border-gray-200 flex gap-2">
                             <input type="number" id="table-input-${room.id}" placeholder="Stol raqami" class="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
-                            <button onclick="addTable(${room.id})" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Stol qo'shish</button>
+                            <button onclick="addTable(${room.id})" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Stol qo‘shish</button>
                         </div>
                     </div>
                 `).join('');
@@ -197,19 +513,21 @@
 
         async function createRoom(event) {
             event.preventDefault();
-            const name = document.getElementById('roomName'].value;
+            const name = document.getElementById('roomName').value;
             await fetch('/api/rooms', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
             });
             document.getElementById('roomName').value = '';
+            showToast('Xona qo‘shildi');
             loadRooms();
         }
 
         async function deleteRoom(id) {
-            if (confirm('Haqiqatan ham bu xonani va uning barcha stollarini oʻchirmoqchimisiz?')) {
+            if (confirm('Ushbu ma’lumotni o‘chirishni tasdiqlaysizmi?')) {
                 await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
+                showToast('Xona o‘chirildi');
                 loadRooms();
             }
         }
@@ -224,15 +542,31 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ number, roomId })
             });
+            input.value = '';
+            showToast('Stol qo‘shildi');
             loadRooms();
         }
 
         async function deleteTable(id) {
             await fetch(`/api/tables/${id}`, { method: 'DELETE' });
+            showToast('Stol o‘chirildi');
             loadRooms();
         }
 
-        // Sahifa ochilganda xonalarni yuklab qo'yish
+        function logout() {
+            if (confirm('Tizimdan chiqishni tasdiqlaysizmi?')) {
+                window.location.href = '/login';
+            }
+        }
+
+        // Real-time updates via Socket.io
+        const socket = io();
+        socket.on('orderUpdate', (data) => {
+            showToast('Yangi buyurtma keldi yoki holat o‘zgardi!');
+            loadRooms();
+        });
+
+        // Initial load
         loadRooms();
     </script>
 </body>
