@@ -1,7 +1,16 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { db } from '../models'; // Assuming existing database models
 import { emitSocketEvent } from '../socket';
+
+// TypeScript uchun Express Request obyektiga user turini qo'shish
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+    }
+  }
+}
 
 const router = Router();
 
