@@ -1,10 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { db } from '../models'; // Sequelize modellar bazasi
+import { prisma } from '../utils/db'; // Prisma client
 import { emitSocketEvent } from '../socket';
-
-// TypeScript tur tekshiruvini chetlab o'tib, Sequelize ishlashini ta'minlaymiz
-const db: any = rawDb; 
 
 const router = Router();
 
@@ -67,6 +64,7 @@ router.post('/webhook', async (req, res) => {
 
         res.sendStatus(200);
     } catch (error) {
+        console.error(error);
         res.sendStatus(500);
     }
 });
@@ -94,7 +92,7 @@ router.post('/customer/telegram/auth', async (req, res) => {
 
         let validatedTableId = tableId;
         if (validatedTableId) {
-            const table = await db.Table.findByPk(validatedTableId);
+            const table = await prisma.table.findUnique({ where: { id: validatedTableId } });
             if (!table || !table.isActive) {
                 return res.status(400).json({ success: false, message: "Stol faol emas yoki topilmadi" });
             }
@@ -102,17 +100,19 @@ router.post('/customer/telegram/auth', async (req, res) => {
             return res.status(400).json({ success: false, message: "Stol ma’lumoti topilmadi" });
         }
 
-        // Sequelize orqali customer topish yoki yaratish
-        let customer = await db.Customer.findOne({
+        // Prisma orqali customer topish yoki yaratish
+        let customer = await prisma.customer.findUnique({
             where: { telegramId: String(telegramUser.id) }
         });
 
         if (!customer) {
-            customer = await db.Customer.create({
-                telegramId: String(telegramUser.id),
-                firstName: telegramUser.first_name || '',
-                lastName: telegramUser.last_name || '',
-                username: telegramUser.username || ''
+            customer = await prisma.customer.create({
+                data: {
+                    telegramId: String(telegramUser.id),
+                    firstName: telegramUser.first_name || '',
+                    lastName: telegramUser.last_name || '',
+                    username: telegramUser.username || ''
+                }
             });
         }
 
@@ -124,18 +124,17 @@ router.post('/customer/telegram/auth', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: "Server bilan aloqa uzildi" });
     }
 });
 
 // 3. Secure Customer Order Creation Endpoint
 router.post('/customer/orders', async (req, res) => {
-    const t = await db.sequelize.transaction();
     try {
         const { tableId, items, customerId, notes } = req.body; 
 
         if (!tableId || !items || !Array.isArray(items) || items.length === 0) {
-            await t.rollback();
             return res.status(400).json({ success: false, message: "Buyurtma yuborilmadi" });
         }
 
@@ -143,9 +142,8 @@ router.post('/customer/orders', async (req, res) => {
         const orderItemsData = [];
 
         for (const cartItem of items) {
-            const dish = await db.MenuItem.findByPk(cartItem.dishId);
+            const dish = await prisma.menuItem.findUnique({ where: { id: cartItem.dishId } });
             if (!dish) {
-                await t.rollback();
                 return res.status(400).json({ success: false, message: "Taom topilmadi" });
             }
             
@@ -160,33 +158,39 @@ router.post('/customer/orders', async (req, res) => {
             });
         }
 
-        // Sequelize tranzaksiyasi orqali buyurtma yaratish
-        const newOrder = await db.Order.create({
-            tableId,
-            customerId,
-            totalAmount: calculatedTotal,
-            status: 'pending',
-            notes: notes || ''
-        }, { transaction: t });
+        // Prisma transaction orqali buyurtma va order itemlarni yaratish
+        const result = await prisma.$transaction(async (tx) => {
+            const newOrder = await tx.order.create({
+                data: {
+                    tableId,
+                    customerId,
+                    totalAmount: calculatedTotal,
+                    status: 'pending',
+                    notes: notes || ''
+                }
+            });
 
-        for (const itemData of orderItemsData) {
-            await db.OrderItem.create({
-                orderId: newOrder.id,
-                ...itemData
-            }, { transaction: t });
-        }
+            for (const itemData of orderItemsData) {
+                await tx.orderItem.create({
+                    data: {
+                        orderId: newOrder.id,
+                        ...itemData
+                    }
+                });
+            }
 
-        await t.commit();
+            return newOrder;
+        });
 
-        emitSocketEvent('waiter_new_order', { orderId: newOrder.id, tableId, totalAmount: calculatedTotal });
+        emitSocketEvent('waiter_new_order', { orderId: result.id, tableId, totalAmount: calculatedTotal });
 
         res.json({
             success: true,
             message: "Buyurtmangiz yuborildi, ofitsiant tez orada kelib tasdiqlaydi",
-            data: { orderId: newOrder.id, tableId, totalAmount: calculatedTotal }
+            data: { orderId: result.id, tableId, totalAmount: calculatedTotal }
         });
     } catch (error) {
-        await t.rollback();
+        console.error(error);
         res.status(500).json({ success: false, message: "Server bilan aloqa uzildi" });
     }
 });
