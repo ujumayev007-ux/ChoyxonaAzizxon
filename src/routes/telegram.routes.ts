@@ -102,10 +102,7 @@ router.post('/customer/telegram/auth', async (req, res) => {
             return res.status(400).json({ success: false, message: "Stol ma’lumoti topilmadi" });
         }
 
-<<<<<<< HEAD
         // Sequelize orqali customer topish yoki yaratish
-=======
->>>>>>> 0725841 (Fix build errors with ts-nocheck)
         let customer = await db.Customer.findOne({
             where: { telegramId: String(telegramUser.id) }
         });
@@ -163,10 +160,7 @@ router.post('/customer/orders', async (req, res) => {
             });
         }
 
-<<<<<<< HEAD
         // Sequelize tranzaksiyasi orqali buyurtma yaratish
-=======
->>>>>>> 0725841 (Fix build errors with ts-nocheck)
         const newOrder = await db.Order.create({
             tableId,
             customerId,
