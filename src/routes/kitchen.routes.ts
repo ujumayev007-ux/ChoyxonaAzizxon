@@ -19,7 +19,7 @@ router.get('/orders', async (req, res) => {
             },
             include: [
                 { model: db.User, as: 'waiter', attributes: ['name'] },
-                { model: db.OrderItem, include: [db.Dish] }
+                { model: db.OrderItem, as: 'OrderItems', include: [{ model: db.Dish }] } // as: 'OrderItems' qo'shildi
             ],
             order: [['createdAt', 'ASC']]
         });
