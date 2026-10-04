@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { prisma } from '../utils/db'; // Prisma client ulanishi
 import { emitSocketEvent } from '../socket';
+import { PaymentMethod, OrderStatus } from '@prisma/client';
 
 // TypeScript uchun Express Request obyektiga user turini qo'shish
 declare global {
@@ -28,26 +29,26 @@ router.get('/dashboard', async (req, res) => {
             where: { createdAt: { gte: today } }
         });
 
-        const cashTotal = paymentsToday.filter(p => p.method === 'cash').reduce((sum, p) => sum + p.amount, 0);
-        const cardTotal = paymentsToday.filter(p => p.method === 'card').reduce((sum, p) => sum + p.amount, 0);
-        const electronicTotal = paymentsToday.filter(p => p.method === 'electronic').reduce((sum, p) => sum + p.amount, 0);
+        const cashTotal = paymentsToday.filter(p => p.method === PaymentMethod.CASH).reduce((sum, p) => sum + Number(p.amount), 0);
+        const cardTotal = paymentsToday.filter(p => p.method === PaymentMethod.CARD).reduce((sum, p) => sum + Number(p.amount), 0);
+        const electronicTotal = paymentsToday.filter(p => p.method === PaymentMethod.ELECTRONIC).reduce((sum, p) => sum + Number(p.amount), 0);
         const totalRevenue = cashTotal + cardTotal + electronicTotal;
 
         // Today's expenses
-        const expensesToday = await prisma.expense.findMany({
+        const expensesToday = await (prisma as any).expense.findMany({
             where: { createdAt: { gte: today } }
         });
-        const totalExpenses = expensesToday.reduce((sum, e) => sum + e.amount, 0);
+        const totalExpenses = expensesToday.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
 
         // Active table accounts / orders needing payment
         const activeOrders = await prisma.order.findMany({
             where: { 
-                status: { notIn: ['completed', 'cancelled'] } 
+                status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED] } 
             },
             include: { 
-                waiter: { select: { name: true } }, 
-                orderItems: { include: { dish: true } } 
-            }
+                waiter: { select: { username: true } }, 
+                items: { include: { menuItem: true } } 
+            } as any
         });
 
         res.json({
@@ -76,25 +77,25 @@ router.post('/payments', async (req, res) => {
         const result = await prisma.$transaction(async (tx) => {
             const order = await tx.order.findUnique({
                 where: { id: orderId },
-                include: { orderItems: true }
+                include: { items: true } as any
             });
 
             if (!order) {
                 throw new Error('ORDER_NOT_FOUND');
             }
 
-            if (order.status === 'completed') {
+            if (order.status === OrderStatus.COMPLETED) {
                 throw new Error('ALREADY_COMPLETED');
             }
 
             // Validate amount on backend (never trust frontend totals)
-            const totalDue = order.totalAmount - (order.discount || 0);
+            const totalDue = Number(order.totalAmount) - Number(order.discount || 0);
             if (amountPaid <= 0 || amountPaid > totalDue) {
                 throw new Error('INVALID_AMOUNT');
             }
 
             let change = 0;
-            if (method === 'cash') {
+            if (method === PaymentMethod.CASH || method === 'cash') {
                 if (customerGiven < amountPaid) {
                     throw new Error('INSUFFICIENT_CASH');
                 }
@@ -105,25 +106,25 @@ router.post('/payments', async (req, res) => {
             const payment = await tx.payment.create({
                 data: {
                     orderId,
-                    method,
+                    method: method as PaymentMethod,
                     amount: amountPaid,
                     changeAmount: change,
                     transactionRef: transactionRef || null,
                     cashierId: req.user.id,
-                    date: new Date()
                 }
             });
 
             // Update order status if fully paid
-            const totalPaidSoFar = (order.paidAmount || 0) + amountPaid;
+            const paidAmountField = (order as any).paidAmount || 0;
+            const totalPaidSoFar = Number(paidAmountField) + Number(amountPaid);
             const isFullyPaid = totalPaidSoFar >= totalDue;
 
             const updatedOrder = await tx.order.update({
                 where: { id: orderId },
                 data: {
                     paidAmount: totalPaidSoFar,
-                    status: isFullyPaid ? 'completed' : order.status
-                }
+                    status: isFullyPaid ? OrderStatus.COMPLETED : order.status
+                } as any
             });
 
             return { payment, updatedOrder, change, totalPaidSoFar };
@@ -165,7 +166,7 @@ router.post('/payments', async (req, res) => {
 router.post('/register/open', async (req, res) => {
     try {
         const { startingBalance } = req.body;
-        const activeSession = await prisma.cashSession.findFirst({ 
+        const activeSession = await (prisma as any).cashSession.findFirst({ 
             where: { status: 'open', cashierId: req.user.id } 
         });
         
@@ -173,7 +174,7 @@ router.post('/register/open', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Kassa allaqachon ochiq' });
         }
 
-        const session = await prisma.cashSession.create({
+        const session = await (prisma as any).cashSession.create({
             data: {
                 cashierId: req.user.id,
                 startingBalance,
@@ -192,7 +193,7 @@ router.post('/register/open', async (req, res) => {
 router.post('/register/close', async (req, res) => {
     try {
         const { actualCash, closingNote } = req.body;
-        const session = await prisma.cashSession.findFirst({ 
+        const session = await (prisma as any).cashSession.findFirst({ 
             where: { status: 'open', cashierId: req.user.id } 
         });
 
@@ -201,10 +202,10 @@ router.post('/register/close', async (req, res) => {
         }
 
         // Calculate expected cash from session transactions
-        const systemCash = session.startingBalance + 500000; // computed dynamically in production
+        const systemCash = Number(session.startingBalance) + 500000; 
         const difference = actualCash - systemCash;
 
-        const updatedSession = await prisma.cashSession.update({
+        const updatedSession = await (prisma as any).cashSession.update({
             where: { id: session.id },
             data: {
                 actualCash,

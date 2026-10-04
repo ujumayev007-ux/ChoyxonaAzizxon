@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../utils/db'; // Prisma client
 import { emitSocketEvent } from '../socket';
+import { OrderStatus } from '@prisma/client';
 
 const router = Router();
 
@@ -101,12 +102,12 @@ router.post('/customer/telegram/auth', async (req, res) => {
         }
 
         // Prisma orqali customer topish yoki yaratish
-        let customer = await prisma.customer.findUnique({
+        let customer = await (prisma as any).customer.findUnique({
             where: { telegramId: String(telegramUser.id) }
         });
 
         if (!customer) {
-            customer = await prisma.customer.create({
+            customer = await (prisma as any).customer.create({
                 data: {
                     telegramId: String(telegramUser.id),
                     firstName: telegramUser.first_name || '',
@@ -165,7 +166,7 @@ router.post('/customer/orders', async (req, res) => {
                     tableId,
                     customerId,
                     totalAmount: calculatedTotal,
-                    status: 'pending',
+                    status: OrderStatus.PENDING,
                     notes: notes || ''
                 }
             });
