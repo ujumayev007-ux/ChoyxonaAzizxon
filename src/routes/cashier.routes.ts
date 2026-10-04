@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { prisma } from '../utils/db'; // Prisma client ulanishi
 import { emitSocketEvent } from '../socket';
-import { PaymentMethod, OrderStatus } from '@prisma/client';
 
 // TypeScript uchun Express Request obyektiga user turini qo'shish
 declare global {
@@ -29,9 +28,9 @@ router.get('/dashboard', async (req, res) => {
             where: { createdAt: { gte: today } }
         });
 
-        const cashTotal = paymentsToday.filter(p => p.method === PaymentMethod.CASH).reduce((sum, p) => sum + Number(p.amount), 0);
-        const cardTotal = paymentsToday.filter(p => p.method === PaymentMethod.CARD).reduce((sum, p) => sum + Number(p.amount), 0);
-        const electronicTotal = paymentsToday.filter(p => p.method === PaymentMethod.ELECTRONIC).reduce((sum, p) => sum + Number(p.amount), 0);
+        const cashTotal = paymentsToday.filter((p: any) => p.method === 'NAQD' || p.method === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
+        const cardTotal = paymentsToday.filter((p: any) => p.method === 'PLASTIK' || p.method === 'CARD').reduce((sum, p) => sum + Number(p.amount), 0);
+        const electronicTotal = paymentsToday.filter((p: any) => p.method === 'ELEKTRON' || p.method === 'ELECTRONIC').reduce((sum, p) => sum + Number(p.amount), 0);
         const totalRevenue = cashTotal + cardTotal + electronicTotal;
 
         // Today's expenses
@@ -43,7 +42,7 @@ router.get('/dashboard', async (req, res) => {
         // Active table accounts / orders needing payment
         const activeOrders = await prisma.order.findMany({
             where: { 
-                status: { notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED] } 
+                status: { notIn: ['YOPILGAN', 'BEKOR_QILINGAN', 'COMPLETED', 'CANCELLED'] as any } 
             },
             include: { 
                 waiter: { select: { username: true } }, 
@@ -84,7 +83,7 @@ router.post('/payments', async (req, res) => {
                 throw new Error('ORDER_NOT_FOUND');
             }
 
-            if (order.status === OrderStatus.COMPLETED) {
+            if (order.status === 'YOPILGAN' || (order.status as string) === 'COMPLETED') {
                 throw new Error('ALREADY_COMPLETED');
             }
 
@@ -95,7 +94,7 @@ router.post('/payments', async (req, res) => {
             }
 
             let change = 0;
-            if (method === PaymentMethod.CASH || method === 'cash') {
+            if (method === 'NAQD' || method === 'CASH' || method === 'cash') {
                 if (customerGiven < amountPaid) {
                     throw new Error('INSUFFICIENT_CASH');
                 }
@@ -106,12 +105,12 @@ router.post('/payments', async (req, res) => {
             const payment = await tx.payment.create({
                 data: {
                     orderId,
-                    method: method as PaymentMethod,
+                    method: method || 'NAQD',
                     amount: amountPaid,
                     changeAmount: change,
                     transactionRef: transactionRef || null,
                     cashierId: req.user.id,
-                }
+                } as any
             });
 
             // Update order status if fully paid
@@ -123,7 +122,7 @@ router.post('/payments', async (req, res) => {
                 where: { id: orderId },
                 data: {
                     paidAmount: totalPaidSoFar,
-                    status: isFullyPaid ? OrderStatus.COMPLETED : order.status
+                    status: isFullyPaid ? 'YOPILGAN' : order.status
                 } as any
             });
 

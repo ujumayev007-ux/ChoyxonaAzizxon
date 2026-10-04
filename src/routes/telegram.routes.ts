@@ -2,7 +2,6 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { prisma } from '../utils/db'; // Prisma client
 import { emitSocketEvent } from '../socket';
-import { OrderStatus } from '@prisma/client';
 
 const router = Router();
 
@@ -161,12 +160,12 @@ router.post('/customer/orders', async (req, res) => {
 
         // Prisma transaction orqali buyurtma va order itemlarni yaratish
         const result = await prisma.$transaction(async (tx) => {
-            const newOrder = await tx.order.create({
+            const newOrder = await (tx.order as any).create({
                 data: {
                     tableId,
                     customerId,
                     totalAmount: calculatedTotal,
-                    status: OrderStatus.PENDING,
+                    status: 'YANGI',
                     notes: notes || ''
                 }
             });
