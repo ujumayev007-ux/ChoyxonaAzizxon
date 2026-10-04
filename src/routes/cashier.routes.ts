@@ -75,7 +75,7 @@ router.post('/payments', async (req, res) => {
                 throw new Error('ORDER_NOT_FOUND');
             }
 
-            if (order.status === 'YOPILGAN' || (order.status as string) === 'COMPLETED') {
+           if ((order.status as any) === 'YOPILGAN' || (order.status as any) === 'COMPLETED') {
                 throw new Error('ALREADY_COMPLETED');
             }
 
