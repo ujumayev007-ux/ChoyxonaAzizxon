@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth';
-import { prisma } from '../utils/db'; // Prisma client ulanishi
+import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 
-// TypeScript uchun Express Request obyektiga user turini qo'shish
 declare global {
   namespace Express {
     interface Request {
@@ -14,16 +13,13 @@ declare global {
 
 const router = Router();
 
-// Middleware: Strict Cashier Role Verification
 router.use(authenticateToken, requireRole(['cashier', 'admin']));
 
-// 1. Cashier Dashboard Stats & Active Bills
 router.get('/dashboard', async (req, res) => {
     try {
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Bugungi kun boshlanishi
+        today.setHours(0, 0, 0, 0);
 
-        // Calculate today's totals from payments
         const paymentsToday = await prisma.payment.findMany({
             where: { createdAt: { gte: today } }
         });
@@ -33,13 +29,11 @@ router.get('/dashboard', async (req, res) => {
         const electronicTotal = paymentsToday.filter((p: any) => p.method === 'ELEKTRON' || p.method === 'ELECTRONIC').reduce((sum, p) => sum + Number(p.amount), 0);
         const totalRevenue = cashTotal + cardTotal + electronicTotal;
 
-        // Today's expenses
         const expensesToday = await (prisma as any).expense.findMany({
             where: { createdAt: { gte: today } }
         });
         const totalExpenses = expensesToday.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
 
-        // Active table accounts / orders needing payment
         const activeOrders = await prisma.order.findMany({
             where: { 
                 status: { notIn: ['YOPILGAN', 'BEKOR_QILINGAN', 'COMPLETED', 'CANCELLED'] as any } 
@@ -67,12 +61,10 @@ router.get('/dashboard', async (req, res) => {
     }
 });
 
-// 2. Process Payment with Backend Validation & Change Calculation
 router.post('/payments', async (req, res) => {
     try {
         const { orderId, method, amountPaid, customerGiven, transactionRef } = req.body;
         
-        // Prisma transaction
         const result = await prisma.$transaction(async (tx) => {
             const order = await tx.order.findUnique({
                 where: { id: orderId },
@@ -87,7 +79,6 @@ router.post('/payments', async (req, res) => {
                 throw new Error('ALREADY_COMPLETED');
             }
 
-            // Validate amount on backend (never trust frontend totals)
             const totalDue = Number(order.totalAmount) - Number(order.discount || 0);
             if (amountPaid <= 0 || amountPaid > totalDue) {
                 throw new Error('INVALID_AMOUNT');
@@ -101,7 +92,6 @@ router.post('/payments', async (req, res) => {
                 change = customerGiven - amountPaid;
             }
 
-            // Create payment record
             const payment = await tx.payment.create({
                 data: {
                     orderId,
@@ -113,7 +103,6 @@ router.post('/payments', async (req, res) => {
                 } as any
             });
 
-            // Update order status if fully paid
             const paidAmountField = (order as any).paidAmount || 0;
             const totalPaidSoFar = Number(paidAmountField) + Number(amountPaid);
             const isFullyPaid = totalPaidSoFar >= totalDue;
@@ -129,7 +118,6 @@ router.post('/payments', async (req, res) => {
             return { payment, updatedOrder, change, totalPaidSoFar };
         });
 
-        // Emit real-time Socket.io update
         emitSocketEvent('paymentReceived', { 
             orderId, 
             paymentId: result.payment.id, 
@@ -161,7 +149,6 @@ router.post('/payments', async (req, res) => {
     }
 });
 
-// 3. Cash Register Shift Management (Open / Close)
 router.post('/register/open', async (req, res) => {
     try {
         const { startingBalance } = req.body;
@@ -200,7 +187,6 @@ router.post('/register/close', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Kassa ochilmagan' });
         }
 
-        // Calculate expected cash from session transactions
         const systemCash = Number(session.startingBalance) + 500000; 
         const difference = actualCash - systemCash;
 

@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { prisma } from '../utils/db'; // Prisma client
+import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 
 const router = Router();
 
-// Helper: Secure Telegram WebApp Hash Validation
 function validateTelegramWebAppData(initData: string, botToken: string): any {
     const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get('hash');
@@ -27,7 +26,6 @@ function validateTelegramWebAppData(initData: string, botToken: string): any {
     return userParam ? JSON.parse(userParam) : null;
 }
 
-// 1. Telegram Bot Webhook Endpoint
 router.post('/webhook', async (req, res) => {
     try {
         const { message } = req.body;
@@ -69,7 +67,6 @@ router.post('/webhook', async (req, res) => {
     }
 });
 
-// 2. Telegram WebApp Authentication & Session Endpoint
 router.post('/customer/telegram/auth', async (req, res) => {
     try {
         const { initData, tableId } = req.body;
@@ -100,7 +97,6 @@ router.post('/customer/telegram/auth', async (req, res) => {
             return res.status(400).json({ success: false, message: "Stol ma’lumoti topilmadi" });
         }
 
-        // Prisma orqali customer topish yoki yaratish
         let customer = await (prisma as any).customer.findUnique({
             where: { telegramId: String(telegramUser.id) }
         });
@@ -129,7 +125,6 @@ router.post('/customer/telegram/auth', async (req, res) => {
     }
 });
 
-// 3. Secure Customer Order Creation Endpoint
 router.post('/customer/orders', async (req, res) => {
     try {
         const { tableId, items, customerId, notes } = req.body; 
@@ -158,12 +153,11 @@ router.post('/customer/orders', async (req, res) => {
             });
         }
 
-        // Prisma transaction orqali buyurtma va order itemlarni yaratish
         const result = await prisma.$transaction(async (tx) => {
             const newOrder = await (tx.order as any).create({
                 data: {
                     tableId,
-                    customerId,
+                    ...(customerId ? { customerId } : {}),
                     totalAmount: calculatedTotal,
                     status: 'YANGI',
                     notes: notes || ''
