@@ -90,10 +90,10 @@
             let approved = 0, preparing = 0, ready = 0, oshCount = 0;
             
             orders.forEach(o => {
-                if (o.status === 'approved') approved++;
-                if (o.status === 'preparing') preparing++;
-                if (o.status === 'ready') ready++;
-                if ((o.OrderItems || []).some(i => i.isKilogramOsh)) oshCount++;
+                if (o.status === 'TASDIQLANDI' || o.status === 'OSHXONAGA_YUBORILDI') approved++;
+                if (o.status === 'TAYYORLANMOQDA') preparing++;
+                if (o.status === 'TAYYOR') ready++;
+                if (o.items.some(i => i.menuItem.name.toLowerCase().includes('osh'))) oshCount++;
             });
 
             document.getElementById('count-approved').innerText = approved;
@@ -115,21 +115,21 @@
                     <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
                         <div class="flex justify-between items-start border-b border-slate-700 pb-4">
                             <div>
-                                <h3 class="text-xl font-bold text-white">Buyurtma №${order.id}</h3>
-                                <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.name : 'Nomaʼlum'}</p>
+                                <h3 class="text-xl font-bold text-white">Buyurtma №${order.orderNumber}</h3>
+                                <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.fullName : 'Nomaʼlum'}</p>
                             </div>
                             <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'approved' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'preparing' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                                ${order.status === 'approved' ? 'Tayyorlash kutilmoqda' : order.status === 'preparing' ? 'Tayyorlanmoqda' : 'Tayyor'}
+                                ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? 'Tayyorlash kutilmoqda' : order.status === 'TAYYORLANMOQDA' ? 'Tayyorlanmoqda' : 'Tayyor'}
                             </span>
                         </div>
 
                         <div class="space-y-3 flex-1">
                             <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
                             <ul class="space-y-2">
-                                ${(order.OrderItems || []).map(item => `
+                                ${order.items.map(item => `
                                     <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                                        <span class="font-semibold text-slate-200">${item.Dish ? item.Dish.name : 'Taom'}</span>
-                                        <span class="text-emerald-400 font-bold">${item.isKilogramOsh ? (item.quantityGrams >= 1000 ? `${item.quantityGrams / 1000} kg` : `${item.quantityGrams} g`) : `${item.quantity} dona`}</span>
+                                        <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
+                                        <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
                                     </li>
                                 `).join('')}
                             </ul>
@@ -139,9 +139,9 @@
                         <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
                             <span>Sana: ${dateStr} | Vaqt: ${timeStr}</span>
                             <div class="flex gap-2">
-                                ${order.status === 'approved' ? `<button onclick="updateOrderStatus(${order.id}, 'preparing')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
-                                ${order.status === 'preparing' ? `<button onclick="updateOrderStatus(${order.id}, 'ready')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
-                                ${order.status === 'ready' ? `<button onclick="updateOrderStatus(${order.id}, 'completed')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+                                ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
+                                ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
+                                ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
                             </div>
                         </div>
                     </div>

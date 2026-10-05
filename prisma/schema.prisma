@@ -24,6 +24,7 @@ model User {
   username     String        @unique
   passwordHash String
   fullName     String
+  phone        String?
   role         RoleType      @default(WAITER)
   isActive     Boolean       @default(true)
   createdAt    DateTime      @default(now())
@@ -86,6 +87,7 @@ model Table {
   updatedAt   DateTime @updatedAt
 
   @@index([roomId])
+  @@unique([roomId, number])
 }
 
 // ==========================================

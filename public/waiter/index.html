@@ -529,6 +529,8 @@
         let currentWaiter = null;
         let currentTab = 'dashboard';
         let allRooms = [];
+        let selectedRoomId = null;
+        let socketListenersInitialized = false;
         let menuCatalog = [];
         let selectedCategory = 'ALL';
         let cartItems = [];
@@ -601,8 +603,11 @@
 
         async function logout() {
             try {
-                await fetch('/api/waiter/logout', { method: 'POST' });
-            } catch(e) {}
+                const res = await fetch('/api/waiter/logout', { method: 'POST' });
+                if (!res.ok) console.error('Ofitsiant sessiyasidan chiqishda xatolik:', await res.text());
+            } catch(e) {
+                console.error('Ofitsiant sessiyasidan chiqishda xatolik:', e);
+            }
             window.location.reload();
         }
 
@@ -629,6 +634,8 @@
 
         // Socket.io Real-time Events
         function setupSocketEvents() {
+            if (socketListenersInitialized) return;
+            socketListenersInitialized = true;
             socket.on('connect', () => {
                 document.getElementById('connection-banner').classList.add('hidden');
                 document.getElementById('connection-pill').classList.remove('hidden');
@@ -665,6 +672,15 @@
                 loadRoomsAndTables();
             });
 
+            socket.on('restaurant_structure_updated', () => {
+                loadRoomsAndTables();
+            });
+
+            socket.on('orderUpdate', () => {
+                loadRoomsAndTables();
+                loadActiveOrders();
+            });
+
             socket.on('order_status_updated', (data) => {
                 loadActiveOrders();
                 loadRoomsAndTables();
@@ -673,6 +689,10 @@
                     playAlertSound();
                 }
             });
+            if (socket.connected) {
+                loadRoomsAndTables();
+                loadActiveOrders();
+            }
         }
 
         function playAlertSound() {
@@ -742,7 +762,7 @@
             // Refresh specific data
             if (tabId === 'tables') loadRoomsAndTables();
             if (tabId === 'orders') loadActiveOrders();
-            if (tabId === 'menu') { loadMenuCatalog(); loadTableDropdowns(); }
+            if (tabId === 'menu') loadMenuCatalog();
             if (tabId === 'calls') loadActiveCalls();
             if (tabId === 'bills') loadTableDropdowns();
             if (tabId === 'dashboard') loadWaiterStatistics();
@@ -752,47 +772,88 @@
         async function loadRoomsAndTables() {
             try {
                 const res = await fetch('/api/rooms');
-                if (!res.ok) return;
-                allRooms = await res.json();
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.message || 'Xonalarni yuklashda xatolik');
+                if (!Array.isArray(result)) throw new Error('Server xonalar ro‘yxatini noto‘g‘ri qaytardi');
+                allRooms = result;
+                if (selectedRoomId && !allRooms.some(room => room.id === selectedRoomId)) selectedRoomId = null;
                 renderRoomsAndTables(allRooms);
                 loadTableDropdowns();
             } catch (e) {
-                console.error('Rooms load error:', e);
+                console.error('Xonalarni yuklashda xatolik:', e);
+                document.getElementById('waiter-rooms-container').innerHTML =
+                    `<p class="text-red-600 text-sm text-center py-10">${escapeWaiterHtml(e.message || 'Xonalarni yuklashda xatolik')}</p>`;
             }
         }
 
-        function renderRoomsAndTables(rooms) {
+        function escapeWaiterHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
+
+        function enterRoom(roomId) {
+            selectedRoomId = roomId;
+            document.getElementById('table-search-input').value = '';
+            renderRoomsAndTables();
+        }
+
+        function backToRooms() {
+            selectedRoomId = null;
+            document.getElementById('table-search-input').value = '';
+            renderRoomsAndTables();
+        }
+
+        function renderRoomsAndTables() {
             const container = document.getElementById('waiter-rooms-container');
-            if (!rooms || rooms.length === 0) {
+            if (!allRooms || allRooms.length === 0) {
                 container.innerHTML = '<p class="text-slate-500 text-sm text-center py-10">Hozircha xonalar va stollar mavjud emas.</p>';
                 return;
             }
 
             let activeCount = 0;
-            container.innerHTML = rooms.map(room => `
+            const query = document.getElementById('table-search-input').value.trim().toLocaleLowerCase();
+            const selectedRoom = allRooms.find(room => room.id === selectedRoomId);
+            if (!selectedRoom) {
+                const rooms = allRooms.filter(room => !query || room.name.toLocaleLowerCase().includes(query));
+                container.innerHTML = `<h2 class="text-lg font-bold text-slate-800">Xonalar</h2>
+                    ${rooms.length ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${rooms.map(room => `
+                        <button onclick="enterRoom('${escapeWaiterHtml(room.id)}')" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs text-left hover:border-sky-400 hover:shadow-md transition">
+                            <span class="font-bold text-slate-800 text-base">${escapeWaiterHtml(room.name)}</span>
+                            <span class="block text-xs text-slate-400 mt-2">${room.tables?.length || 0} ta stol</span>
+                        </button>`).join('')}</div>`
+                        : '<p class="text-slate-500 text-sm text-center py-10">Mos xona topilmadi.</p>'}`;
+                document.getElementById('stat-active-tables').innerText = '0';
+                return;
+            }
+
+            const visibleTables = (selectedRoom.tables || []).filter(table =>
+                !query || String(table.number || '').toLocaleLowerCase().includes(query));
+            container.innerHTML = `<div class="flex items-center gap-3">
+                    <button onclick="backToRooms()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition">← Orqaga</button>
+                    <h2 class="text-lg font-bold text-slate-800">Xona: ${escapeWaiterHtml(selectedRoom.name)}</h2>
+                    <span class="text-xs text-slate-400">${visibleTables.length} ta stol</span>
+                </div>
                 <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-                    <h3 class="font-bold text-slate-800 text-base mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                        <span>${room.name}</span>
-                        <span class="text-xs font-normal text-slate-400">${room.tables ? room.tables.length : 0} ta stol</span>
-                    </h3>
+                    <h3 class="font-bold text-slate-800 text-base mb-4 pb-2 border-b border-slate-100">Stolni tanlash</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                        ${room.tables && room.tables.length > 0 ? room.tables.map(table => {
+                        ${visibleTables.length ? visibleTables.map(table => {
                             if (table.status === 'OCCUPIED' || table.status === 'BAND') activeCount++;
                             const statusColor = getTableStatusColorClass(table.status);
                             const statusText = getTableStatusUzText(table.status);
                             return `
-                                <div onclick="openTableModal('${table.id}', '${table.number || table.id}', '${table.status}')" class="bg-white p-4 rounded-xl border-2 ${statusColor} text-center shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between">
+                                <button onclick="openTableModal('${escapeWaiterHtml(table.id)}', '${escapeWaiterHtml(table.number || table.id)}', '${escapeWaiterHtml(table.status)}')" class="bg-white p-4 rounded-xl border-2 ${statusColor} text-center shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between">
                                     <div>
-                                        <p class="font-black text-slate-800 text-base">Stol #${table.number || table.id}</p>
-                                        <p class="text-[11px] text-slate-500 mt-0.5">${room.name}</p>
+                                        <p class="font-black text-slate-800 text-base">Stol #${escapeWaiterHtml(table.number || table.id)}</p>
+                                        <p class="text-[11px] text-slate-500 mt-0.5">${escapeWaiterHtml(selectedRoom.name)}</p>
                                     </div>
                                     <span class="mt-3 text-xs font-bold px-2 py-1 rounded-lg ${getStatusBadgeClass(table.status)}">${statusText}</span>
-                                </div>
+                                </button>
                             `;
                         }).join('') : '<p class="text-xs text-slate-400 col-span-full text-center py-4">Stollar mavjud emas</p>'}
                     </div>
                 </div>
-            `).join('');
+            `;
 
             document.getElementById('stat-active-tables').innerText = activeCount;
         }
@@ -831,13 +892,7 @@
         }
 
         function filterTables() {
-            const q = document.getElementById('table-search-input').value.toLowerCase();
-            if (!allRooms) return;
-            const filtered = allRooms.map(room => ({
-                ...room,
-                tables: room.tables.filter(t => String(t.number || t.id).toLowerCase().includes(q))
-            })).filter(room => room.tables.length > 0);
-            renderRoomsAndTables(filtered);
+            renderRoomsAndTables();
         }
 
         // Table Details Modal
@@ -853,9 +908,10 @@
             document.getElementById('modal-table-details').classList.remove('hidden');
 
             try {
-                const res = await fetch(`/api/orders?tableId=${tableId}`);
+                const res = await fetch(`/api/orders?tableId=${encodeURIComponent(tableId)}`);
+                const result = await res.json();
                 if (res.ok) {
-                    const orders = await res.json();
+                    const orders = result;
                     if (!orders || orders.length === 0) {
                         ordersContainer.innerHTML = '<p class="text-xs text-slate-400">Bu stolda faol buyurtmalar yo‘q.</p>';
                         return;
@@ -863,16 +919,16 @@
                     ordersContainer.innerHTML = orders.map(ord => `
                         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-sm">
                             <div class="flex justify-between font-bold text-slate-800">
-                                <span>Buyurtma №${ord.id}</span>
+                                <span>Buyurtma №${ord.orderNumber}</span>
                                 <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
                             </div>
                             <div class="text-xs text-slate-500">Holat: <span class="font-semibold text-slate-700">${getOrderStatusUz(ord.status)}</span></div>
                             <div class="space-y-1 pt-1 border-t border-slate-200">
                                 ${ord.items && ord.items.map((it, idx) => `
                                     <div class="flex justify-between text-xs">
-                                        <span>${it.name || it.productName} (x${it.quantity})</span>
+                                        <span>${it.menuItem?.name || it.name || it.productName} (x${it.quantity})</span>
                                         <div class="flex items-center gap-2">
-                                            <span>${(it.price || 0) * it.quantity} so'm</span>
+                                            <span>${it.totalPrice ?? (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 0))} so'm</span>
                                             <button onclick="openReturnModal('${ord.id}', ${idx})" class="text-red-500 hover:text-red-700 text-[10px] font-bold">Qaytarish</button>
                                         </div>
                                     </div>
@@ -880,9 +936,12 @@
                             </div>
                         </div>
                     `).join('');
+                } else {
+                    throw new Error(result.message || 'Buyurtmalarni yuklashda xatolik');
                 }
             } catch (e) {
-                ordersContainer.innerHTML = '<p class="text-xs text-red-500">Buyurtmalarni yuklashda xatolik.</p>';
+                console.error('Stol buyurtmalarini yuklashda xatolik:', e);
+                ordersContainer.innerHTML = `<p class="text-xs text-red-500">${escapeWaiterHtml(e.message || 'Buyurtmalarni yuklashda xatolik')}</p>`;
             }
         }
 
@@ -891,11 +950,13 @@
             selectedTableForModal = null;
         }
 
-        function openMenuForCurrentTable() {
+        async function openMenuForCurrentTable() {
             if (!selectedTableForModal) return;
-            document.getElementById('builder-table-select').value = selectedTableForModal;
+            const tableId = selectedTableForModal;
             closeTableModal();
             switchTab('menu');
+            await loadTableDropdowns();
+            document.getElementById('builder-table-select').value = tableId;
         }
 
         function goToBillForCurrentTable() {
@@ -927,8 +988,9 @@
         async function loadPendingOrders() {
             try {
                 const res = await fetch('/api/orders?status=PENDING');
-                if (!res.ok) return;
-                pendingOrdersList = await res.json();
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || result.message || 'Kutilayotgan buyurtmalarni yuklashda xatolik');
+                pendingOrdersList = result;
                 renderPendingOrders(pendingOrdersList);
                 
                 const countBadge = document.getElementById('badge-pending-orders');
@@ -946,7 +1008,9 @@
                     mobBadge.classList.add('hidden');
                     headerCount.innerText = '0 ta';
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.error('Kutilayotgan buyurtmalarni yuklashda xatolik:', e);
+            }
         }
 
         function renderPendingOrders(orders) {
@@ -1033,10 +1097,13 @@
         async function loadActiveOrders() {
             try {
                 const res = await fetch('/api/orders?active=true');
-                if (!res.ok) return;
-                activeOrdersList = await res.json();
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || result.message || 'Faol buyurtmalarni yuklashda xatolik');
+                activeOrdersList = result;
                 renderActiveOrders(activeOrdersList);
-            } catch(e) {}
+            } catch(e) {
+                console.error('Faol buyurtmalarni yuklashda xatolik:', e);
+            }
         }
 
         function renderActiveOrders(orders) {
@@ -1059,8 +1126,8 @@
                     <div class="space-y-1 text-xs pt-2 border-t border-slate-100">
                         ${ord.items && ord.items.map(it => `
                             <div class="flex justify-between">
-                                <span>${it.name \vert{}\vert{} it.productName} (x${it.quantity})</span>
-                                <span class="font-semibold">${(it.price || 0) * it.quantity} so'm</span>
+                                <span>${it.menuItem?.name || it.name || it.productName} (x${it.quantity})</span>
+                                <span class="font-semibold">${it.totalPrice ?? (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 0))} so'm</span>
                             </div>
                         `).join('')}
                     </div>
@@ -1074,6 +1141,19 @@
 
         function getOrderStatusUz(status) {
             switch(status) {
+                case 'YANGI': return 'Yangi';
+                case 'KUTILMOQDA':
+                case 'ADMIN_TASDIGINI_KUTMOQDA': return 'Tasdiq kutilmoqda';
+                case 'TASDIQLANDI': return 'Tasdiqlandi';
+                case 'OSHXONAGA_YUBORILDI': return 'Oshxonaga yuborildi';
+                case 'TAYYORLANMOQDA': return 'Tayyorlanmoqda';
+                case 'TAYYOR': return 'Tayyor';
+                case 'STOLGA_YETKAZILDI': return 'Taqdim etildi';
+                case 'TOLOV_KUTILMOQDA':
+                case 'QISMAN_TOLANDI': return 'Hisob so‘ralgan';
+                case 'TOLANDI':
+                case 'YAKUNLANDI': return 'Yakunlandi';
+                case 'BEKOR_QILINDI': return 'Bekor qilindi';
                 case 'PENDING': return 'Ofitsiant tasdig‘i kutilmoqda';
                 case 'APPROVED': return 'Tasdiqlandi';
                 case 'KITCHEN': return 'Oshxonaga yuborildi';
@@ -1091,8 +1171,11 @@
             switch(status) {
                 case 'READY': return 'bg-emerald-100 text-emerald-700 animate-pulse';
                 case 'PREPARING': return 'bg-amber-100 text-amber-700';
+                case 'TAYYOR': return 'bg-emerald-100 text-emerald-700 animate-pulse';
+                case 'TAYYORLANMOQDA': return 'bg-amber-100 text-amber-700';
                 case 'COMPLETED': return 'bg-slate-100 text-slate-700';
                 case 'REJECTED': case 'CANCELLED': return 'bg-red-100 text-red-700';
+                case 'BEKOR_QILINDI': return 'bg-red-100 text-red-700';
                 default: return 'bg-sky-100 text-sky-700';
             }
         }
@@ -1101,16 +1184,20 @@
         async function loadMenuCatalog() {
             try {
                 const res = await fetch('/api/menu');
-                if (!res.ok) return;
-                menuCatalog = await res.json();
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.message || 'Menyuni yuklashda xatolik');
+                menuCatalog = result;
                 renderMenuCatalog(menuCatalog);
-            } catch(e) {}
+            } catch(e) {
+                console.error('Menyuni yuklashda xatolik:', e);
+                document.getElementById('menu-items-grid').innerHTML = `<p class="text-red-600 text-sm">${escapeWaiterHtml(e.message || 'Menyuni yuklashda xatolik')}</p>`;
+            }
         }
 
         function renderMenuCatalog(items) {
             const grid = document.getElementById('menu-items-grid');
             const filtered = items.filter(it => {
-                if (selectedCategory !== 'ALL' && it.category !== selectedCategory) return false;
+                if (selectedCategory !== 'ALL' && (it.category?.name || it.category) !== selectedCategory) return false;
                 const q = document.getElementById('menu-search-input').value.toLowerCase();
                 if (q && !it.name.toLowerCase().includes(q)) return false;
                 return true;
@@ -1250,9 +1337,11 @@
                     renderCart();
                     switchTab('orders');
                 } else {
+                    console.error('Buyurtma yaratishda xatolik:', data);
                     alert(data.error || 'Xatolik yuz berdi');
                 }
             } catch(e) {
+                console.error('Buyurtma yaratishda tarmoq xatoligi:', e);
                 alert('Internet aloqasi xatoligi');
             }
         }
@@ -1260,13 +1349,15 @@
         async function loadTableDropdowns() {
             try {
                 const res = await fetch('/api/rooms');
-                if (!res.ok) return;
-                const rooms = await res.json();
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.message || 'Xonalar va stollarni yuklashda xatolik');
+                if (!Array.isArray(result)) throw new Error('Server xonalar ro‘yxatini noto‘g‘ri qaytardi');
+                const rooms = result;
                 let optionsHtml = '<option value="">-- Stolni tanlang --</option>';
                 rooms.forEach(room => {
                     if (room.tables) {
                         room.tables.forEach(t => {
-                            optionsHtml += `<option value="${t.id}">${room.name} - Stol #${t.number || t.id}</option>`;
+                            optionsHtml += `<option value="${escapeWaiterHtml(t.id)}">${escapeWaiterHtml(room.name)} - Stol #${escapeWaiterHtml(t.number || t.id)}</option>`;
                         });
                     }
                 });
@@ -1274,7 +1365,9 @@
                 if (builderSelect) builderSelect.innerHTML = optionsHtml;
                 const billSelect = document.getElementById('bill-table-select');
                 if (billSelect) billSelect.innerHTML = optionsHtml;
-            } catch(e) {}
+            } catch(e) {
+                console.error('Stol tanlash ro‘yxatini yuklashda xatolik:', e);
+            }
         }
 
         // Waiter Calls System
@@ -1387,8 +1480,8 @@
                             <div class="space-y-1 pt-1 border-t border-slate-200 text-xs">
                                 ${ord.items && ord.items.map(it => `
                                     <div class="flex justify-between">
-                                        <span>${it.name \vert{}\vert{} it.productName} (x${it.quantity})</span>
-                                        <span class="font-semibold">${(it.price || 0) * it.quantity} so'm</span>
+                                        <span>${it.menuItem?.name || it.name || it.productName} (x${it.quantity})</span>
+                                        <span class="font-semibold">${it.totalPrice ?? (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 0))} so'm</span>
                                     </div>
                                 `).join('')}
                             </div>

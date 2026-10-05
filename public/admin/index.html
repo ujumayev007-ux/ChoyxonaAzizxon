@@ -11,6 +11,16 @@
 </head>
 <body class="bg-gray-100 font-sans h-full flex flex-col overflow-hidden">
 
+    <div id="admin-auth-overlay" class="hidden fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <form id="admin-login-form" class="bg-white w-full max-w-md rounded-xl p-6 shadow-xl space-y-4">
+            <h2 class="text-xl font-bold text-gray-800">Administrator tizimiga kirish</h2>
+            <input id="admin-login-username" type="text" autocomplete="username" required placeholder="Login" class="w-full border rounded-lg px-4 py-2 text-sm">
+            <input id="admin-login-password" type="password" autocomplete="current-password" required placeholder="Parol" class="w-full border rounded-lg px-4 py-2 text-sm">
+            <p id="admin-login-error" class="hidden text-sm text-red-600"></p>
+            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-4 py-2 font-medium">Kirish</button>
+        </form>
+    </div>
+
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-2"></div>
 
@@ -67,7 +77,7 @@
                 <div class="flex items-center space-x-6">
                     <!-- Search -->
                     <div class="relative">
-                        <input type="text" placeholder="Qidirish..." class="w-64 bg-gray-50 border border-gray-200 rounded-lg px-4 py-1.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                        <input type="text" id="admin-search" placeholder="Qidirish..." class="w-64 bg-gray-50 border border-gray-200 rounded-lg px-4 py-1.5 text-sm focus:outline-none focus:border-amber-500 transition">
                     </div>
 
                     <!-- Date & Time -->
@@ -105,31 +115,31 @@
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Bugungi tushum</p>
-                                <h3 class="text-2xl font-bold text-gray-800 mt-1">1,450,000 so'm</h3>
-                                <p class="text-xs text-green-600 mt-1">↑ Kecha bilan solishtirganda +12%</p>
+                                <h3 id="today-revenue" class="text-2xl font-bold text-gray-800 mt-1">—</h3>
+                                <p class="text-xs text-gray-500 mt-1">Bugungi to‘lovlar</p>
                             </div>
                             <span class="text-3xl bg-amber-50 p-3 rounded-xl">💵</span>
                         </div>
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Bugungi buyurtmalar</p>
-                                <h3 class="text-2xl font-bold text-gray-800 mt-1">48 ta</h3>
-                                <p class="text-xs text-green-600 mt-1">↑ O‘tgan haftaga nisbatan +8%</p>
+                                <h3 id="today-orders" class="text-2xl font-bold text-gray-800 mt-1">—</h3>
+                                <p class="text-xs text-gray-500 mt-1">Bugun yaratilgan</p>
                             </div>
                             <span class="text-3xl bg-blue-50 p-3 rounded-xl">🛍️</span>
                         </div>
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Faol stollar</p>
-                                <h3 class="text-2xl font-bold text-gray-800 mt-1">8 / 15</h3>
-                                <p class="text-xs text-gray-500 mt-1">Bandlik darajasi: 53%</p>
+                                <h3 id="active-tables" class="text-2xl font-bold text-gray-800 mt-1">—</h3>
+                                <p class="text-xs text-gray-500 mt-1">Faol buyurtma biriktirilgan</p>
                             </div>
                             <span class="text-3xl bg-purple-50 p-3 rounded-xl">🪑</span>
                         </div>
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Oshxonadagi buyurtmalar</p>
-                                <h3 class="text-2xl font-bold text-amber-600 mt-1">5 ta</h3>
+                                <h3 id="kitchen-orders" class="text-2xl font-bold text-amber-600 mt-1">—</h3>
                                 <p class="text-xs text-gray-500 mt-1">Tayyorlanmoqda</p>
                             </div>
                             <span class="text-3xl bg-amber-50 p-3 rounded-xl">🍳</span>
@@ -137,16 +147,16 @@
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Ombordagi mahsulotlar</p>
-                                <h3 class="text-2xl font-bold text-gray-800 mt-1">124 xil</h3>
-                                <p class="text-xs text-red-500 mt-1">⚠️ 2 ta mahsulot kam qoldi</p>
+                                <h3 id="inventory-count" class="text-2xl font-bold text-gray-800 mt-1">—</h3>
+                                <p id="low-stock-count" class="text-xs text-gray-500 mt-1">Kam qoldi: —</p>
                             </div>
                             <span class="text-3xl bg-red-50 p-3 rounded-xl">📦</span>
                         </div>
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Bugungi xarajatlar</p>
-                                <h3 class="text-2xl font-bold text-gray-800 mt-1">320,000 so'm</h3>
-                                <p class="text-xs text-gray-500 mt-1">Bozorlik va xaridlar</p>
+                                <h3 class="text-2xl font-bold text-gray-800 mt-1">—</h3>
+                                <p class="text-xs text-gray-500 mt-1">Xarajatlar API mavjud emas</p>
                             </div>
                             <span class="text-3xl bg-orange-50 p-3 rounded-xl">🧾</span>
                         </div>
@@ -157,28 +167,8 @@
                         <!-- Popular Products -->
                         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 lg:col-span-1">
                             <h3 class="text-lg font-bold text-gray-800 mb-4">Eng ko‘p sotilgan taomlar</h3>
-                            <div class="space-y-4">
-                                <div class="flex items-center justify-between border-b pb-3">
-                                    <div>
-                                        <p class="font-semibold text-sm text-gray-800">Osh (Milliy)</p>
-                                        <span class="text-xs text-gray-500">Sotilgan: 28 ta</span>
-                                    </div>
-                                    <span class="font-bold text-amber-600 text-sm">840,000 so'm</span>
-                                </div>
-                                <div class="flex items-center justify-between border-b pb-3">
-                                    <div>
-                                        <p class="font-semibold text-sm text-gray-800">Jizzax somsa</p>
-                                        <span class="text-xs text-gray-500">Sotilgan: 45 ta</span>
-                                    </div>
-                                    <span class="font-bold text-amber-600 text-sm">675,000 so'm</span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="font-semibold text-sm text-gray-800">Qo'y shashlik</p>
-                                        <span class="text-xs text-gray-500">Sotilgan: 32 ta</span>
-                                    </div>
-                                    <span class="font-bold text-amber-600 text-sm">640,000 so'm</span>
-                                </div>
+                            <div id="popular-products" class="space-y-4">
+                                <p class="text-sm text-gray-500">Ma’lumot yuklanmoqda...</p>
                             </div>
                         </div>
 
@@ -196,22 +186,7 @@
                                             <th class="py-3 px-4">Vaqt</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y">
-                                        <tr>
-                                            <td class="py-3 px-4 font-bold text-gray-800">#1048</td>
-                                            <td class="py-3 px-4">Stol 3 (1-zal)</td>
-                                            <td class="py-3 px-4">125,000 so'm</td>
-                                            <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium">Tayyorlanmoqda</span></td>
-                                            <td class="py-3 px-4">02.10.2026 09:10</td>
-                                        </tr>
-                                        <tr>
-                                            <td class="py-3 px-4 font-bold text-gray-800">#1047</td>
-                                            <td class="py-3 px-4">VIP xona</td>
-                                            <td class="py-3 px-4">480,000 so'm</td>
-                                            <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Yetkazildi</span></td>
-                                            <td class="py-3 px-4">02.10.2026 08:45</td>
-                                        </tr>
-                                    </tbody>
+                                    <tbody class="divide-y" id="recent-orders-table-body"></tbody>
                                 </table>
                             </div>
                         </div>
@@ -227,7 +202,7 @@
                             <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyorlanmoqda</button>
                             <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyor</button>
                         </div>
-                        <input type="text" placeholder="Buyurtma qidirish..." class="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                        <input type="text" id="orders-search" placeholder="Buyurtma qidirish..." class="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div class="overflow-x-auto">
@@ -244,21 +219,7 @@
                                         <th class="py-3 px-4">Amallar</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y" id="orders-table-body">
-                                    <tr>
-                                        <td class="py-3 px-4 font-bold text-gray-800">#1048</td>
-                                        <td class="py-3 px-4">Stol 3</td>
-                                        <td class="py-3 px-4">Azizbek</td>
-                                        <td class="py-3 px-4">Umid</td>
-                                        <td class="py-3 px-4">125,000 so'm</td>
-                                        <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium">Tayyorlanmoqda</span></td>
-                                        <td class="py-3 px-4">02.10.2026 09:10</td>
-                                        <td class="py-3 px-4 flex gap-2">
-                                            <button onclick="showToast('Ma’lumot yuklandi')" class="text-blue-600 hover:underline text-xs">Ko‘rish</button>
-                                            <button onclick="showToast('To‘lov qabul qilindi')" class="text-green-600 hover:underline text-xs">To‘lov</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
+                                <tbody class="divide-y" id="orders-table-body"></tbody>
                             </table>
                         </div>
                     </div>
@@ -291,31 +252,10 @@
                 <div id="section-menyu" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                         <h2 class="text-lg font-bold text-gray-800">Menyu va Mahsulot Tannarxi</h2>
-                        <button onclick="showToast('Taom qo‘shish oynasi ochildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
+                        <button onclick="addMenuItem()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                                <h4 class="font-bold text-gray-800 text-base mb-1">Osh (Milliy)</h4>
-                                <p class="text-xs text-gray-500 mb-3">Kategoriya: Osh</p>
-                                <div class="flex justify-between text-sm py-1 border-t">
-                                    <span class="text-gray-500">Tannarx:</span>
-                                    <span class="font-semibold text-gray-700">22,000 so'm</span>
-                                </div>
-                                <div class="flex justify-between text-sm py-1">
-                                    <span class="text-gray-500">Sotuv narxi:</span>
-                                    <span class="font-semibold text-amber-600">30,000 so'm</span>
-                                </div>
-                                <div class="flex justify-between text-sm py-1 border-b pb-2">
-                                    <span class="text-gray-500">Foyda:</span>
-                                    <span class="font-semibold text-green-600">8,000 so'm</span>
-                                </div>
-                                <div class="mt-4 flex gap-2">
-                                    <button class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 rounded-lg text-xs font-medium">Tahrirlash</button>
-                                    <button class="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1.5 rounded-lg text-xs font-medium">O‘chirish</button>
-                                </div>
-                            </div>
-                        </div>
+                        <div id="menu-items-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
                     </div>
                 </div>
 
@@ -323,7 +263,10 @@
                 <div id="section-ombor" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                         <h2 class="text-lg font-bold text-gray-800">Omborxona Qoldiqlari</h2>
-                        <button onclick="showToast('Mahsulot qo‘shildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                        <div class="flex gap-2">
+                            <button onclick="loadInventory()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
+                            <button onclick="addInventoryProduct()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                        </div>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <table class="w-full text-left text-sm text-gray-600">
@@ -337,18 +280,7 @@
                                     <th class="py-3 px-4">Amallar</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y">
-                                <tr>
-                                    <td class="py-3 px-4 font-bold text-gray-800">Guruch (Lazer)</td>
-                                    <td class="py-3 px-4">Asosiy</td>
-                                    <td class="py-3 px-4">45</td>
-                                    <td class="py-3 px-4">kg</td>
-                                    <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Yetarli</span></td>
-                                    <td class="py-3 px-4">
-                                        <button class="text-blue-600 hover:underline text-xs">Tahrirlash</button>
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody class="divide-y" id="inventory-table-body"></tbody>
                         </table>
                     </div>
                 </div>
@@ -357,7 +289,7 @@
                 <div id="section-xodimlar" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                         <h2 class="text-lg font-bold text-gray-800">Xodimlar Ro'yxati va Ofitsiantlar</h2>
-                        <button onclick="showToast('Xodim qo‘shish oynasi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
+                        <button onclick="addEmployee()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <table class="w-full text-left text-sm text-gray-600">
@@ -370,17 +302,7 @@
                                     <th class="py-3 px-4">Amallar</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y">
-                                <tr>
-                                    <td class="py-3 px-4 font-bold text-gray-800">Umidjon</td>
-                                    <td class="py-3 px-4">Ofitsiant</td>
-                                    <td class="py-3 px-4">+998 90 123-45-67</td>
-                                    <td class="py-3 px-4"><span class="bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded-full font-medium">Faol</span></td>
-                                    <td class="py-3 px-4">
-                                        <button class="text-blue-600 hover:underline text-xs">Tahrirlash</button>
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody class="divide-y" id="employees-table-body"></tbody>
                         </table>
                     </div>
                 </div>
@@ -469,93 +391,402 @@
             document.getElementById('page-title').innerText = titles[tabId] || 'Boshqaruv paneli';
         }
 
+        const adminData = { menu: [], inventory: [], employees: [], orders: [], rooms: [] };
+        const loadedAdminData = { menu: false, inventory: false, employees: false, orders: false, rooms: false };
+        let adminSearchTerm = '';
+        let orderSearchTerm = '';
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
+
+        function formatMoney(value) {
+            return `${Number(value || 0).toLocaleString('uz-UZ')} so'm`;
+        }
+
+        function matchesSearch(values, term) {
+            const text = values.filter(value => value !== null && value !== undefined).join(' ').toLocaleLowerCase();
+            return text.includes(term.toLocaleLowerCase());
+        }
+
+        async function requestJson(url, options) {
+            const response = await fetch(url, options);
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || 'So‘rov bajarilmadi');
+            }
+            return result;
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-items-container');
+            const menuItems = adminData.menu.filter(item => matchesSearch([
+                item.name, item.category?.name, item.description, item.sellingPrice, item.unit
+            ], adminSearchTerm));
+            container.innerHTML = menuItems.length ? menuItems.map(item => {
+                const cost = Number(item.internalCostPrice || 0);
+                const price = Number(item.sellingPrice || 0);
+                return `
+                    <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                        <h4 class="font-bold text-gray-800 text-base mb-1">${escapeHtml(item.name)}</h4>
+                        <p class="text-xs text-gray-500 mb-3">Kategoriya: ${escapeHtml(item.category?.name || '—')}</p>
+                        <div class="flex justify-between text-sm py-1 border-t"><span class="text-gray-500">Tannarx:</span><span class="font-semibold text-gray-700">${formatMoney(cost)}</span></div>
+                        <div class="flex justify-between text-sm py-1"><span class="text-gray-500">Sotuv narxi:</span><span class="font-semibold text-amber-600">${formatMoney(price)}</span></div>
+                        <div class="flex justify-between text-sm py-1 border-b pb-2"><span class="text-gray-500">Foyda:</span><span class="font-semibold text-green-600">${formatMoney(price - cost)}</span></div>
+                    </div>`;
+            }).join('') : '<p class="text-gray-500 text-sm">Menyu ma’lumotlari topilmadi.</p>';
+        }
+
+        function renderInventory() {
+            const body = document.getElementById('inventory-table-body');
+            const products = adminData.inventory.filter(product => matchesSearch([
+                product.name, product.unit, product.quantity, product.minQuantity
+            ], adminSearchTerm));
+            body.innerHTML = products.length ? products.map(product => {
+                const lowStock = Number(product.quantity) <= Number(product.minQuantity);
+                return `<tr>
+                    <td class="py-3 px-4 font-bold text-gray-800">${escapeHtml(product.name)}</td>
+                    <td class="py-3 px-4">—</td>
+                    <td class="py-3 px-4">${escapeHtml(product.quantity)}</td>
+                    <td class="py-3 px-4">${escapeHtml(product.unit)}</td>
+                    <td class="py-3 px-4"><span class="${lowStock ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'} text-xs px-2.5 py-1 rounded-full font-medium">${lowStock ? 'Kam qoldi' : 'Yetarli'}</span></td>
+                    <td class="py-3 px-4">—</td>
+                </tr>`;
+            }).join('') : '<tr><td class="py-3 px-4 text-gray-500" colspan="6">Ombor ma’lumotlari topilmadi.</td></tr>';
+        }
+
+        function renderEmployees() {
+            const body = document.getElementById('employees-table-body');
+            const employees = adminData.employees.filter(employee => matchesSearch([
+                employee.fullName, employee.username, employee.role, employee.waiterProfile?.phone
+            ], adminSearchTerm));
+            const roleNames = { ADMIN: 'Administrator', CASHIER: 'Kassir', WAITER: 'Ofitsiant', KITCHEN: 'Oshxona xodimi', CUSTOMER: 'Mijoz' };
+            body.innerHTML = employees.length ? employees.map(employee => `
+                <tr>
+                    <td class="py-3 px-4 font-bold text-gray-800">${escapeHtml(employee.fullName)}</td>
+                    <td class="py-3 px-4">${escapeHtml(roleNames[employee.role] || employee.role)}</td>
+                    <td class="py-3 px-4">${escapeHtml(employee.phone || employee.waiterProfile?.phone || '—')}</td>
+                    <td class="py-3 px-4"><span class="${employee.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'} text-xs px-2.5 py-1 rounded-full font-medium">${employee.isActive ? 'Faol' : 'Faol emas'}</span></td>
+                    <td class="py-3 px-4">—</td>
+                </tr>`).join('') : '<tr><td class="py-3 px-4 text-gray-500" colspan="5">Xodimlar topilmadi.</td></tr>';
+        }
+
+        function renderOrders() {
+            const orderTerm = [adminSearchTerm, orderSearchTerm].filter(Boolean).join(' ');
+            const orders = adminData.orders.filter(order => matchesSearch([
+                order.orderNumber, order.table?.number, order.waiter?.fullName, order.waiter?.username,
+                order.status, order.guestCount, order.totalAmount
+            ], orderTerm));
+            const rows = orders.map(order => {
+                const date = new Date(order.createdAt).toLocaleString('uz-UZ');
+                const cells = `<td class="py-3 px-4 font-bold text-gray-800">#${escapeHtml(order.orderNumber)}</td>
+                    <td class="py-3 px-4">Stol ${escapeHtml(order.table?.number || '—')}</td>
+                    <td class="py-3 px-4">${escapeHtml(order.guestCount ?? '—')} kishi</td>
+                    <td class="py-3 px-4">${escapeHtml(order.waiter?.fullName || order.waiter?.username || '—')}</td>
+                    <td class="py-3 px-4">${formatMoney(order.totalAmount)}</td>
+                    <td class="py-3 px-4">${escapeHtml(String(order.status || '').replaceAll('_', ' '))}</td>
+                    <td class="py-3 px-4">${escapeHtml(date)}</td>`;
+                return cells;
+            });
+            document.getElementById('orders-table-body').innerHTML = rows.length
+                ? rows.map(row => `<tr>${row}<td class="py-3 px-4">—</td></tr>`).join('')
+                : '<tr><td class="py-3 px-4 text-gray-500" colspan="8">Buyurtmalar topilmadi.</td></tr>';
+            document.getElementById('recent-orders-table-body').innerHTML = orders.slice(0, 5).length
+                ? orders.slice(0, 5).map(order => `<tr>
+                    <td class="py-3 px-4 font-bold text-gray-800">#${escapeHtml(order.orderNumber)}</td>
+                    <td class="py-3 px-4">Stol ${escapeHtml(order.table?.number || '—')}</td>
+                    <td class="py-3 px-4">${formatMoney(order.totalAmount)}</td>
+                    <td class="py-3 px-4">${escapeHtml(String(order.status || '').replaceAll('_', ' '))}</td>
+                    <td class="py-3 px-4">${escapeHtml(new Date(order.createdAt).toLocaleString('uz-UZ'))}</td>
+                </tr>`).join('')
+                : '<tr><td class="py-3 px-4 text-gray-500" colspan="5">Buyurtmalar mavjud emas.</td></tr>';
+        }
+
+        function renderDashboard() {
+            const today = new Date().toDateString();
+            const todaysOrders = adminData.orders.filter(order => new Date(order.createdAt).toDateString() === today);
+            const todaysPayments = todaysOrders.flatMap(order => order.payments || [])
+                .filter(payment => new Date(payment.createdAt).toDateString() === today);
+            document.getElementById('today-revenue').textContent = loadedAdminData.orders
+                ? formatMoney(todaysPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0))
+                : '—';
+            document.getElementById('today-orders').textContent = loadedAdminData.orders ? `${todaysOrders.length} ta` : '—';
+            const allTables = adminData.rooms.flatMap(room => room.tables || []);
+            const busyTableIds = new Set(adminData.orders
+                .filter(order => !['TOLANDI', 'YAKUNLANDI', 'BEKOR_QILINDI', 'QAYTARILDI'].includes(order.status))
+                .map(order => order.tableId));
+            document.getElementById('active-tables').textContent = loadedAdminData.orders && loadedAdminData.rooms
+                ? `${allTables.filter(table => busyTableIds.has(table.id)).length} / ${allTables.length}`
+                : '—';
+            const kitchenOrders = adminData.orders.filter(order => ['OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA'].includes(order.status));
+            document.getElementById('kitchen-orders').textContent = loadedAdminData.orders ? `${kitchenOrders.length} ta` : '—';
+            const lowStock = adminData.inventory.filter(product => Number(product.quantity) <= Number(product.minQuantity));
+            document.getElementById('inventory-count').textContent = loadedAdminData.inventory ? `${adminData.inventory.length} xil` : '—';
+            document.getElementById('low-stock-count').textContent = loadedAdminData.inventory ? `Kam qoldi: ${lowStock.length} ta` : 'Kam qoldi: —';
+
+            const sales = new Map();
+            adminData.orders.forEach(order => (order.items || []).forEach(item => {
+                const name = item.menuItem?.name || 'Noma’lum taom';
+                const current = sales.get(name) || { quantity: 0, revenue: 0 };
+                current.quantity += Number(item.quantity || 0);
+                current.revenue += Number(item.totalPrice || 0);
+                sales.set(name, current);
+            }));
+            const popularItems = [...sales.entries()].sort((first, second) => second[1].quantity - first[1].quantity).slice(0, 3);
+            document.getElementById('popular-products').innerHTML = !loadedAdminData.orders
+                ? '<p class="text-sm text-gray-500">Ma’lumot yuklanmoqda...</p>'
+                : popularItems.length
+                ? popularItems.map(([name, sale]) => `<div class="flex items-center justify-between border-b pb-3">
+                    <div><p class="font-semibold text-sm text-gray-800">${escapeHtml(name)}</p><span class="text-xs text-gray-500">Sotilgan: ${sale.quantity} ta</span></div>
+                    <span class="font-bold text-amber-600 text-sm">${formatMoney(sale.revenue)}</span>
+                </div>`).join('')
+                : '<p class="text-sm text-gray-500">Hali sotuv ma’lumoti yo‘q.</p>';
+        }
+
+        function renderAdminData() {
+            renderMenu();
+            renderInventory();
+            renderEmployees();
+            renderOrders();
+            renderDashboard();
+        }
+
+        async function loadAdminData(key, url) {
+            try {
+                const records = await requestJson(url);
+                if (!Array.isArray(records)) throw new Error('Serverdan noto‘g‘ri ma’lumot olindi');
+                adminData[key] = records;
+                loadedAdminData[key] = true;
+                renderAdminData();
+            } catch (error) {
+                console.error(`/${url} ma’lumotlarini yuklashda xatolik:`, error);
+                showToast(error.message || 'Ma’lumotlarni yuklashda xatolik');
+            }
+        }
+
+        function loadMenu() { return loadAdminData('menu', '/api/menu'); }
+        function loadInventory() { return loadAdminData('inventory', '/api/inventory'); }
+        function loadEmployees() { return loadAdminData('employees', '/api/users'); }
+        function loadOrders() { return loadAdminData('orders', '/api/orders'); }
+
+        async function submitNewRecord(url, payload, reload, successMessage) {
+            try {
+                await requestJson(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showToast(successMessage);
+                await reload();
+            } catch (error) {
+                console.error('Ma’lumotni saqlashda xatolik:', error);
+                showToast(error.message || 'Ma’lumotni saqlab bo‘lmadi');
+            }
+        }
+
+        async function addMenuItem() {
+            const name = prompt('Taom nomi:');
+            if (name === null || !name.trim()) return;
+            let categories;
+            try {
+                categories = await requestJson('/api/menu/categories');
+                if (!Array.isArray(categories) || categories.length === 0) {
+                    throw new Error('Menyu kategoriyalari topilmadi');
+                }
+            } catch (error) {
+                console.error('Menyu kategoriyalarini olishda xatolik:', error);
+                showToast(error.message || 'Menyu kategoriyalarini olib bo‘lmadi');
+                return;
+            }
+            const categoryId = prompt(`Kategoriya IDsi:\n${categories.map(category => `${category.name}: ${category.id}`).join('\n')}`);
+            if (categoryId === null || !categoryId.trim()) return;
+            const sellingPrice = prompt('Sotuv narxi:');
+            if (sellingPrice === null) return;
+            const internalCostPrice = prompt('Tannarx:', '0');
+            if (internalCostPrice === null) return;
+            const unit = prompt('O‘lchov birligi:', 'porsiya');
+            if (unit === null || !unit.trim()) return;
+            const preparationTime = prompt('Tayyorlash vaqti (daqiqa):', '15');
+            if (preparationTime === null) return;
+            const kitchenSection = prompt('Oshxona bo‘limi:', 'Umumiy oshxona');
+            if (kitchenSection === null) return;
+            await submitNewRecord('/api/menu', {
+                name: name.trim(), categoryId: categoryId.trim(), sellingPrice: Number(sellingPrice),
+                internalCostPrice: Number(internalCostPrice), unit: unit.trim(),
+                preparationTime: Number(preparationTime), kitchenSection: kitchenSection.trim()
+            }, loadMenu, 'Taom qo‘shildi');
+        }
+
+        async function addInventoryProduct() {
+            const name = prompt('Mahsulot nomi:');
+            if (name === null || !name.trim()) return;
+            const unit = prompt('O‘lchov birligi (kg, dona, litr):');
+            if (unit === null || !unit.trim()) return;
+            const quantity = prompt('Boshlang‘ich miqdor:', '0');
+            if (quantity === null) return;
+            const minQuantity = prompt('Minimal qoldiq:', '5');
+            if (minQuantity === null) return;
+            await submitNewRecord('/api/inventory', {
+                name: name.trim(), unit: unit.trim(), quantity: Number(quantity), minQuantity: Number(minQuantity)
+            }, loadInventory, 'Mahsulot qo‘shildi');
+        }
+
+        async function addEmployee() {
+            const fullName = prompt('Xodimning to‘liq ismi:');
+            if (fullName === null || !fullName.trim()) return;
+            const username = prompt('Tizimga kirish uchun login:');
+            if (username === null || !username.trim()) return;
+            const password = prompt('Parol (kamida 8 belgi):');
+            if (password === null || password.length < 8) {
+                if (password !== null) showToast('Parol kamida 8 belgidan iborat bo‘lishi kerak');
+                return;
+            }
+            const role = prompt('Lavozim: WAITER, CASHIER, KITCHEN yoki ADMIN', 'WAITER');
+            if (role === null) return;
+            const phone = prompt('Telefon raqami:', '');
+            if (phone === null || !phone.trim()) {
+                if (phone !== null) showToast('Telefon raqamini kiriting');
+                return;
+            }
+            const payload = { fullName: fullName.trim(), username: username.trim(), password, role: role.trim().toUpperCase() };
+            Object.assign(payload, { phone: phone.trim() });
+            if (payload.role === 'WAITER') {
+                const commissionPercent = prompt('Komissiya foizi:', '10');
+                if (commissionPercent === null) return;
+                Object.assign(payload, { commissionPercent: Number(commissionPercent) });
+            }
+            await submitNewRecord('/api/employees', payload, loadEmployees, 'Xodim qo‘shildi');
+        }
+
         // Room & Table Management API Functions
         async function loadRooms() {
             try {
-                const response = await fetch('/api/rooms');
-                const rooms = await response.json();
+                const rooms = await requestJson('/api/rooms');
                 const container = document.getElementById('rooms-container');
-                
-                if (!rooms || rooms.length === 0) {
+                if (!Array.isArray(rooms) || rooms.length === 0) {
+                    adminData.rooms = Array.isArray(rooms) ? rooms : [];
+                    loadedAdminData.rooms = true;
+                    renderDashboard();
                     container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo‘shilmagan.</p>';
                     return;
                 }
-
+                adminData.rooms = rooms;
+                loadedAdminData.rooms = true;
+                renderDashboard();
                 container.innerHTML = rooms.map(room => `
                     <div class="border border-gray-200 p-5 rounded-xl bg-gray-50 flex flex-col justify-between">
                         <div>
                             <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-200">
-                                <h3 class="font-bold text-gray-800 text-lg">${room.name}</h3>
-                                <button onclick="deleteRoom(${room.id})" class="text-red-500 hover:text-red-700 text-xs font-semibold">Xonani o'chirish 🗑️</button>
+                                <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(room.name)}</h3>
+                                <button onclick="deleteRoom('${escapeHtml(room.id)}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Xonani o'chirish 🗑️</button>
                             </div>
                             <div class="mb-4">
                                 <p class="text-xs text-gray-500 mb-2">Stollar:</p>
                                 <div class="flex flex-wrap gap-2">
                                     ${room.tables && room.tables.length > 0 ? room.tables.map(table => `
                                         <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm">
-                                            <span class="text-xs font-bold text-gray-700">Stol #${table.number}</span>
-                                            <button onclick="deleteTable(${table.id})" class="text-red-400 hover:text-red-600 text-xs">×</button>
+                                            <span class="text-xs font-bold text-gray-700">Stol #${escapeHtml(table.number)}</span>
+                                            <button onclick="deleteTable('${escapeHtml(table.id)}')" class="text-red-400 hover:text-red-600 text-xs">×</button>
                                         </div>
                                     `).join('') : '<span class="text-xs text-gray-400">Stollar yo‘q</span>'}
                                 </div>
                             </div>
                         </div>
                         <div class="mt-4 pt-3 border-t border-gray-200 flex gap-2">
-                            <input type="number" id="table-input-${room.id}" placeholder="Stol raqami" class="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
-                            <button onclick="addTable(${room.id})" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Stol qo‘shish</button>
+                            <input type="number" min="1" step="1" id="table-input-${escapeHtml(room.id)}" placeholder="Stol raqami" class="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-xs">
+                            <button onclick="addTable('${escapeHtml(room.id)}')" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Stol qo‘shish</button>
                         </div>
                     </div>
                 `).join('');
             } catch (error) {
-                console.error('Xatolik:', error);
+                console.error('Xonalarni yuklashda xatolik:', error);
+                showToast(error.message || 'Xonalarni yuklashda xatolik');
             }
         }
 
         async function createRoom(event) {
             event.preventDefault();
-            const name = document.getElementById('roomName').value;
-            await fetch('/api/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-            document.getElementById('roomName').value = '';
-            showToast('Xona qo‘shildi');
-            loadRooms();
+            const input = document.getElementById('roomName');
+            try {
+                await requestJson('/api/rooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: input.value })
+                });
+                input.value = '';
+                showToast('Xona qo‘shildi');
+                await loadRooms();
+            } catch (error) {
+                console.error('Xona qo‘shishda xatolik:', error);
+                showToast(error.message || 'Xona qo‘shilmadi');
+            }
         }
 
         async function deleteRoom(id) {
             if (confirm('Ushbu ma’lumotni o‘chirishni tasdiqlaysizmi?')) {
-                await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
-                showToast('Xona o‘chirildi');
-                loadRooms();
+                try {
+                    await requestJson(`/api/rooms/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    showToast('Xona o‘chirildi');
+                    await loadRooms();
+                } catch (error) {
+                    console.error('Xonani o‘chirishda xatolik:', error);
+                    showToast(error.message || 'Xonani o‘chirib bo‘lmadi');
+                }
             }
         }
 
         async function addTable(roomId) {
+            if (!roomId) {
+                showToast('Avval xonani tanlang');
+                return;
+            }
             const input = document.getElementById(`table-input-${roomId}`);
-            const number = input.value;
-            if (!number) return alert('Stol raqamini kiriting!');
-            
-            await fetch('/api/tables', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number, roomId })
-            });
-            input.value = '';
-            showToast('Stol qo‘shildi');
-            loadRooms();
+            if (!input) {
+                console.error('Stol raqami maydoni topilmadi:', roomId);
+                showToast('Xona ma’lumotini topib bo‘lmadi');
+                return;
+            }
+            const number = input.value.trim();
+            if (!/^[1-9]\d*$/.test(number)) {
+                showToast('Stol raqamini musbat butun son bilan kiriting');
+                return;
+            }
+            try {
+                const result = await requestJson('/api/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number, roomId })
+                });
+                input.value = '';
+                showToast(result.message || 'Stol muvaffaqiyatli qo‘shildi');
+                await loadRooms();
+            } catch (error) {
+                console.error('Stol qo‘shishda xatolik:', error);
+                showToast(error.message || 'Stol qo‘shishda xatolik yuz berdi');
+            }
         }
 
         async function deleteTable(id) {
-            await fetch(`/api/tables/${id}`, { method: 'DELETE' });
-            showToast('Stol o‘chirildi');
-            loadRooms();
+            try {
+                await requestJson(`/api/tables/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                showToast('Stol o‘chirildi');
+                await loadRooms();
+            } catch (error) {
+                console.error('Stolni o‘chirishda xatolik:', error);
+                showToast(error.message || 'Stolni o‘chirib bo‘lmadi');
+            }
         }
 
         function logout() {
             if (confirm('Tizimdan chiqishni tasdiqlaysizmi?')) {
-                window.location.href = '/login';
+                fetch('/api/auth/logout', { method: 'POST' })
+                    .then(() => window.location.reload())
+                    .catch(error => {
+                        console.error('Tizimdan chiqishda xatolik:', error);
+                        showToast('Tizimdan chiqishda xatolik yuz berdi');
+                    });
             }
         }
 
@@ -564,10 +795,65 @@
         socket.on('orderUpdate', (data) => {
             showToast('Yangi buyurtma keldi yoki holat o‘zgardi!');
             loadRooms();
+            loadOrders();
+        });
+        socket.on('restaurant_structure_updated', () => loadRooms());
+
+        document.getElementById('admin-search').addEventListener('input', event => {
+            adminSearchTerm = event.target.value.trim();
+            renderAdminData();
+        });
+        document.getElementById('orders-search').addEventListener('input', event => {
+            orderSearchTerm = event.target.value.trim();
+            renderOrders();
         });
 
-        // Initial load
-        loadRooms();
+        async function checkAdminAuth() {
+            try {
+                const session = await requestJson('/api/auth/me');
+                if (session.user?.role !== 'ADMIN') {
+                    await requestJson('/api/auth/logout', { method: 'POST' });
+                    document.getElementById('admin-login-error').textContent = 'Administrator hisobidan kiring.';
+                    document.getElementById('admin-login-error').classList.remove('hidden');
+                    document.getElementById('admin-auth-overlay').classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('admin-auth-overlay').classList.add('hidden');
+                loadRooms();
+                loadMenu();
+                loadInventory();
+                loadEmployees();
+                loadOrders();
+            } catch (error) {
+                console.error('Administrator sessiyasini tekshirishda xatolik:', error);
+                document.getElementById('admin-login-error').textContent = error.message || 'Avval administrator sifatida tizimga kiring.';
+                document.getElementById('admin-login-error').classList.remove('hidden');
+                document.getElementById('admin-auth-overlay').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('admin-login-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const error = document.getElementById('admin-login-error');
+            error.classList.add('hidden');
+            try {
+                await requestJson('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('admin-login-username').value,
+                        password: document.getElementById('admin-login-password').value
+                    })
+                });
+                await checkAdminAuth();
+            } catch (loginError) {
+                console.error('Administrator tizimiga kirishda xatolik:', loginError);
+                error.textContent = loginError.message || 'Login yoki parol noto‘g‘ri';
+                error.classList.remove('hidden');
+            }
+        });
+
+        checkAdminAuth();
     </script>
 </body>
 </html>

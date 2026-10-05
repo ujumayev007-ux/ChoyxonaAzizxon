@@ -3,14 +3,6 @@ import { authenticateToken, requireRole } from '../middleware/auth';
 import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-}
-
 const router = Router();
 
 router.use(authenticateToken, requireRole(['cashier', 'admin']));

@@ -13,10 +13,11 @@ async function main() {
   // Admin panelda bularni keyinchalik qo'shish/tahrirlash imkoniyati bo'ladi.
   const asosiyZal = await prisma.room.create({
     data: {
-      nazorati: 'Asosiy Zal',
+      name: 'Asosiy Zal',
       tables: {
         create: Array.from({ length: 16 }, (_, index) => ({
-          tableNumber: index + 1,
+          number: String(index + 1),
+          qrCodeToken: `table_${crypto.randomUUID()}`,
           capacity: 4,
         })),
       },
@@ -27,11 +28,11 @@ async function main() {
   for (let i = 2; i <= 12; i++) {
     await prisma.room.create({
       data: {
-        nazorati: `${i}-Xona (VIP / Kabinet)`,
+        name: `${i}-Xona (VIP / Kabinet)`,
         tables: {
           create: [
-            { tableNumber: 1, capacity: 6 },
-            { tableNumber: 2, capacity: 8 },
+            { number: '1', qrCodeToken: `table_${crypto.randomUUID()}`, capacity: 6 },
+            { number: '2', qrCodeToken: `table_${crypto.randomUUID()}`, capacity: 8 },
           ],
         },
       },
@@ -40,7 +41,7 @@ async function main() {
 
   // 2. Kategoriyalar
   const categories = ['Osh', 'Asosiy', 'Kaboblar', 'Somsalar', 'Saladlar', 'Baliq'];
-  
+
   const createdCategories: { [key: string]: string } = {};
 
   for (const catName of categories) {
@@ -57,10 +58,10 @@ async function main() {
       categoryId: createdCategories['Osh'],
       description: 'Anʼanaviy bayram oshi',
       sellingPrice: 35000,
-      costPrice: 20000,
+      internalCostPrice: 20000,
       unit: 'porsiya',
       preparationTime: 20,
-      kitchenDepartment: 'Oshxona',
+      kitchenSection: 'Oshxona',
     },
   });
 
@@ -70,10 +71,10 @@ async function main() {
       categoryId: createdCategories['Somsalar'],
       description: 'Qo\'y go\'shtidan tandir somsa',
       sellingPrice: 12000,
-      costPrice: 7000,
+      internalCostPrice: 7000,
       unit: 'dona',
       preparationTime: 15,
-      kitchenDepartment: 'Tandirxona',
+      kitchenSection: 'Tandirxona',
     },
   });
 
@@ -83,10 +84,10 @@ async function main() {
       categoryId: createdCategories['Kaboblar'],
       description: 'Sarxil go\'shtdan shashlik',
       sellingPrice: 25000,
-      costPrice: 15000,
+      internalCostPrice: 15000,
       unit: 'porsiya',
       preparationTime: 20,
-      kitchenDepartment: 'Shashlikxona',
+      kitchenSection: 'Shashlikxona',
     },
   });
 

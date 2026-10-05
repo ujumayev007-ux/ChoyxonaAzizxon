@@ -1,79 +1,49 @@
-// @ts-nocheck
 import { Router } from 'express';
-import { authenticateToken, requireRole } from '../middleware/auth';
-import { db } from '../models';
+import { OrderStatus } from '@prisma/client';
+import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 
 const router = Router();
+const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
+    TASDIQLANDI: 'TAYYORLANMOQDA',
+    OSHXONAGA_YUBORILDI: 'TAYYORLANMOQDA',
+    TAYYORLANMOQDA: 'TAYYOR',
+    TAYYOR: 'STOLGA_YETKAZILDI'
+};
 
-// Middleware: Strict Kitchen & Admin Role Verification
-router.use(authenticateToken, requireRole(['kitchen', 'admin', 'waiter']));
-
-// 1. Get Active Kitchen Orders (Approved, Preparing, Ready)
-router.get('/orders', async (req, res) => {
+router.get('/orders', async (_req, res) => {
     try {
-        const activeOrders = await db.Order.findAll({
-            where: {
-                status: {
-                    [db.Sequelize.Op.in]: ['approved', 'preparing', 'ready']
-                }
+        const orders = await prisma.order.findMany({
+            where: { status: { in: ['TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR'] } },
+            include: { waiter: { select: { fullName: true } }, items: { include: { menuItem: true } },
             },
-            include: [
-                { model: db.User, as: 'waiter', attributes: ['name'] },
-                { model: db.OrderItem, as: 'OrderItems', include: [{ model: db.Dish }] } // as: 'OrderItems' qo'shildi
-            ],
-            order: [['createdAt', 'ASC']]
+            orderBy: { createdAt: 'asc' }
         });
-
-        res.json({ success: true, data: activeOrders });
+        res.json({ success: true, data: orders });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: 'Buyurtmani yuklashda xatolik' });
     }
 });
 
-// 2. Update Order Status (Boshlash / Tayyor / Yakunlash)
 router.patch('/orders/:id/status', async (req, res) => {
-    const t = await db.sequelize.transaction();
     try {
-        const { id } = req.params;
-        const { status } = req.body; // 'preparing', 'ready', 'completed'
+        const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+        if (!order) return res.status(404).json({ success: false, message: 'Buyurtma topilmadi' });
 
-        const order = await db.Order.findByPk(id, { include: [db.OrderItem], transaction: t });
-        if (!order) {
-            await t.rollback();
-            return res.status(404).json({ success: false, message: 'Buyurtma topilmadi' });
+        const status = nextStatus[order.status];
+        if (!status || status !== req.body.status) {
+            return res.status(400).json({ success: false, message: 'Buyurtma holati noto‘g‘ri' });
         }
 
-        if (order.status === status) {
-            await t.rollback();
-            return res.status(400).json({ success: false, message: 'Buyurtma allaqachon bu holatda' });
-        }
-
-        // Validate Kilogram Osh quantities (100g to 5kg)
-        for (const item of order.OrderItems || []) {
-            if (item.isKilogramOsh) {
-                if (item.quantityGrams < 100 || item.quantityGrams > 5000) {
-                    await t.rollback();
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: item.quantityGrams < 100 ? 'Minimal miqdor 100 gramm bo‘lishi kerak' : 'Maximum miqdor 5 kg bo‘lishi kerak' 
-                    });
-                }
-            }
-        }
-
-        await order.update({ status }, { transaction: t });
-        await t.commit();
-
-        // Broadcast real-time Socket.io status update
-        emitSocketEvent('order_status_updated', { orderId: order.id, status });
-        if (status === 'preparing') emitSocketEvent('kitchen_order_started', { orderId: order.id });
-        if (status === 'ready') emitSocketEvent('kitchen_order_ready', { orderId: order.id });
-        if (status === 'completed') emitSocketEvent('kitchen_order_completed', { orderId: order.id });
-
-        res.json({ success: true, message: 'Buyurtma holati yangilandi', data: order });
+        const updated = await prisma.order.update({ where: { id: order.id }, data: { status } });
+        emitSocketEvent('order_status_updated', { orderId: updated.id, status });
+        if (status === 'TAYYORLANMOQDA') emitSocketEvent('kitchen_order_started', { orderId: updated.id });
+        if (status === 'TAYYOR') emitSocketEvent('kitchen_order_ready', { orderId: updated.id });
+        if (status === 'STOLGA_YETKAZILDI') emitSocketEvent('kitchen_order_completed', { orderId: updated.id });
+        res.json({ success: true, message: 'Buyurtma holati yangilandi', data: updated });
     } catch (error) {
-        await t.rollback();
+        console.error(error);
         res.status(500).json({ success: false, message: 'Server bilan aloqa uzildi' });
     }
 });
