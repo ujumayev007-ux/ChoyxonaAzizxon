@@ -86,6 +86,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Public papkani statik qilish (sahifalar ochilishi uchun)
+app.use(express.static(path.join(process.cwd(), 'public')));
+
 const io = new Server(server, {
   cors: {
     origin: "*",
