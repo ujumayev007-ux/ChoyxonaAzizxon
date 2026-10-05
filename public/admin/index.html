@@ -14,6 +14,9 @@
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-2"></div>
 
+    <!-- Modals Container -->
+    <div id="modal-container"></div>
+
     <div class="flex h-full overflow-hidden">
         
         <!-- Sidebar -->
@@ -65,9 +68,9 @@
                 </div>
                 
                 <div class="flex items-center space-x-6">
-                    <!-- Search -->
+                    <!-- Global Search -->
                     <div class="relative">
-                        <input type="text" placeholder="Qidirish..." class="w-64 bg-gray-50 border border-gray-200 rounded-lg px-4 py-1.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                        <input type="text" id="global-search" oninput="handleGlobalSearch(this.value)" placeholder="Qidirish..." class="w-64 bg-gray-50 border border-gray-200 rounded-lg px-4 py-1.5 text-sm focus:outline-none focus:border-amber-500 transition">
                     </div>
 
                     <!-- Date & Time -->
@@ -138,7 +141,7 @@
                             <div>
                                 <p class="text-sm text-gray-500 font-medium">Ombordagi mahsulotlar</p>
                                 <h3 class="text-2xl font-bold text-gray-800 mt-1">124 xil</h3>
-                                <p class="text-xs text-red-500 mt-1">⚠️ 2 ta mahsulot kam qoldi</p>
+                                <p class="text-xs text-red-500 mt-1">⚠️️ 2 ta mahsulot kam qoldi</p>
                             </div>
                             <span class="text-3xl bg-red-50 p-3 rounded-xl">📦</span>
                         </div>
@@ -227,7 +230,7 @@
                             <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyorlanmoqda</button>
                             <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Tayyor</button>
                         </div>
-                        <input type="text" placeholder="Buyurtma qidirish..." class="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                        <input type="text" id="order-search-input" oninput="searchOrders(this.value)" placeholder="Buyurtma yoki stol raqami..." class="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div class="overflow-x-auto">
@@ -245,7 +248,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y" id="orders-table-body">
-                                    <tr>
+                                    <tr data-order-id="1048">
                                         <td class="py-3 px-4 font-bold text-gray-800">#1048</td>
                                         <td class="py-3 px-4">Stol 3</td>
                                         <td class="py-3 px-4">Azizbek</td>
@@ -291,10 +294,10 @@
                 <div id="section-menyu" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                         <h2 class="text-lg font-bold text-gray-800">Menyu va Mahsulot Tannarxi</h2>
-                        <button onclick="showToast('Taom qo‘shish oynasi ochildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
+                        <button onclick="openMenuModal()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div id="menu-grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
                                 <h4 class="font-bold text-gray-800 text-base mb-1">Osh (Milliy)</h4>
                                 <p class="text-xs text-gray-500 mb-3">Kategoriya: Osh</p>
@@ -321,9 +324,12 @@
 
                 <!-- 5. OMBOR -->
                 <div id="section-ombor" class="tab-content hidden space-y-6">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center gap-4 flex-wrap">
                         <h2 class="text-lg font-bold text-gray-800">Omborxona Qoldiqlari</h2>
-                        <button onclick="showToast('Mahsulot qo‘shildi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                        <div class="flex items-center gap-3">
+                            <input type="text" id="warehouse-search-input" oninput="searchWarehouse(this.value)" placeholder="Mahsulot qidirish..." class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-500">
+                            <button onclick="openWarehouseModal()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                        </div>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <table class="w-full text-left text-sm text-gray-600">
@@ -337,7 +343,7 @@
                                     <th class="py-3 px-4">Amallar</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y">
+                            <tbody id="warehouse-table-body" class="divide-y">
                                 <tr>
                                     <td class="py-3 px-4 font-bold text-gray-800">Guruch (Lazer)</td>
                                     <td class="py-3 px-4">Asosiy</td>
@@ -357,7 +363,7 @@
                 <div id="section-xodimlar" class="tab-content hidden space-y-6">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                         <h2 class="text-lg font-bold text-gray-800">Xodimlar Ro'yxati va Ofitsiantlar</h2>
-                        <button onclick="showToast('Xodim qo‘shish oynasi')" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
+                        <button onclick="openEmployeeModal()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <table class="w-full text-left text-sm text-gray-600">
@@ -370,7 +376,7 @@
                                     <th class="py-3 px-4">Amallar</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y">
+                            <tbody id="employee-table-body" class="divide-y">
                                 <tr>
                                     <td class="py-3 px-4 font-bold text-gray-800">Umidjon</td>
                                     <td class="py-3 px-4">Ofitsiant</td>
@@ -415,6 +421,17 @@
 
     <!-- JavaScript Implementation -->
     <script>
+        // Universal Robust API Helper
+        async function apiFetch(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || data.message || `So'rov bajarilmadi: ${response.status}`);
+            }
+            return data;
+        }
+
         // Real-time Clock Update
         function updateClock() {
             const now = new Date();
@@ -422,8 +439,10 @@
             const dateString = String(now.getDate()).padStart(2, '0') + '.' + 
                                String(now.getMonth() + 1).padStart(2, '0') + '.' + 
                                now.getFullYear();
-            document.getElementById('header-clock').innerText = timeString;
-            document.getElementById('header-date').innerText = 'Bugun: ' + dateString;
+            const clockEl = document.getElementById('header-clock');
+            const dateEl = document.getElementById('header-date');
+            if (clockEl) clockEl.innerText = timeString;
+            if (dateEl) dateEl.innerText = 'Bugun: ' + dateString;
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -431,6 +450,7 @@
         // Toast Notification System
         function showToast(message) {
             const container = document.getElementById('toast-container');
+            if (!container) return;
             const toast = document.createElement('div');
             toast.className = 'bg-slate-900 text-white text-xs px-4 py-3 rounded-lg shadow-lg transition transform translate-y-2 opacity-0 flex items-center gap-2';
             toast.innerHTML = `<span>✅</span> <span>${message}</span>`;
@@ -445,15 +465,18 @@
         // Tab Switching Logic
         function switchTab(tabId, element) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById('section-' + tabId).classList.remove('hidden');
+            const targetSection = document.getElementById('section-' + tabId);
+            if (targetSection) targetSection.classList.remove('hidden');
 
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('bg-amber-600', 'text-white', 'shadow-sm');
                 btn.classList.add('hover:bg-slate-800', 'text-slate-300');
             });
 
-            element.classList.remove('hover:bg-slate-800', 'text-slate-300');
-            element.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+            if (element) {
+                element.classList.remove('hover:bg-slate-800', 'text-slate-300');
+                element.classList.add('bg-amber-600', 'text-white', 'shadow-sm');
+            }
 
             const titles = {
                 'bosh-sahifa': 'Boshqaruv paneli',
@@ -466,15 +489,16 @@
                 'hisobotlar': 'Hisobotlar',
                 'sozlamalar': 'Sozlamalar'
             };
-            document.getElementById('page-title').innerText = titles[tabId] || 'Boshqaruv paneli';
+            const pageTitle = document.getElementById('page-title');
+            if (pageTitle) pageTitle.innerText = titles[tabId] || 'Boshqaruv paneli';
         }
 
         // Room & Table Management API Functions
         async function loadRooms() {
             try {
-                const response = await fetch('/api/rooms');
-                const rooms = await response.json();
+                const rooms = await apiFetch('/api/rooms');
                 const container = document.getElementById('rooms-container');
+                if (!container) return;
                 
                 if (!rooms || rooms.length === 0) {
                     container.innerHTML = '<p class="text-gray-500 text-sm">Hozircha xonalar qo‘shilmagan.</p>';
@@ -507,53 +531,295 @@
                     </div>
                 `).join('');
             } catch (error) {
-                console.error('Xatolik:', error);
+                console.error('Xonalarni yuklashda xatolik:', error);
             }
         }
 
         async function createRoom(event) {
             event.preventDefault();
-            const name = document.getElementById('roomName').value;
-            await fetch('/api/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-            document.getElementById('roomName').value = '';
-            showToast('Xona qo‘shildi');
-            loadRooms();
-        }
-
-        async function deleteRoom(id) {
-            if (confirm('Ushbu ma’lumotni o‘chirishni tasdiqlaysizmi?')) {
-                await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
-                showToast('Xona o‘chirildi');
+            const nameInput = document.getElementById('roomName');
+            const name = nameInput.value;
+            try {
+                await apiFetch('/api/rooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                nameInput.value = '';
+                showToast('Xona muvaffaqiyatli qo‘shildi');
                 loadRooms();
+            } catch (error) {
+                showToast('Xona qo‘shishda xatolik');
             }
         }
 
-       async function addTable(roomId) {
-    const input = document.getElementById(`table-input-${roomId}`);
-    const numberValue = input.value;
-    if (!numberValue) return alert('Stol raqamini kiriting!');
-    
-    await fetch('/api/tables', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            number: Number(numberValue),
-            roomId: Number(roomId)
-        })
-    });
-    input.value = '';
-    showToast('Stol qo‘shildi');
-    loadRooms();
-}
+        async function deleteRoom(id) {
+            if (confirm('Ushbu xonani o‘chirishni tasdiqlaysizmi?')) {
+                try {
+                    await apiFetch(`/api/rooms/${id}`, { method: 'DELETE' });
+                    showToast('Xona o‘chirildi');
+                    loadRooms();
+                } catch (e) {
+                    showToast('O‘chirishda xatolik');
+                }
+            }
+        }
+
+        async function addTable(roomId) {
+            const input = document.getElementById(`table-input-${roomId}`);
+            const numberValue = input.value;
+            if (!numberValue) {
+                alert('Stol raqamini kiriting!');
+                return;
+            }
+            
+            try {
+                await apiFetch('/api/tables', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        number: Number(numberValue),
+                        roomId: Number(roomId)
+                    })
+                });
+                input.value = '';
+                showToast('Stol muvaffaqiyatli qo‘shildi');
+                loadRooms();
+            } catch (error) {
+                console.error('Stol qo‘shish xatoligi:', error);
+                showToast('Stol qo‘shishda xatolik');
+            }
+        }
 
         async function deleteTable(id) {
-            await fetch(`/api/tables/${id}`, { method: 'DELETE' });
-            showToast('Stol o‘chirildi');
-            loadRooms();
+            try {
+                await apiFetch(`/api/tables/${id}`, { method: 'DELETE' });
+                showToast('Stol o‘chirildi');
+                loadRooms();
+            } catch (e) {
+                showToast('Stol o‘chirishda xatolik');
+            }
+        }
+
+        // Search Implementations
+        function searchWarehouse(query) {
+            const q = query.toLowerCase();
+            const rows = document.querySelectorAll('#warehouse-table-body tr');
+            rows.forEach(row => {
+                const name = row.cells[0]?.innerText.toLowerCase() || '';
+                const category = row.cells[1]?.innerText.toLowerCase() || '';
+                if (name.includes(q) || category.includes(q)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function searchOrders(query) {
+            const q = query.toLowerCase();
+            const rows = document.querySelectorAll('#orders-table-body tr');
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                if (text.includes(q)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function handleGlobalSearch(query) {
+            const q = query.toLowerCase();
+            // E.g. active tab filtering or quick search context
+            const activeTab = document.querySelector('.tab-content:not(.hidden)');
+            if (activeTab && activeTab.id === 'section-ombor') {
+                const whInput = document.getElementById('warehouse-search-input');
+                if (whInput) {
+                    whInput.value = query;
+                    searchWarehouse(query);
+                }
+            } else if (activeTab && activeTab.id === 'section-buyurtmalar') {
+                const ordInput = document.getElementById('order-search-input');
+                if (ordInput) {
+                    ordInput.value = query;
+                    searchOrders(query);
+                }
+            }
+        }
+
+        // Modals & Creation Forms Handlers
+        function openMenuModal() {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">Yangi taom qo‘shish</h3>
+                        <form onsubmit="createMenuItem(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Taom nomi</label>
+                                <input type="text" id="menu-name" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Kategoriya</label>
+                                <input type="text" id="menu-category" placeholder="Masalan: Osh, Shashlik" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Tannarx (so'm)</label>
+                                    <input type="number" id="menu-cost" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Sotuv narxi (so'm)</label>
+                                    <input type="number" id="menu-price" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-6">
+                                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium">Bekor qilish</button>
+                                <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">Saqlash</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function createMenuItem(event) {
+            event.preventDefault();
+            const name = document.getElementById('menu-name').value;
+            const category = document.getElementById('menu-category').value;
+            const costPrice = Number(document.getElementById('menu-cost').value);
+            const price = Number(document.getElementById('menu-price').value);
+
+            try {
+                await apiFetch('/api/menu', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, category, costPrice, price })
+                });
+                closeModal();
+                showToast('Taom muvaffaqiyatli qo‘shildi');
+            } catch (e) {
+                showToast('Taom qo‘shishda xatolik');
+            }
+        }
+
+        function openWarehouseModal() {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">Omborga mahsulot qo‘shish</h3>
+                        <form onsubmit="createWarehouseProduct(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Mahsulot nomi</label>
+                                <input type="text" id="wh-name" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Kategoriya</label>
+                                <input type="text" id="wh-category" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Miqdor</label>
+                                    <input type="number" step="any" id="wh-quantity" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">O‘lchov birligi</label>
+                                    <input type="text" id="wh-unit" placeholder="kg, litr, dona" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-6">
+                                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium">Bekor qilish</button>
+                                <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">Saqlash</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function createWarehouseProduct(event) {
+            event.preventDefault();
+            const name = document.getElementById('wh-name').value;
+            const category = document.getElementById('wh-category').value;
+            const quantity = Number(document.getElementById('wh-quantity').value);
+            const unit = document.getElementById('wh-unit').value;
+
+            try {
+                await apiFetch('/api/warehouse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, category, quantity, unit })
+                });
+                closeModal();
+                showToast('Mahsulot muvaffaqiyatli qo‘shildi');
+            } catch (e) {
+                showToast('Mahsulot qo‘shishda xatolik');
+            }
+        }
+
+        function openEmployeeModal() {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">Yangi xodim qo‘shish</h3>
+                        <form onsubmit="createEmployee(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Ism va familiya</label>
+                                <input type="text" id="emp-name" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Lavozim</label>
+                                <select id="emp-position" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                                    <option value="waiter">Ofitsiant</option>
+                                    <option value="cashier">Kassir</option>
+                                    <option value="kitchen">Oshpaz</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Telefon raqam</label>
+                                <input type="text" id="emp-phone" placeholder="+998..." required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Parol (Login uchun)</label>
+                                <input type="password" id="emp-password" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            </div>
+                            <div class="flex justify-end gap-2 mt-6">
+                                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium">Bekor qilish</button>
+                                <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">Saqlash</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function createEmployee(event) {
+            event.preventDefault();
+            const name = document.getElementById('emp-name').value;
+            const position = document.getElementById('emp-position').value;
+            const phone = document.getElementById('emp-phone').value;
+            const password = document.getElementById('emp-password').value;
+
+            try {
+                await apiFetch('/api/employees', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, position, phone, password })
+                });
+                closeModal();
+                showToast('Xodim muvaffaqiyatli qo‘shildi');
+            } catch (e) {
+                showToast('Xodim qo‘shishda xatolik');
+            }
+        }
+
+        function closeModal() {
+            const modalContainer = document.getElementById('modal-container');
+            if (modalContainer) modalContainer.innerHTML = '';
         }
 
         function logout() {
