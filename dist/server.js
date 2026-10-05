@@ -84,6 +84,8 @@ app.use((0, cors_1.default)({
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.static(path_1.default.join(__dirname, '..', 'public')));
+// Public papkani statik qilish (sahifalar ochilishi uchun)
+app.use(express_1.default.static(path_1.default.join(process.cwd(), 'public')));
 const io = new socket_io_1.Server(server, {
     cors: {
         origin: "*",
