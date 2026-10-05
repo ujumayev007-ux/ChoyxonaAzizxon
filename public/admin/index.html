@@ -532,20 +532,23 @@
             }
         }
 
-        async function addTable(roomId) {
-            const input = document.getElementById(`table-input-${roomId}`);
-            const number = input.value;
-            if (!number) return alert('Stol raqamini kiriting!');
-            
-            await fetch('/api/tables', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ number, roomId })
-            });
-            input.value = '';
-            showToast('Stol qo‘shildi');
-            loadRooms();
-        }
+       async function addTable(roomId) {
+    const input = document.getElementById(`table-input-${roomId}`);
+    const numberValue = input.value;
+    if (!numberValue) return alert('Stol raqamini kiriting!');
+    
+    await fetch('/api/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            number: Number(numberValue),
+            roomId: Number(roomId)
+        })
+    });
+    input.value = '';
+    showToast('Stol qo‘shildi');
+    loadRooms();
+}
 
         async function deleteTable(id) {
             await fetch(`/api/tables/${id}`, { method: 'DELETE' });
