@@ -49,21 +49,24 @@ function verifyPassword(password: string, passwordHash: string): Promise<boolean
 }
 
 async function ensureInitialAdmin(): Promise<void> {
+    const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
+    if (adminCount > 0) return;
+
     const username = process.env.INITIAL_ADMIN_USERNAME?.trim();
     const password = process.env.INITIAL_ADMIN_PASSWORD;
     if (!username && !password) {
-        const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
-        if (adminCount === 0) {
-            console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
-        }
+        console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
         return;
     }
     if (!username || !password || password.length < 12) {
+        console.error('Initial admin provisioning configuration:', {
+            usernameExists: Boolean(username),
+            passwordExists: typeof password === 'string' && password.length > 0,
+            passwordLength: typeof password === 'string' ? password.length : 0
+        });
         throw new Error('Set both INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD (at least 12 characters) for initial admin provisioning.');
     }
 
-    const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
-    if (adminCount > 0) return;
     const existingUser = await prisma.user.findUnique({ where: { username } });
     if (existingUser) {
         throw new Error('INITIAL_ADMIN_USERNAME already belongs to a non-admin account.');
