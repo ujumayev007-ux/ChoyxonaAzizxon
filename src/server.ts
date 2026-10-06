@@ -12,7 +12,9 @@ import { createHash, randomBytes } from 'crypto';
 import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializeAuthSecret, optionalAuthenticateToken, requireCashierAccess, requireRole, setAuthCookie } from './middleware/auth';
 import { hashPassword, verifyPassword } from './utils/password';
 import cashierRoutes from './routes/cashier.routes';
+import menuRoutes from './routes/menu.routes';
 import { deductPackaging } from './utils/order-packaging';
+import { deductOrderRecipes } from './utils/order-recipes';
 import telegramRoutes from './routes/telegram.routes';
 
 // 1. Muhit o'zgaruvchilarini eng boshida yuklash
@@ -457,76 +459,7 @@ app.post('/api/tables/:id/free', authenticateToken, requireRole(['WAITER', 'ADMI
 });
 
 // Menyu va tannarx
-app.get('/api/menu/categories', authenticateToken, requireRole(['ADMIN']), async (_req, res) => {
-    try {
-        const categories = await prisma.menuCategory.findMany({
-            where: { isActive: true },
-            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-            select: { id: true, name: true }
-        });
-        res.json(categories);
-    } catch (error) {
-        console.error('Menyu kategoriyalarini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Menyu kategoriyalarini olishda xatolik' });
-    }
-});
-
-app.get('/api/menu', optionalAuthenticateToken, async (req, res) => {
-    try {
-        const menuItems = req.user?.role === RoleType.ADMIN
-            ? await prisma.menuItem.findMany({
-                include: { category: true, recipes: { include: { inventory: true } } }
-            })
-            : await prisma.menuItem.findMany({
-                where: { isActive: true },
-                select: {
-                    id: true, name: true, description: true, imageUrl: true, sellingPrice: true,
-                    unit: true, preparationTime: true, kitchenSection: true, categoryId: true, isActive: true,
-                    category: { select: { id: true, name: true } }
-                }
-            });
-        res.json(menuItems);
-    } catch (error) {
-        console.error('Menyuni olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Menyuni olib kelishda xatolik' });
-    }
-});
-
-app.post('/api/menu', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
-    const { name, categoryId, description, sellingPrice, internalCostPrice, unit, preparationTime, kitchenSection } = req.body || {};
-    if (typeof name !== 'string' || !name.trim() || typeof categoryId !== 'string' || !categoryId ||
-        !Number.isFinite(Number(sellingPrice)) || Number(sellingPrice) < 0 ||
-        (internalCostPrice !== undefined && (!Number.isFinite(Number(internalCostPrice)) || Number(internalCostPrice) < 0)) ||
-        (preparationTime !== undefined && (!Number.isInteger(Number(preparationTime)) || Number(preparationTime) < 0))) {
-        res.status(400).json({ success: false, message: 'Menyu ma’lumotlari noto‘g‘ri' });
-        return;
-    }
-
-    try {
-        const category = await prisma.menuCategory.findUnique({ where: { id: categoryId }, select: { id: true } });
-        if (!category) {
-            res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
-            return;
-        }
-        const menuItem = await prisma.menuItem.create({
-            data: {
-                name: name.trim(),
-                categoryId,
-                description: typeof description === 'string' && description.trim() ? description.trim() : null,
-                sellingPrice: Number(sellingPrice),
-                ...(internalCostPrice !== undefined ? { internalCostPrice: Number(internalCostPrice) } : {}),
-                ...(typeof unit === 'string' && unit.trim() ? { unit: unit.trim() } : {}),
-                ...(preparationTime !== undefined ? { preparationTime: Number(preparationTime) } : {}),
-                ...(typeof kitchenSection === 'string' && kitchenSection.trim() ? { kitchenSection: kitchenSection.trim() } : {})
-            },
-            include: { category: true, recipes: { include: { inventory: true } } }
-        });
-        res.status(201).json({ success: true, data: menuItem });
-    } catch (error) {
-        console.error('Menyu taomini qo‘shishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Taom qo‘shilmadi' });
-    }
-});
+app.use('/api/menu', menuRoutes);
 
 // Omborxona
 app.get('/api/inventory', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
@@ -834,7 +767,7 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
 
         const requestedIds = items.map(item => String(item.productId || item.menuItemId));
         const menuItems = await prisma.menuItem.findMany({
-            where: { id: { in: requestedIds }, isActive: true },
+            where: { id: { in: requestedIds }, isActive: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         const menuById = new Map(menuItems.map(item => [item.id, item]));
@@ -1007,6 +940,7 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
             });
             if (!orders.length) throw new Error('TABLE_NO_ORDERS');
             const paidOrderIds: string[] = [];
+            const updatedInventoryIds = new Set<string>();
             for (const order of orders) {
                 await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${order.id} FOR UPDATE`;
                 if (order.processingById && order.processingById !== req.user!.id) throw new Error('ORDER_LOCKED');
@@ -1034,7 +968,10 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
                         statusHistory: { create: { status, userId: req.user!.id, comment: 'Stol hisob-kitobi' } }
                     }
                 });
-                if (status === OrderStatus.TOLANDI) await deductPackaging(tx, order.id, req.user!.id);
+                if (status === OrderStatus.TOLANDI) {
+                    await deductPackaging(tx, order.id, req.user!.id);
+                    for (const id of await deductOrderRecipes(tx, order.id, req.user!.id)) updatedInventoryIds.add(id);
+                }
                 const receiptNumber = `${order.orderNumber}-${Date.now()}-${randomBytes(2).toString('hex').toUpperCase()}`;
                 await tx.receipt.create({
                     data: {
@@ -1087,12 +1024,17 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
                     requestHash: hash, responseJson: JSON.stringify(response)
                 }
             });
-            return response;
+            return { response, updatedInventoryIds: [...updatedInventoryIds] };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-        for (const orderId of result.paidOrderIds) emitSocketEvent('paymentReceived', { orderId, status: 'TOLANDI' });
+        for (const orderId of result.response.paidOrderIds) emitSocketEvent('paymentReceived', { orderId, status: 'TOLANDI' });
         emitSocketEvent('table_status_updated', { tableId: req.params.tableId });
-        res.json({ success: true, data: result });
+        if (result.updatedInventoryIds.length) emitSocketEvent('inventory_updated', { inventoryIds: result.updatedInventoryIds });
+        res.json({ success: true, data: result.response });
     } catch (error) {
+        if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
+            return;
+        }
         if (error instanceof Error && error.message === 'TABLE_NO_ORDERS') {
             res.status(409).json({ success: false, message: 'Stolda to‘lanmagan buyurtmalar yo‘q' });
             return;

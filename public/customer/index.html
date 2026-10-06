@@ -28,31 +28,10 @@
             </button>
         </div>
 
-        <!-- Menu Categories -->
         <div class="space-y-3">
-            <h2 class="font-bold text-gray-800 text-base">Asosiy Taomlar</h2>
-            
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                    <h4 class="font-semibold text-gray-800 text-sm">Osh (Milliy taom)</h4>
-                    <p class="text-xs text-gray-500 mt-0.5">Mol go'shti, guruch, navvot...</p>
-                    <p class="text-amber-600 font-bold text-xs mt-1.5">35,000 so'm</p>
-                </div>
-                <button onclick="addToOrder(1, 'Osh', 35000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition">
-                    + Qo'shish
-                </button>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
-                <div>
-                    <h4 class="font-semibold text-gray-800 text-sm">Mastava</h4>
-                    <p class="text-xs text-gray-500 mt-0.5">Guruch, sabzavotlar va go'shtli sho'rva</p>
-                    <p class="text-amber-600 font-bold text-xs mt-1.5">25,000 so'm</p>
-                </div>
-                <button onclick="addToOrder(2, 'Mastava', 25000)" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition">
-                    + Qo'shish
-                </button>
-            </div>
+            <h2 class="font-bold text-gray-800 text-base">Menyu</h2>
+            <nav id="menu-categories" class="flex gap-2 overflow-x-auto pb-1" aria-label="Menyu kategoriyalari"></nav>
+            <div id="menu-items" class="grid gap-3"></div>
         </div>
     </main>
 
@@ -72,12 +51,17 @@
     <script>
         const socket = io();
         let cart = [];
+        let menuCatalog = [];
+        let menuCategories = [];
+        let selectedMenuCategory = 'ALL';
+        socket.on('menu_updated', loadMenuCatalog);
         let authenticatedCustomer = null;
         let verifiedTableId = null;
         let telegramInitData = '';
 
         // Initialize Telegram WebApp
         window.addEventListener('DOMContentLoaded', async () => {
+            loadMenuCatalog();
             if (window.Telegram && window.Telegram.WebApp) {
                 const tg = window.Telegram.WebApp;
                 tg.ready();
@@ -123,6 +107,72 @@
                     console.error('Auth request failed', e);
                 }
             }
+        });
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[char]));
+        }
+
+        async function loadMenuCatalog() {
+            const itemsRoot = document.getElementById('menu-items');
+            try {
+                const [menuResponse, categoryResponse] = await Promise.all([
+                    fetch('/api/menu'),
+                    fetch('/api/menu/categories/public')
+                ]);
+                if (!menuResponse.ok || !categoryResponse.ok) throw new Error('Menyuni yuklab bo‘lmadi');
+                const [items, categories] = await Promise.all([menuResponse.json(), categoryResponse.json()]);
+                if (!Array.isArray(items) || !Array.isArray(categories)) throw new Error('Menyu ma’lumotlari noto‘g‘ri');
+                menuCatalog = items;
+                menuCategories = categories;
+                renderMenuCatalog();
+            } catch (error) {
+                console.error('Menyuni yuklashda xatolik:', error);
+                itemsRoot.innerHTML = `<p class="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">${escapeHtml(error.message || 'Menyuni yuklab bo‘lmadi')}</p>`;
+            }
+        }
+
+        function renderMenuCatalog() {
+            const categoryRoot = document.getElementById('menu-categories');
+            const itemsRoot = document.getElementById('menu-items');
+            categoryRoot.innerHTML = [{ id: 'ALL', name: 'Barchasi' }, ...menuCategories].map(category => `
+                <button type="button" data-category-id="${escapeHtml(category.id)}" aria-pressed="${selectedMenuCategory === category.id}"
+                    class="shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${selectedMenuCategory === category.id ? 'bg-amber-600 text-white' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'}">
+                    ${escapeHtml(category.name)}
+                </button>`).join('');
+            const visibleItems = menuCatalog.filter(item => selectedMenuCategory === 'ALL' || item.categoryId === selectedMenuCategory);
+            itemsRoot.innerHTML = visibleItems.length ? visibleItems.map(item => `
+                <article class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                    <div class="flex min-h-28 items-center gap-3 p-4">
+                        <div class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 text-center text-xs text-gray-400">
+                            ${item.imageUrl
+                                ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" class="h-full w-full object-cover" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>Rasm yuklanmadi</span>`
+                                : 'Rasm mavjud emas'}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h3 class="font-semibold text-gray-800">${escapeHtml(item.name)}</h3>
+                            <p class="mt-1 line-clamp-2 text-xs text-gray-500">${escapeHtml(item.description || '')}</p>
+                            <p class="mt-2 text-sm font-bold text-amber-700">${Number(item.sellingPrice || 0).toLocaleString('uz-UZ')} so‘m</p>
+                        </div>
+                        <button type="button" data-add-menu-item="${escapeHtml(item.id)}" class="shrink-0 rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-700">+ Qo‘shish</button>
+                    </div>
+                </article>`).join('') : '<p class="rounded-xl bg-white p-6 text-center text-sm text-gray-500">Bu kategoriyada hozircha taom yo‘q.</p>';
+        }
+
+        document.getElementById('menu-categories').addEventListener('click', event => {
+            const button = event.target.closest('[data-category-id]');
+            if (!button) return;
+            selectedMenuCategory = button.dataset.categoryId;
+            renderMenuCatalog();
+        });
+
+        document.getElementById('menu-items').addEventListener('click', event => {
+            const button = event.target.closest('[data-add-menu-item]');
+            if (!button) return;
+            const item = menuCatalog.find(menuItem => menuItem.id === button.dataset.addMenuItem);
+            if (item) addToOrder(item.id, item.name, Number(item.sellingPrice));
         });
 
         function callWaiter() {

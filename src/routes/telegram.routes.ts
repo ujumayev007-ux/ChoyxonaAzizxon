@@ -165,7 +165,7 @@ router.post('/customer/orders', async (req, res) => {
         }
         const menuIds = [...new Set((items as Array<{ dishId: string }>).map(item => item.dishId))];
         const menu = await prisma.menuItem.findMany({
-            where: { id: { in: menuIds }, isActive: true },
+            where: { id: { in: menuIds }, isActive: true, category: { isActive: true } },
             select: { id: true, sellingPrice: true }
         });
         if (menu.length !== menuIds.length) {

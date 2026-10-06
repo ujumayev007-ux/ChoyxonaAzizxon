@@ -6,6 +6,7 @@ import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 import { verifyPassword } from '../utils/password';
 import { deductPackaging } from '../utils/order-packaging';
+import { deductOrderRecipes } from '../utils/order-recipes';
 
 const router = Router();
 router.use(authenticateToken, requireCashierAccess);
@@ -384,7 +385,7 @@ router.post('/orders', async (req, res) => {
         }
         const menuIds = [...new Set((itemsInput as Array<{ menuItemId: string }>).map(item => item.menuItemId))];
         const menu = await prisma.menuItem.findMany({
-            where: { id: { in: menuIds }, isActive: true },
+            where: { id: { in: menuIds }, isActive: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         if (menu.length !== menuIds.length) {
@@ -584,6 +585,7 @@ router.post('/payments', async (req, res) => {
             return;
         }
         const result = await prisma.$transaction(async tx => {
+            const updatedInventoryIds = new Set<string>();
             await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
             const order = await tx.order.findUnique({
                 where: { id: orderId },
@@ -677,6 +679,9 @@ router.post('/payments', async (req, res) => {
             if (status === OrderStatus.TOLANDI && order.orderType === OrderType.DINE_IN) {
                 await deductPackaging(tx, orderId, req.user!.id);
             }
+            if (status === OrderStatus.TOLANDI) {
+                for (const id of await deductOrderRecipes(tx, orderId, req.user!.id)) updatedInventoryIds.add(id);
+            }
             const receiptNumber = `${order.orderNumber}-${Date.now()}-${randomBytes(2).toString('hex').toUpperCase()}`;
             const receipt = await tx.receipt.create({
                 data: { orderId, receiptNumber, qrHash: createHash('sha256').update(randomBytes(32)).digest('hex') }
@@ -711,12 +716,17 @@ router.post('/payments', async (req, res) => {
             if (debt) await writeAudit(tx, req.user!.id, 'DEBT_CREATED', 'CustomerDebt', debt.id, { amount: debtAmount.toString() });
             const response = { order: updated, payments: createdPayments, debtAmount: debtAmount.toString(), change: change.toString(), receipt };
             await saveIdempotentResult(tx, idempotencyKey, req.user!.id, 'PAYMENT', hash, orderId, response);
-            return response;
+            return { response, updatedInventoryIds: [...updatedInventoryIds] };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-        emitSocketEvent('paymentReceived', { orderId, status: result.order.status });
-        emitSocketEvent('orderUpdate', { orderId, status: result.order.status });
-        res.json({ success: true, data: result });
+        emitSocketEvent('paymentReceived', { orderId, status: result.response.order.status });
+        emitSocketEvent('orderUpdate', { orderId, status: result.response.order.status });
+        if (result.updatedInventoryIds.length) emitSocketEvent('inventory_updated', { inventoryIds: result.updatedInventoryIds });
+        res.json({ success: true, data: result.response });
     } catch (error) {
+        if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
+            return;
+        }
         const knownErrors: Record<string, { status: number; message: string }> = {
             ORDER_NOT_FOUND: { status: 404, message: 'Buyurtma topilmadi' },
             ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani to‘lab bo‘lmaydi' },
@@ -924,6 +934,7 @@ router.post('/debts/:id/payments', async (req, res) => {
             return;
         }
         const result = await prisma.$transaction(async tx => {
+            const updatedInventoryIds = new Set<string>();
             await tx.$queryRaw`SELECT "id" FROM "CustomerDebt" WHERE "id" = ${req.params.id} FOR UPDATE`;
             const debt = await tx.customerDebt.findUnique({ where: { id: req.params.id } });
             if (!debt || debt.remaining.lessThan(amount)) throw new Error('DEBT_PAYMENT_INVALID');
@@ -971,6 +982,7 @@ router.post('/debts/:id/payments', async (req, res) => {
                         });
                         settledOrderId = order.id;
                         if (order.orderType === OrderType.DINE_IN) await deductPackaging(tx, order.id, req.user!.id);
+                        for (const id of await deductOrderRecipes(tx, order.id, req.user!.id)) updatedInventoryIds.add(id);
                     }
                 }
             }
@@ -1002,15 +1014,20 @@ router.post('/debts/:id/payments', async (req, res) => {
             await writeAudit(tx, req.user!.id, 'DEBT_PAYMENT_RECEIVED', 'CustomerDebt', debt.id, { amount: amount.toString(), method });
             const response = { payment, remaining: updated.remaining.toString(), receipt };
             await saveIdempotentResult(tx, key, req.user!.id, 'DEBT_PAYMENT', hash, debt.id, response);
-            return { response, settledOrderId };
+            return { response, settledOrderId, updatedInventoryIds: [...updatedInventoryIds] };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         emitSocketEvent('debtUpdated', { debtId: req.params.id });
         if (result.settledOrderId) {
             emitSocketEvent('orderUpdate', { orderId: result.settledOrderId, status: OrderStatus.TOLANDI });
             emitSocketEvent('paymentReceived', { orderId: result.settledOrderId, status: OrderStatus.TOLANDI });
         }
+        if (result.updatedInventoryIds.length) emitSocketEvent('inventory_updated', { inventoryIds: result.updatedInventoryIds });
         res.status(201).json({ success: true, data: result.response });
     } catch (error) {
+        if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
+            return;
+        }
         if (error instanceof Error && error.message === 'IDEMPOTENCY_KEY_REUSED') {
             res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
             return;
@@ -1699,6 +1716,7 @@ router.post('/orders/:id/verify-pickup', async (req, res) => {
             if (!([OrderStatus.TOLANDI, OrderStatus.QISMAN_TOLANDI] as OrderStatus[]).includes(verification.order.status)) {
                 return { failure: 'ORDER_NOT_PAID' as const };
             }
+            const updatedInventoryIds = await deductOrderRecipes(tx, req.params.id, req.user!.id);
             const updated = await tx.order.update({
                 where: { id: req.params.id },
                 data: {
@@ -1713,7 +1731,7 @@ router.post('/orders/:id/verify-pickup', async (req, res) => {
             });
             await deductPackaging(tx, updated.id, req.user!.id);
             await writeAudit(tx, req.user!.id, 'TAKEAWAY_PICKED_UP', 'Order', updated.id);
-            return { order: updated };
+            return { order: updated, updatedInventoryIds };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         if ('failure' in result) {
             const responses = {
@@ -1726,10 +1744,15 @@ router.post('/orders/:id/verify-pickup', async (req, res) => {
             return;
         }
         emitSocketEvent('orderUpdate', { orderId: result.order.id, status: result.order.status });
+        if (result.updatedInventoryIds.length) emitSocketEvent('inventory_updated', { inventoryIds: result.updatedInventoryIds });
         res.json({ success: true, message: 'Tasdiqlash kodi qabul qilindi, buyurtma topshirildi' });
     } catch (error) {
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
             res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
+            return;
+        }
+        if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         console.error('Olib ketish kodini tekshirishda xatolik:', error);

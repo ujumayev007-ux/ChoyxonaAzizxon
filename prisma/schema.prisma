@@ -133,10 +133,11 @@ model MenuItem {
   kitchenSection    String       @default("Umumiy oshxona") // Bo'lim/Printer yo'nalishi
   isActive          Boolean      @default(true)
 
-  recipes    Recipe[]
-  orderItems OrderItem[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  recipes                Recipe[]
+  orderItems             OrderItem[]
+  inventoryTransactions InventoryTransaction[]
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
   @@index([categoryId])
 }
@@ -148,6 +149,7 @@ model Recipe {
   inventoryId String
   inventory   InventoryProduct @relation(fields: [inventoryId], references: [id])
   quantity    Decimal // 1 porsiya uchun sarf miqdori (masalan: 100g)
+  unit        String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -185,11 +187,16 @@ model InventoryTransaction {
   quantityAfter    Decimal
   reason           String?
   referenceOrderId String?
+  referenceOrder   Order?            @relation(fields: [referenceOrderId], references: [id], onDelete: SetNull)
+  menuItemId       String?
+  menuItem         MenuItem?        @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
   userId           String
   user             User             @relation(fields: [userId], references: [id])
   createdAt        DateTime         @default(now())
 
   @@index([inventoryId])
+  @@index([referenceOrderId])
+  @@index([menuItemId])
 }
 
 model Purchase {
@@ -268,6 +275,7 @@ model Order {
   processingBy        User?       @relation("OrderProcessor", fields: [processingById], references: [id], onDelete: SetNull)
   processingAt        DateTime?
   packagingDeductedAt DateTime?
+  recipesDeductedAt   DateTime?
   guestCount          Int         @default(1)
   status              OrderStatus @default(YANGI)
   subtotal            Decimal     @default(0)
@@ -281,6 +289,7 @@ model Order {
   paidAt          DateTime?
 
   items                OrderItem[]
+  inventoryTransactions InventoryTransaction[]
   statusHistory        OrderStatusHistory[]
   payments             Payment[]
   receipts             Receipt[]

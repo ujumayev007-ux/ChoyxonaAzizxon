@@ -251,15 +251,7 @@
 
                         <!-- Categories -->
                         <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none" id="menu-categories-container">
-                            <button onclick="filterMenuCategory('ALL')" class="category-btn px-4 py-2 rounded-xl bg-sky-600 text-white font-medium text-xs whitespace-nowrap transition shadow-sm">Barchasi</button>
-                            <button onclick="filterMenuCategory('Osh')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Osh</button>
-                            <button onclick="filterMenuCategory('Suyuq ovqatlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Suyuq ovqatlar</button>
-                            <button onclick="filterMenuCategory('Quyuq taomlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Quyuq taomlar</button>
-                            <button onclick="filterMenuCategory('Hamirli taomlar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Hamirli taomlar</button>
-                            <button onclick="filterMenuCategory('Kaboblar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Kaboblar</button>
-                            <button onclick="filterMenuCategory('Somsalar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Somsalar</button>
-                            <button onclick="filterMenuCategory('Fast Food')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Fast Food</button>
-                            <button onclick="filterMenuCategory('Ichimliklar')" class="category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition">Ichimliklar</button>
+                            <button data-menu-category="ALL" class="category-btn px-4 py-2 rounded-xl bg-sky-600 text-white font-medium text-xs whitespace-nowrap transition shadow-sm">Barchasi</button>
                         </div>
 
                         <!-- Menu Items Grid -->
@@ -535,6 +527,7 @@
         let selectedRoomId = null;
         let socketListenersInitialized = false;
         let menuCatalog = [];
+        let menuCategories = [];
         let selectedCategory = 'ALL';
         let cartItems = [];
         let activeTablesList = [];
@@ -648,6 +641,7 @@
                 loadPendingOrders();
                 loadActiveOrders();
                 loadActiveCalls();
+                loadMenuCatalog();
             });
 
             socket.on('disconnect', () => {
@@ -678,6 +672,7 @@
             socket.on('restaurant_structure_updated', () => {
                 loadRoomsAndTables();
             });
+            socket.on('menu_updated', () => loadMenuCatalog());
 
             socket.on('orderUpdate', () => {
                 loadRoomsAndTables();
@@ -691,6 +686,11 @@
                     showNotification(`Buyurtma tayyor! Stol #${data.tableNumber || '-'}`);
                     playAlertSound();
                 }
+            });
+            socket.on('order_processing_changed', () => {
+                loadPendingOrders();
+                loadActiveOrders();
+                loadRoomsAndTables();
             });
             if (socket.connected) {
                 loadRoomsAndTables();
@@ -1076,11 +1076,6 @@
                     loadPendingOrders();
                     loadActiveOrders();
                     loadRoomsAndTables();
-            });
-            socket.on('order_processing_changed', () => {
-                    loadPendingOrders();
-                    loadActiveOrders();
-                    loadRoomsAndTables();
                 } else {
                     const data = await res.json();
                     alert(data.error || 'Xatolik yuz berdi');
@@ -1212,15 +1207,31 @@
         // Menu & Order Builder
         async function loadMenuCatalog() {
             try {
-                const res = await fetch('/api/menu');
-                const result = await res.json();
-                if (!res.ok) throw new Error(result.message || 'Menyuni yuklashda xatolik');
+                const [menuResponse, categoryResponse] = await Promise.all([
+                    fetch('/api/menu'),
+                    fetch('/api/menu/categories/public')
+                ]);
+                const [result, categories] = await Promise.all([menuResponse.json(), categoryResponse.json()]);
+                if (!menuResponse.ok || !categoryResponse.ok) throw new Error(result.message || 'Menyuni yuklashda xatolik');
+                if (!Array.isArray(result) || !Array.isArray(categories)) throw new Error('Menyu ma’lumotlari noto‘g‘ri');
                 menuCatalog = result;
+                menuCategories = categories;
+                renderMenuCategories();
                 renderMenuCatalog(menuCatalog);
             } catch(e) {
                 console.error('Menyuni yuklashda xatolik:', e);
                 document.getElementById('menu-items-grid').innerHTML = `<p class="text-red-600 text-sm">${escapeWaiterHtml(e.message || 'Menyuni yuklashda xatolik')}</p>`;
             }
+        }
+
+        function renderMenuCategories() {
+            const container = document.getElementById('menu-categories-container');
+            container.innerHTML = [{ name: 'Barchasi', id: 'ALL' }, ...menuCategories].map(category => `
+                <button type="button" data-menu-category="${escapeWaiterHtml(category.id === 'ALL' ? 'ALL' : category.name)}"
+                    class="category-btn px-4 py-2 rounded-xl ${selectedCategory === (category.id === 'ALL' ? 'ALL' : category.name)
+                        ? 'bg-sky-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'} font-medium text-xs whitespace-nowrap transition">
+                    ${escapeWaiterHtml(category.name)}
+                </button>`).join('');
         }
 
         function renderMenuCatalog(items) {
@@ -1239,11 +1250,18 @@
 
             grid.innerHTML = filtered.map(it => `
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between hover:border-sky-500 transition">
-                    <div>
-                        <h4 class="font-bold text-slate-800 text-sm mb-1">${it.name}</h4>
+                    <div class="flex items-start gap-3">
+                        <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-center text-[10px] text-slate-400">
+                            ${it.imageUrl
+                                ? `<img src="${escapeWaiterHtml(it.imageUrl)}" alt="${escapeWaiterHtml(it.name)}" loading="lazy" class="h-full w-full object-cover" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>Rasm yuklanmadi</span>`
+                                : 'Rasm yo‘q'}
+                        </div>
+                        <div>
+                        <h4 class="font-bold text-slate-800 text-sm mb-1">${escapeWaiterHtml(it.name)}</h4>
                         <p class="text-xs text-sky-600 font-black">${it.price || it.sellingPrice || 0} so'm</p>
+                        </div>
                     </div>
-                    <button onclick='addToCart(${JSON.stringify(it)})' class="mt-4 w-full bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-1.5 border border-sky-200">
+                    <button type="button" data-add-menu-item="${escapeWaiterHtml(it.id)}" class="mt-4 w-full bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white font-bold py-2.5 rounded-xl transition text-xs flex items-center justify-center gap-1.5 border border-sky-200">
                         <i class="fa-solid fa-plus"></i> Qo‘shish
                     </button>
                 </div>
@@ -1252,16 +1270,25 @@
 
         function filterMenuCategory(cat) {
             selectedCategory = cat;
-            document.querySelectorAll('.category-btn').forEach(btn => {
-                btn.className = 'category-btn px-4 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 font-medium text-xs whitespace-nowrap border border-slate-200 transition';
-            });
-            event.target.className = 'category-btn px-4 py-2 rounded-xl bg-sky-600 text-white font-medium text-xs whitespace-nowrap transition shadow-sm';
+            renderMenuCategories();
             renderMenuCatalog(menuCatalog);
         }
 
         function filterMenuCatalog() {
             renderMenuCatalog(menuCatalog);
         }
+
+        document.getElementById('menu-categories-container').addEventListener('click', event => {
+            const button = event.target.closest('[data-menu-category]');
+            if (button) filterMenuCategory(button.dataset.menuCategory);
+        });
+
+        document.getElementById('menu-items-grid').addEventListener('click', event => {
+            const button = event.target.closest('[data-add-menu-item]');
+            if (!button) return;
+            const item = menuCatalog.find(entry => entry.id === button.dataset.addMenuItem);
+            if (item) addToCart(item);
+        });
 
         function addToCart(item) {
             const existing = cartItems.find(c => c.id === item.id);

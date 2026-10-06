@@ -261,6 +261,18 @@
                                 <p class="mt-1 text-sm text-slate-500">Taomlar va ichimliklar, narxlar va ko‘rinishini boshqarish</p>
                             </div>
                         </div>
+                        <section class="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5">
+                                <div><h3 class="font-bold text-slate-900">Menyu kategoriyalari</h3><p class="mt-1 text-xs text-slate-500">Faol kategoriyalar mijozlarga ko‘rsatiladi</p></div>
+                                <button type="button" onclick="openCategoryModal()" class="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">+ Kategoriya qo‘shish</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full min-w-[680px] text-left text-sm">
+                                    <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th class="px-4 py-3">Tartib</th><th class="px-4 py-3">Nomi</th><th class="px-4 py-3">Taomlar</th><th class="px-4 py-3">Holati</th><th class="px-4 py-3">Amallar</th></tr></thead>
+                                    <tbody id="menu-categories-container" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
                         <form id="menu-create-form" class="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-6">
                             <div class="mb-5">
                                 <h3 class="font-semibold text-slate-900">Yangi taom yoki ichimlik qo‘shish</h3>
@@ -297,6 +309,10 @@
                                     <label class="text-sm font-medium text-slate-700">Oshxona bo‘limi
                                         <input name="kitchenSection" value="Umumiy oshxona" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
                                     </label>
+                                    <label class="text-sm font-medium text-slate-700">Rasm manzili
+                                        <input id="menu-create-image-url" name="imageUrl" type="url" placeholder="https://..." class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    </label>
+                                    <div id="menu-create-image-preview" class="flex h-24 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-xs text-slate-500">Rasm tanlanmagan</div>
                                 </div>
                             </details>
                             <div class="mt-5 flex justify-end">
@@ -335,11 +351,12 @@
                                     <tr>
                                         <th class="px-5 py-3.5">ID</th>
                                         <th class="px-5 py-3.5">Nomi</th>
+                                        <th class="px-5 py-3.5">Rasm</th>
                                         <th class="px-5 py-3.5">Kategoriya</th>
                                         <th class="px-5 py-3.5">Ichki narx</th>
                                         <th class="px-5 py-3.5">Sotish narxi</th>
                                         <th class="px-5 py-3.5">Ofitsiant uchun ko‘rinishi</th>
-                                        <th class="px-5 py-3.5">Amal</th>
+                                        <th class="px-5 py-3.5">Amallar</th>
                                     </tr>
                                 </thead>
                                 <tbody id="menu-items-container" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -696,12 +713,8 @@
             const container = document.getElementById('menu-items-container');
             if (!container) return;
 
-            const categories = new Map(adminMenuCategories.map(category => [category.id, category.name]));
-            adminData.menu.forEach(item => {
-                if (item.category) categories.set(item.category.id, item.category.name);
-            });
-            const categoryOptions = [...categories.entries()].map(([id, name]) =>
-                `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`
+            const categoryOptions = adminMenuCategories.map(category =>
+                `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}${category.isActive ? '' : ' (Yashirin)'}</option>`
             ).join('');
             const categorySelect = document.getElementById('menu-category-id');
             const categoryFilter = document.getElementById('menu-category-filter');
@@ -730,15 +743,40 @@
                     <td class="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-400">${escapeHtml(item.id.slice(0, 8))}</td>
                     <td class="px-5 py-4"><div class="font-semibold text-slate-900">${escapeHtml(item.name)}</div>
                         <div class="mt-0.5 text-xs text-slate-400">${escapeHtml(item.unit || 'porsiya')}</div></td>
+                    <td class="px-5 py-4"><div class="flex h-12 w-16 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-[10px] text-slate-400">${item.imageUrl
+                        ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" class="h-full w-full object-cover" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>Rasm yo‘q</span>`
+                        : '<span>Rasm yo‘q</span>'}</div></td>
                     <td class="px-5 py-4">${escapeHtml(item.category?.name || '—')}</td>
                     <td class="whitespace-nowrap px-5 py-4 font-medium text-slate-600">${formatMoney(item.internalCostPrice)}</td>
                     <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">${formatMoney(item.sellingPrice)}</td>
                     <td class="px-5 py-4"><span class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
                         <span class="h-1.5 w-1.5 rounded-full ${isVisible ? 'bg-emerald-500' : 'bg-slate-400'}"></span>${isVisible ? 'Ko‘rinadi' : 'Yashirilgan'}
                     </span></td>
-                    <td class="px-5 py-4"><span class="text-xs text-slate-400" title="Menyu tahrirlash API mavjud emas">—</span></td>
+                    <td class="px-5 py-4"><div class="flex flex-wrap gap-1.5">
+                        <button type="button" onclick="openMenuItemModal('${escapeHtml(item.id)}')" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Tahrirlash</button>
+                        <button type="button" onclick="openRecipeModal('${escapeHtml(item.id)}')" class="rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Retsept</button>
+                        <button type="button" onclick="toggleMenuItem('${escapeHtml(item.id)}', ${!isVisible})" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">${isVisible ? 'Yashirish' : 'Ko‘rsatish'}</button>
+                    </div></td>
                 </tr>`;
-            }).join('') : '<tr><td class="px-5 py-8 text-center text-sm text-slate-500" colspan="7">Filtrga mos menyu topilmadi.</td></tr>';
+            }).join('') : '<tr><td class="px-5 py-8 text-center text-sm text-slate-500" colspan="8">Filtrga mos menyu topilmadi.</td></tr>';
+            renderMenuCategories();
+        }
+
+        function renderMenuCategories() {
+            const container = document.getElementById('menu-categories-container');
+            if (!container) return;
+            container.innerHTML = adminMenuCategories.length ? adminMenuCategories.map(category => `
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3 font-mono text-xs text-slate-500">${Number(category.sortOrder)}</td>
+                    <td class="px-4 py-3 font-semibold text-slate-900">${escapeHtml(category.name)}</td>
+                    <td class="px-4 py-3">${Number(category._count?.menuItems || 0)}</td>
+                    <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold ${category.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}">${category.isActive ? 'Faol' : 'Yashirin'}</span></td>
+                    <td class="px-4 py-3"><div class="flex gap-1.5">
+                        <button type="button" onclick="openCategoryModal('${escapeHtml(category.id)}')" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">Tahrirlash</button>
+                        <button type="button" onclick="toggleMenuCategory('${escapeHtml(category.id)}', ${!category.isActive})" class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50">${category.isActive ? 'Yashirish' : 'Faollashtirish'}</button>
+                        ${category._count?.menuItems === 0 ? `<button type="button" onclick="deleteMenuCategory('${escapeHtml(category.id)}')" class="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">O‘chirish</button>` : ''}
+                    </div></td>
+                </tr>`).join('') : '<tr><td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">Kategoriyalar yuklanmoqda...</td></tr>';
         }
 
         function renderInventory() {
@@ -1220,12 +1258,317 @@
                     internalCostPrice,
                     unit: String(formData.get('unit') || 'porsiya').trim(),
                     preparationTime,
-                    kitchenSection: String(formData.get('kitchenSection') || 'Umumiy oshxona').trim()
+                    kitchenSection: String(formData.get('kitchenSection') || 'Umumiy oshxona').trim(),
+                    imageUrl: String(formData.get('imageUrl') || '').trim() || null
                 }, loadMenu, 'Taom qo‘shildi');
-                if (saved) form.reset();
+                if (saved) {
+                    form.reset();
+                    updateMenuCreateImagePreview();
+                }
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = '+ Taom qo‘shish';
+            }
+        }
+
+        function updateMenuCreateImagePreview() {
+            const input = document.getElementById('menu-create-image-url');
+            const preview = document.getElementById('menu-create-image-preview');
+            const url = input.value.trim();
+            preview.replaceChildren();
+            if (!url) {
+                preview.textContent = 'Rasm tanlanmagan';
+                return;
+            }
+            const image = document.createElement('img');
+            image.src = url;
+            image.alt = 'Taom rasmi';
+            image.className = 'h-full w-full object-contain';
+            image.onerror = () => {
+                preview.replaceChildren();
+                preview.textContent = 'Rasm yuklanmadi';
+            };
+            preview.appendChild(image);
+        }
+
+        function openCategoryModal(categoryId = '') {
+            const category = adminMenuCategories.find(item => item.id === categoryId);
+            const modal = document.getElementById('modal-container');
+            modal.innerHTML = `
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="category-modal-title">
+                        <h2 id="category-modal-title" class="text-lg font-bold">${category ? 'Kategoriyani tahrirlash' : 'Yangi kategoriya'}</h2>
+                        <form id="menu-category-form" class="mt-5 space-y-4">
+                            <label class="block text-sm font-medium">Kategoriya nomi<input name="name" required maxlength="80" value="${escapeHtml(category?.name || '')}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                            <label class="block text-sm font-medium">Tartib raqami<input name="sortOrder" type="number" min="0" step="1" value="${Number(category?.sortOrder ?? 100)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                            ${category ? `<label class="block text-sm font-medium">Holati<select name="isActive" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"><option value="true" ${category.isActive ? 'selected' : ''}>Faol — mijozlarga ko‘rinadi</option><option value="false" ${!category.isActive ? 'selected' : ''}>Yashirin</option></select></label>` : ''}
+                            <p id="menu-category-error" class="hidden rounded-lg bg-rose-50 p-3 text-sm text-rose-700" role="alert"></p>
+                            <div class="flex justify-end gap-2"><button type="button" onclick="closeModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold">Bekor qilish</button><button class="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">Saqlash</button></div>
+                        </form>
+                    </section>
+                </div>`;
+            document.getElementById('menu-category-form').addEventListener('submit', event => saveMenuCategory(event, categoryId));
+        }
+
+        async function saveMenuCategory(event, categoryId) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const button = form.querySelector('button[type="submit"], button:not([type])');
+            button.disabled = true;
+            try {
+                const values = Object.fromEntries(new FormData(form).entries());
+                const payload = {
+                    name: String(values.name || '').trim(),
+                    sortOrder: Number(values.sortOrder),
+                    ...(categoryId ? { isActive: values.isActive === 'true' } : {})
+                };
+                await requestJson(categoryId ? `/api/menu/categories/${encodeURIComponent(categoryId)}` : '/api/menu/categories', {
+                    method: categoryId ? 'PATCH' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                closeModal();
+                await loadMenu();
+                showToast(categoryId ? 'Kategoriya yangilandi' : 'Kategoriya qo‘shildi');
+            } catch (error) {
+                const message = document.getElementById('menu-category-error');
+                message.textContent = error.message || 'Kategoriyani saqlab bo‘lmadi';
+                message.classList.remove('hidden');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
+        async function toggleMenuCategory(id, isActive) {
+            try {
+                await requestJson(`/api/menu/categories/${encodeURIComponent(id)}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive })
+                });
+                await loadMenu();
+                showToast(isActive ? 'Kategoriya faollashtirildi' : 'Kategoriya yashirildi');
+            } catch (error) {
+                showToast(error.message || 'Kategoriya holatini o‘zgartirib bo‘lmadi', 'error');
+            }
+        }
+
+        function deleteMenuCategory(id) {
+            const category = adminMenuCategories.find(item => item.id === id);
+            if (!category || category._count?.menuItems > 0) {
+                showToast('Taomlar ulangan kategoriyani o‘chirib bo‘lmaydi', 'error');
+                return;
+            }
+            const modal = document.getElementById('modal-container');
+            modal.innerHTML = `<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><section class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="category-delete-title"><h2 id="category-delete-title" class="text-lg font-bold">Kategoriyani o‘chirish</h2><p class="mt-2 text-sm text-slate-600">“${escapeHtml(category.name)}” kategoriyasini o‘chirishni tasdiqlaysizmi?</p><p id="category-delete-error" class="mt-3 hidden rounded-lg bg-rose-50 p-3 text-sm text-rose-700"></p><div class="mt-5 flex justify-end gap-2"><button type="button" onclick="closeModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold">Bekor qilish</button><button id="category-delete-confirm" type="button" class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white">O‘chirish</button></div></section></div>`;
+            document.getElementById('category-delete-confirm').addEventListener('click', async event => {
+                const button = event.currentTarget;
+                button.disabled = true;
+                try {
+                    await requestJson(`/api/menu/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    closeModal();
+                    await loadMenu();
+                    showToast('Kategoriya o‘chirildi');
+                } catch (error) {
+                    const message = document.getElementById('category-delete-error');
+                    message.textContent = error.message || 'Kategoriyani o‘chirib bo‘lmadi';
+                    message.classList.remove('hidden');
+                } finally {
+                    if (button.isConnected) button.disabled = false;
+                }
+            });
+        }
+
+        function openMenuItemModal(itemId) {
+            const item = adminData.menu.find(entry => entry.id === itemId);
+            if (!item) {
+                showToast('Taom topilmadi', 'error');
+                return;
+            }
+            const categoryOptions = adminMenuCategories.map(category =>
+                `<option value="${escapeHtml(category.id)}" ${category.id === item.categoryId ? 'selected' : ''}>${escapeHtml(category.name)}${category.isActive ? '' : ' (Yashirin)'}</option>`
+            ).join('');
+            const modal = document.getElementById('modal-container');
+            modal.innerHTML = `
+                <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4">
+                    <section class="my-auto w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="menu-item-modal-title">
+                        <h2 id="menu-item-modal-title" class="text-xl font-bold">Taomni tahrirlash</h2>
+                        <form id="menu-item-edit-form" class="mt-5 space-y-4">
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <label class="text-sm font-medium">Nomi<input name="name" required maxlength="100" value="${escapeHtml(item.name)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium">Kategoriya<select name="categoryId" required class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5">${categoryOptions}</select></label>
+                                <label class="text-sm font-medium">Ichki narx<input name="internalCostPrice" type="number" min="0" step="0.01" required value="${Number(item.internalCostPrice)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium">Sotish narxi<input name="sellingPrice" type="number" min="0" step="0.01" required value="${Number(item.sellingPrice)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium">O‘lchov birligi<input name="unit" required maxlength="30" value="${escapeHtml(item.unit || 'porsiya')}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium">Tayyorlash vaqti (daqiqa)<input name="preparationTime" type="number" min="0" step="1" required value="${Number(item.preparationTime)}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium sm:col-span-2">Oshxona bo‘limi<input name="kitchenSection" required maxlength="80" value="${escapeHtml(item.kitchenSection || 'Umumiy oshxona')}" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"></label>
+                                <label class="text-sm font-medium sm:col-span-2">Tavsif<textarea name="description" maxlength="500" rows="2" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5">${escapeHtml(item.description || '')}</textarea></label>
+                                <label class="text-sm font-medium sm:col-span-2">Rasm manzili<input id="menu-edit-image-url" name="imageUrl" type="url" value="${escapeHtml(item.imageUrl || '')}" placeholder="https://..." class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5"><span class="mt-1 block text-xs text-slate-500">Hozircha mavjud rasm manzilini kiriting; rasmni fayl sifatida yuklash saqlash xizmatini tanlashni talab qiladi.</span></label>
+                                <div class="sm:col-span-2"><div id="menu-edit-image-preview" class="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-sm text-slate-500">Rasm tanlanmagan</div><button type="button" onclick="document.getElementById('menu-edit-image-url').value=''; document.getElementById('menu-edit-image-url').dispatchEvent(new Event('input'))" class="mt-2 rounded-lg px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Rasmni olib tashlash</button></div>
+                            </div>
+                            <p id="menu-item-edit-error" class="hidden rounded-lg bg-rose-50 p-3 text-sm text-rose-700" role="alert"></p>
+                            <div class="flex justify-end gap-2"><button type="button" onclick="closeModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold">Bekor qilish</button><button type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white">Saqlash</button></div>
+                        </form>
+                    </section>
+                </div>`;
+            const form = document.getElementById('menu-item-edit-form');
+            const imageInput = document.getElementById('menu-edit-image-url');
+            const preview = document.getElementById('menu-edit-image-preview');
+            const showPreview = () => {
+                const url = imageInput.value.trim();
+                preview.innerHTML = url
+                    ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(item.name)}" class="h-full w-full object-contain" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>Rasm yuklanmadi</span>`
+                    : 'Rasm tanlanmagan';
+            };
+            imageInput.addEventListener('input', showPreview);
+            showPreview();
+            form.addEventListener('submit', async event => {
+                event.preventDefault();
+                const button = form.querySelector('button[type="submit"]');
+                button.disabled = true;
+                try {
+                    const values = Object.fromEntries(new FormData(form).entries());
+                    await requestJson(`/api/menu/${encodeURIComponent(itemId)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: String(values.name).trim(),
+                            categoryId: values.categoryId,
+                            internalCostPrice: Number(values.internalCostPrice),
+                            sellingPrice: Number(values.sellingPrice),
+                            unit: String(values.unit).trim(),
+                            preparationTime: Number(values.preparationTime),
+                            kitchenSection: String(values.kitchenSection).trim(),
+                            description: String(values.description || '').trim() || null,
+                            imageUrl: String(values.imageUrl || '').trim() || null
+                        })
+                    });
+                    closeModal();
+                    await loadMenu();
+                    showToast('Taom ma’lumotlari yangilandi');
+                } catch (error) {
+                    const message = document.getElementById('menu-item-edit-error');
+                    message.textContent = error.message || 'Taomni saqlab bo‘lmadi';
+                    message.classList.remove('hidden');
+                } finally {
+                    if (button.isConnected) button.disabled = false;
+                }
+            });
+        }
+
+        async function toggleMenuItem(id, isActive) {
+            try {
+                await requestJson(`/api/menu/${encodeURIComponent(id)}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive })
+                });
+                await loadMenu();
+                showToast(isActive ? 'Taom ko‘rinadigan qilindi' : 'Taom mijozlardan yashirildi');
+            } catch (error) {
+                showToast(error.message || 'Taom holatini o‘zgartirib bo‘lmadi', 'error');
+            }
+        }
+
+        function recipeUnitsFor(productUnit) {
+            const unit = String(productUnit || '').trim().toLowerCase();
+            if (['kg', 'g', 'gramm', 'gram'].includes(unit)) return ['kg', 'g'];
+            if (['litr', 'l', 'ml'].includes(unit)) return ['litr', 'ml'];
+            return [productUnit];
+        }
+
+        function recipeUnitForInventory(productUnit) {
+            const unit = String(productUnit || '').trim().toLowerCase();
+            if (['g', 'gramm', 'gram'].includes(unit)) return 'g';
+            if (unit === 'l' || unit === 'litr') return 'litr';
+            return productUnit;
+        }
+
+        function addRecipeIngredientRow(recipe = null) {
+            const available = adminData.inventory.filter(product => product.isActive !== false);
+            const rowRoot = document.getElementById('recipe-items');
+            if (!rowRoot) return;
+            const productOptions = available.map(product =>
+                `<option value="${escapeHtml(product.id)}" ${product.id === recipe?.inventoryId ? 'selected' : ''}>${escapeHtml(product.name)} (${escapeHtml(product.unit)})</option>`
+            ).join('');
+            const selected = available.find(product => product.id === recipe?.inventoryId) || available[0];
+            const unitOptions = selected ? recipeUnitsFor(selected.unit) : [];
+            const row = document.createElement('div');
+            row.className = 'grid gap-2 rounded-xl border border-slate-200 p-3 sm:grid-cols-[minmax(0,1fr)_110px_100px_40px]';
+            row.innerHTML = `<select class="recipe-inventory field" aria-label="Ombor mahsuloti">${productOptions}</select>
+                <input class="recipe-quantity field" type="number" min="0" step="any" required value="${recipe ? escapeHtml(recipe.quantity) : ''}" aria-label="Bir porsiya uchun miqdor">
+                <select class="recipe-unit field" aria-label="Retsept birligi">${unitOptions.map(unit => `<option value="${escapeHtml(unit)}" ${unit === (recipe?.unit || recipeUnitForInventory(recipe?.inventory?.unit || selected?.unit)) ? 'selected' : ''}>${escapeHtml(unit)}</option>`).join('')}</select>
+                <button type="button" class="rounded-lg text-rose-700 hover:bg-rose-50" aria-label="Mahsulotni olib tashlash">×</button>`;
+            const productSelect = row.querySelector('.recipe-inventory');
+            productSelect.addEventListener('change', () => {
+                const product = available.find(entry => entry.id === productSelect.value);
+                const unitSelect = row.querySelector('.recipe-unit');
+                unitSelect.innerHTML = recipeUnitsFor(product?.unit).map(unit => `<option value="${escapeHtml(unit)}">${escapeHtml(unit)}</option>`).join('');
+                unitSelect.value = recipeUnitForInventory(product?.unit);
+            });
+            row.querySelector('button').addEventListener('click', () => row.remove());
+            rowRoot.appendChild(row);
+        }
+
+        async function openRecipeModal(menuItemId) {
+            const item = adminData.menu.find(entry => entry.id === menuItemId);
+            if (!item) {
+                showToast('Taom topilmadi', 'error');
+                return;
+            }
+            try {
+                if (!loadedAdminData.inventory) {
+                    const products = await requestJson('/api/inventory');
+                    adminData.inventory = products;
+                    loadedAdminData.inventory = true;
+                }
+                const result = await requestJson(`/api/menu/${encodeURIComponent(menuItemId)}/recipes`);
+                const modal = document.getElementById('modal-container');
+                modal.innerHTML = `
+                    <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4">
+                        <section class="my-auto w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
+                            <h2 id="recipe-modal-title" class="text-xl font-bold">Retsept: ${escapeHtml(item.name)}</h2>
+                            <p class="mt-1 text-sm text-slate-500">Retsept miqdori tanlangan birlikda saqlanadi; sotuvda ombor birligiga kg/g va litr/ml bo‘yicha aylantiriladi.</p>
+                            <form id="recipe-form" class="mt-5 space-y-3">
+                                <div id="recipe-items" class="space-y-2"></div>
+                                <button type="button" onclick="addRecipeIngredientRow()" class="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-50">+ Masalliq qo‘shish</button>
+                                <p id="recipe-error" class="hidden rounded-lg bg-rose-50 p-3 text-sm text-rose-700" role="alert"></p>
+                                <div class="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onclick="closeModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold">Bekor qilish</button><button type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white">Retseptni saqlash</button></div>
+                            </form>
+                        </section>
+                    </div>`;
+                if (result.data.some(recipe => !recipe.unit)) {
+                    const notice = document.createElement('p');
+                    notice.className = 'mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800';
+                    notice.textContent = 'Eski retseptlarda birlik saqlanmagan. Hozircha ombor mahsulotining birligi deb olinadi; miqdorni tekshirib, retseptni qayta saqlang.';
+                    document.getElementById('recipe-items').before(notice);
+                }
+                for (const recipe of result.data) addRecipeIngredientRow(recipe);
+                document.getElementById('recipe-form').addEventListener('submit', async event => {
+                    event.preventDefault();
+                    const form = event.currentTarget;
+                    const button = form.querySelector('button[type="submit"]');
+                    button.disabled = true;
+                    try {
+                        const items = [...document.querySelectorAll('#recipe-items > div')].map(row => ({
+                            inventoryId: row.querySelector('.recipe-inventory').value,
+                            quantity: row.querySelector('.recipe-quantity').value,
+                            unit: row.querySelector('.recipe-unit').value
+                        }));
+                        await requestJson(`/api/menu/${encodeURIComponent(menuItemId)}/recipes`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items })
+                        });
+                        closeModal();
+                        await loadMenu();
+                        showToast('Taom retsepti saqlandi');
+                    } catch (error) {
+                        const message = document.getElementById('recipe-error');
+                        message.textContent = error.message || 'Retseptni saqlab bo‘lmadi';
+                        message.classList.remove('hidden');
+                    } finally {
+                        if (button.isConnected) button.disabled = false;
+                    }
+                });
+            } catch (error) {
+                showToast(error.message || 'Retseptni yuklab bo‘lmadi', 'error');
             }
         }
 
@@ -1846,6 +2189,8 @@
             loadOrders();
         });
         socket.on('restaurant_structure_updated', () => loadRooms());
+        socket.on('menu_updated', () => { if (adminCurrentUser) loadMenu(); });
+        socket.on('inventory_updated', () => { if (adminCurrentUser) loadInventory(); });
 
         document.getElementById('admin-search').addEventListener('input', event => {
             adminSearchTerm = event.target.value.trim();
@@ -1856,6 +2201,7 @@
             renderOrders();
         });
         document.getElementById('menu-create-form').addEventListener('submit', addMenuItem);
+        document.getElementById('menu-create-image-url').addEventListener('input', updateMenuCreateImagePreview);
         document.getElementById('menu-search').addEventListener('input', event => {
             menuSearchTerm = event.target.value.trim();
             renderMenu();
