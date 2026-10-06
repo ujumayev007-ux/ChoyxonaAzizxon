@@ -354,7 +354,7 @@
                         <h2 class="text-lg font-bold text-gray-800">Omborxona Qoldiqlari</h2>
                         <div class="flex gap-2">
                             <button onclick="loadInventory()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
-                            <button onclick="addInventoryProduct()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Mahsulot qo‘shish</button>
+                            <button onclick="openInventoryProductModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">+ Mahsulot qo‘shish</button>
                         </div>
                     </div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -381,39 +381,13 @@
                             <div class="mb-6 flex items-center gap-3">
                                 <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl">👥</div>
                                 <div>
-                                    <h2 class="text-lg font-bold text-slate-900">Xodim qo‘shish</h2>
+                                    <h2 class="text-lg font-bold text-slate-900">Xodimlar boshqaruvi</h2>
                                     <p class="mt-0.5 text-xs text-slate-500">Ofitsiant yoki kassir hisobini yarating</p>
                                 </div>
                             </div>
-                            <form id="employee-create-form" class="space-y-4">
-                                <label class="block text-sm font-medium text-slate-700">Lavozimi
-                                    <select id="employee-role" name="role" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                                        <option value="WAITER">Ofitsiant</option>
-                                        <option value="CASHIER">Kassir</option>
-                                        <option value="KITCHEN">Oshxona xodimi</option>
-                                        <option value="ADMIN">Administrator</option>
-                                    </select>
-                                </label>
-                                <label class="block text-sm font-medium text-slate-700">Xodim ismi
-                                    <input name="fullName" required maxlength="100" autocomplete="name" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                                </label>
-                                <label class="block text-sm font-medium text-slate-700">Login
-                                    <input name="username" required maxlength="50" autocomplete="username" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                                </label>
-                                <label class="block text-sm font-medium text-slate-700">Telefon raqami
-                                    <input name="phone" type="tel" required maxlength="50" placeholder="+998..." autocomplete="tel" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                                </label>
-                                <label class="block text-sm font-medium text-slate-700">Parol
-                                    <span class="mt-1.5 flex rounded-xl border border-slate-200 bg-white transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-                                        <input id="employee-password" name="password" type="password" required minlength="8" autocomplete="new-password" class="min-w-0 flex-1 rounded-l-xl px-3.5 py-2.5 text-sm outline-none">
-                                        <button id="employee-password-toggle" type="button" aria-label="Parolni ko‘rsatish" class="rounded-r-xl px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50">Ko‘rsatish</button>
-                                    </span>
-                                </label>
-                                <label id="employee-commission-field" class="block text-sm font-medium text-slate-700">Ofitsiant komissiyasi (%)
-                                    <input name="commissionPercent" type="number" min="0" max="100" step="0.1" value="10" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
-                                </label>
-                                <button id="employee-create-submit" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60">+ Xodim qo‘shish</button>
-                            </form>
+                            <button type="button" onclick="openEmployeeCreateModal()" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200">
+                                <span aria-hidden="true">＋</span> Xodim qo‘shish
+                            </button>
                         </div>
                         <div class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                             <div class="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -842,52 +816,317 @@
             }
         }
 
-        async function addInventoryProduct() {
-            const name = prompt('Mahsulot nomi:');
-            if (name === null || !name.trim()) return;
-            const unit = prompt('O‘lchov birligi (kg, dona, litr):');
-            if (unit === null || !unit.trim()) return;
-            const quantity = prompt('Boshlang‘ich miqdor:', '0');
-            if (quantity === null) return;
-            const minQuantity = prompt('Minimal qoldiq:', '5');
-            if (minQuantity === null) return;
-            await submitNewRecord('/api/inventory', {
-                name: name.trim(), unit: unit.trim(), quantity: Number(quantity), minQuantity: Number(minQuantity)
-            }, loadInventory, 'Mahsulot qo‘shildi');
+        function openInventoryProductModal() {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div id="inventory-product-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 transition-opacity" role="presentation">
+                    <section class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="inventory-product-title">
+                        <div class="mb-6 flex items-start gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-700" aria-hidden="true">📦</div>
+                            <div>
+                                <h2 id="inventory-product-title" class="text-xl font-bold tracking-tight text-slate-900">Yangi mahsulot qo‘shish</h2>
+                                <p class="mt-1 text-sm text-slate-500">Ombor qoldig‘ini kiriting</p>
+                            </div>
+                        </div>
+                        <form id="inventory-product-form" class="space-y-4" novalidate>
+                            <label class="block text-sm font-medium text-slate-700">Mahsulot nomi
+                                <input id="inventory-product-name" name="name" required maxlength="100" placeholder="Masalan: Go‘sht" autocomplete="off" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                            </label>
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <label class="block text-sm font-medium text-slate-700">Miqdori
+                                    <input id="inventory-product-quantity" name="quantity" type="number" min="0" step="any" required placeholder="Masalan: 25" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">Minimal qoldiq
+                                    <input id="inventory-product-min-quantity" name="minQuantity" type="number" min="0" step="any" required value="5" placeholder="Masalan: 5" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">O‘lchov birligi
+                                    <select id="inventory-product-unit" name="unit" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                        <option value="">Birlikni tanlang</option>
+                                        <option value="kg">kg</option>
+                                        <option value="dona">dona</option>
+                                        <option value="litr">litr</option>
+                                        <option value="gramm">gramm</option>
+                                        <option value="qadoq">qadoq</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <p id="inventory-product-error" class="hidden rounded-xl bg-red-50 px-3.5 py-3 text-sm text-red-700" role="alert" aria-live="polite"></p>
+                            <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                                <button id="inventory-product-cancel" type="button" onclick="closeInventoryProductModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100">Bekor qilish</button>
+                                <button id="inventory-product-submit" type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60">+ Mahsulot qo‘shish</button>
+                            </div>
+                        </form>
+                    </section>
+                </div>`;
+            document.getElementById('inventory-product-form').addEventListener('submit', createInventoryProduct);
+            window.addEventListener('keydown', handleInventoryProductEscape);
+            document.getElementById('inventory-product-name').focus();
+            document.getElementById('inventory-product-backdrop').addEventListener('click', event => {
+                if (event.target === event.currentTarget) closeInventoryProductModal();
+            });
+        }
+
+        function closeInventoryProductModal() {
+            if (inventoryProductSubmitting) return;
+            document.getElementById('modal-container').innerHTML = '';
+            window.removeEventListener('keydown', handleInventoryProductEscape);
+        }
+
+        let inventoryProductSubmitting = false;
+
+        function handleInventoryProductEscape(event) {
+            if (event.key === 'Escape') closeInventoryProductModal();
+        }
+
+        async function createInventoryProduct(event) {
+            event.preventDefault();
+            if (inventoryProductSubmitting) return;
+
+            const form = event.currentTarget;
+            const nameInput = document.getElementById('inventory-product-name');
+            const quantityInput = document.getElementById('inventory-product-quantity');
+            const minQuantityInput = document.getElementById('inventory-product-min-quantity');
+            const unitInput = document.getElementById('inventory-product-unit');
+            const errorMessage = document.getElementById('inventory-product-error');
+            const submitButton = document.getElementById('inventory-product-submit');
+            const name = nameInput.value.trim();
+            const quantity = Number(quantityInput.value);
+            const minQuantity = Number(minQuantityInput.value);
+            const unit = unitInput.value;
+
+            const invalidInput = !name ? 'Mahsulot nomini kiriting.' :
+                quantityInput.value === '' || !Number.isFinite(quantity) || quantity < 0 ? 'Miqdorni 0 yoki undan katta son bilan kiriting.' :
+                    minQuantityInput.value === '' || !Number.isFinite(minQuantity) || minQuantity < 0 ? 'Minimal qoldiqni 0 yoki undan katta son bilan kiriting.' :
+                    !unit ? 'O‘lchov birligini tanlang.' : '';
+            if (invalidInput) {
+                errorMessage.textContent = invalidInput;
+                errorMessage.classList.remove('hidden');
+                if (!name) nameInput.focus();
+                else if (quantityInput.value === '' || !Number.isFinite(quantity) || quantity < 0) quantityInput.focus();
+                else if (minQuantityInput.value === '' || !Number.isFinite(minQuantity) || minQuantity < 0) minQuantityInput.focus();
+                else unitInput.focus();
+                return;
+            }
+
+            errorMessage.textContent = '';
+            errorMessage.classList.add('hidden');
+            inventoryProductSubmitting = true;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Saqlanmoqda...';
+            document.getElementById('inventory-product-cancel').disabled = true;
+            try {
+                const saved = await submitNewRecord('/api/inventory', {
+                    name, unit, quantity, minQuantity
+                }, loadInventory, 'Mahsulot qo‘shildi');
+                if (saved) {
+                    form.reset();
+                    document.getElementById('modal-container').innerHTML = '';
+                    window.removeEventListener('keydown', handleInventoryProductEscape);
+                }
+            } finally {
+                inventoryProductSubmitting = false;
+                if (document.getElementById('inventory-product-submit')) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = '+ Mahsulot qo‘shish';
+                    document.getElementById('inventory-product-cancel').disabled = false;
+                }
+            }
+        }
+
+        let employeeCreateSubmitting = false;
+        let employeeModalOpener = null;
+
+        function openEmployeeCreateModal() {
+            if (employeeCreateSubmitting) return;
+            employeeModalOpener = document.activeElement;
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div id="employee-modal-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 opacity-0 transition-opacity duration-200" role="presentation">
+                    <section id="employee-create-dialog" class="w-full max-w-lg translate-y-2 scale-[0.98] rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition duration-200 sm:p-7" role="dialog" aria-modal="true" aria-labelledby="employee-modal-title" tabindex="-1">
+                        <div class="mb-6 flex items-start gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-700" aria-hidden="true">👥</div>
+                            <div>
+                                <h2 id="employee-modal-title" class="text-xl font-bold tracking-tight text-slate-900">Yangi xodim qo‘shish</h2>
+                                <p class="mt-1 text-sm text-slate-500">Xodimning tizimga kirish ma’lumotlarini kiriting</p>
+                            </div>
+                        </div>
+                        <form id="employee-create-form" class="space-y-4" novalidate>
+                            <div>
+                                <label for="employee-name" class="block text-sm font-medium text-slate-700">Xodim ismi</label>
+                                <input id="employee-name" name="fullName" required maxlength="100" autocomplete="name" placeholder="Masalan: Anvar" aria-describedby="employee-name-error" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                <p id="employee-name-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <div>
+                                <label for="employee-role" class="block text-sm font-medium text-slate-700">Lavozimi</label>
+                                <select id="employee-role" name="role" required aria-describedby="employee-role-error" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    <option value="WAITER">Ofitsiant</option>
+                                    <option value="CASHIER">Kassir</option>
+                                    <option value="KITCHEN">Oshxona xodimi</option>
+                                    <option value="ADMIN">Administrator</option>
+                                </select>
+                                <p id="employee-role-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <div>
+                                <label for="employee-login" class="block text-sm font-medium text-slate-700">Login</label>
+                                <input id="employee-login" name="username" required maxlength="50" autocomplete="username" placeholder="Masalan: anvar_ofitsiant" aria-describedby="employee-login-error" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                <p id="employee-login-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <div>
+                                <label for="employee-phone" class="block text-sm font-medium text-slate-700">Telefon raqami</label>
+                                <input id="employee-phone" name="phone" type="tel" required maxlength="50" placeholder="+998..." autocomplete="tel" aria-describedby="employee-phone-error" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                <p id="employee-phone-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <div>
+                                <label for="employee-password" class="block text-sm font-medium text-slate-700">Parol</label>
+                                <span class="mt-1.5 flex rounded-xl border border-slate-200 bg-white transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input id="employee-password" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="employee-password-error" class="min-w-0 flex-1 rounded-l-xl px-3.5 py-2.5 text-sm outline-none">
+                                    <button id="employee-password-toggle" type="button" aria-label="Parolni ko‘rsatish" class="rounded-r-xl px-3 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
+                                        <span id="employee-password-icon" aria-hidden="true">👁</span>
+                                    </button>
+                                </span>
+                                <p id="employee-password-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <div id="employee-commission-field">
+                                <label for="employee-commission" class="block text-sm font-medium text-slate-700">Ofitsiant komissiyasi (%)</label>
+                                <input id="employee-commission" name="commissionPercent" type="number" min="0" max="100" step="0.1" value="10" aria-describedby="employee-commission-error" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                <p id="employee-commission-error" class="mt-1 hidden text-xs text-red-600" aria-live="polite"></p>
+                            </div>
+                            <p id="employee-form-error" class="hidden rounded-xl bg-red-50 px-3.5 py-3 text-sm text-red-700" role="alert" aria-live="assertive"></p>
+                            <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                                <button id="employee-create-cancel" type="button" onclick="closeEmployeeCreateModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100">Bekor qilish</button>
+                                <button id="employee-create-submit" type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60">+ Xodim qo‘shish</button>
+                            </div>
+                        </form>
+                    </section>
+                </div>`;
+
+            const backdrop = document.getElementById('employee-modal-backdrop');
+            backdrop.addEventListener('click', event => {
+                if (event.target === event.currentTarget) closeEmployeeCreateModal();
+            });
+            document.getElementById('employee-create-form').addEventListener('submit', addEmployee);
+            document.getElementById('employee-role').addEventListener('change', updateEmployeeCommissionVisibility);
+            document.getElementById('employee-password-toggle').addEventListener('click', toggleEmployeePasswordVisibility);
+            window.addEventListener('keydown', handleEmployeeModalEscape);
+            updateEmployeeCommissionVisibility();
+            requestAnimationFrame(() => {
+                if (!backdrop.isConnected) return;
+                backdrop.classList.remove('opacity-0');
+                const dialog = document.getElementById('employee-create-dialog');
+                dialog.classList.remove('translate-y-2', 'scale-[0.98]');
+                document.getElementById('employee-name').focus();
+            });
+        }
+
+        function updateEmployeeCommissionVisibility() {
+            const role = document.getElementById('employee-role');
+            const commissionField = document.getElementById('employee-commission-field');
+            if (role && commissionField) commissionField.classList.toggle('hidden', role.value !== 'WAITER');
+        }
+
+        function toggleEmployeePasswordVisibility(event) {
+            const passwordInput = document.getElementById('employee-password');
+            const showPassword = passwordInput.type === 'password';
+            passwordInput.type = showPassword ? 'text' : 'password';
+            event.currentTarget.setAttribute('aria-label', showPassword ? 'Parolni yashirish' : 'Parolni ko‘rsatish');
+            document.getElementById('employee-password-icon').textContent = showPassword ? '🙈' : '👁';
+        }
+
+        function handleEmployeeModalEscape(event) {
+            if (event.key === 'Escape') {
+                closeEmployeeCreateModal();
+                return;
+            }
+            if (event.key === 'Tab') {
+                const dialog = document.getElementById('employee-create-dialog');
+                if (!dialog) return;
+                const focusable = [...dialog.querySelectorAll('input:not(:disabled), select:not(:disabled), button:not(:disabled)')];
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+
+        function closeEmployeeCreateModal(force = false) {
+            if (employeeCreateSubmitting && !force) return;
+            document.getElementById('modal-container').innerHTML = '';
+            window.removeEventListener('keydown', handleEmployeeModalEscape);
+            if (employeeModalOpener instanceof HTMLElement) employeeModalOpener.focus();
+            employeeModalOpener = null;
+        }
+
+        function setEmployeeFieldError(fieldName, message) {
+            const input = document.getElementById(`employee-${fieldName}`);
+            const error = document.getElementById(`employee-${fieldName}-error`);
+            if (!input || !error) return;
+            error.textContent = message;
+            error.classList.toggle('hidden', !message);
+            input.setAttribute('aria-invalid', message ? 'true' : 'false');
+            input.classList.toggle('border-red-500', Boolean(message));
+            input.classList.toggle('focus:border-red-500', Boolean(message));
         }
 
         async function addEmployee(event) {
             event.preventDefault();
-            const form = document.getElementById('employee-create-form');
+            if (employeeCreateSubmitting) return;
+
+            const form = event.currentTarget;
             const submitButton = document.getElementById('employee-create-submit');
-            const formData = new FormData(form);
-            const fullName = String(formData.get('fullName') || '').trim();
-            const username = String(formData.get('username') || '').trim();
-            const phone = String(formData.get('phone') || '').trim();
-            const password = String(formData.get('password') || '');
-            const role = String(formData.get('role') || '');
-            const payload = { fullName, username, phone, password, role };
-            if (role === 'WAITER') payload.commissionPercent = Number(formData.get('commissionPercent'));
-            if (!fullName || !username || !phone || password.length < 8) {
-                showToast('Xodim ma’lumotlarini tekshiring. Parol kamida 8 belgidan iborat bo‘lsin.', 'error');
+            const fullName = document.getElementById('employee-name').value.trim();
+            const role = document.getElementById('employee-role').value;
+            const username = document.getElementById('employee-login').value.trim();
+            const phone = document.getElementById('employee-phone').value.trim();
+            const password = document.getElementById('employee-password').value;
+            const commissionValue = document.getElementById('employee-commission').value;
+
+            const fieldErrors = {
+                name: fullName ? '' : 'Xodim ismini kiriting.',
+                role: role ? '' : 'Lavozimni tanlang.',
+                login: username ? '' : 'Loginni kiriting.',
+                phone: phone ? '' : 'Telefon raqamini kiriting.',
+                password: !password ? 'Parolni kiriting.' : password.length < 8 ? 'Parol kamida 8 belgidan iborat bo‘lishi kerak.' : '',
+                commission: role === 'WAITER' && (commissionValue === '' || !Number.isFinite(Number(commissionValue)) || Number(commissionValue) < 0 || Number(commissionValue) > 100)
+                    ? 'Komissiya 0 dan 100 gacha bo‘lishi kerak.' : ''
+            };
+            Object.entries(fieldErrors).forEach(([fieldName, message]) => setEmployeeFieldError(fieldName, message));
+            const firstInvalidField = Object.keys(fieldErrors).find(fieldName => fieldErrors[fieldName]);
+            if (firstInvalidField) {
+                document.getElementById(`employee-${firstInvalidField}`).focus();
                 return;
             }
 
+            document.getElementById('employee-form-error').textContent = '';
+            document.getElementById('employee-form-error').classList.add('hidden');
+            const payload = { fullName, username, phone, password, role };
+            if (role === 'WAITER') payload.commissionPercent = Number(commissionValue);
+
+            employeeCreateSubmitting = true;
             submitButton.disabled = true;
             submitButton.textContent = 'Saqlanmoqda...';
+            document.getElementById('employee-create-cancel').disabled = true;
             try {
                 const saved = await submitNewRecord('/api/employees', payload, loadEmployees, 'Xodim qo‘shildi');
-                if (saved) {
-                    form.reset();
-                    document.getElementById('employee-password').type = 'password';
-                    const passwordToggle = document.getElementById('employee-password-toggle');
-                    passwordToggle.textContent = 'Ko‘rsatish';
-                    passwordToggle.setAttribute('aria-label', 'Parolni ko‘rsatish');
-                    document.getElementById('employee-commission-field').classList.remove('hidden');
+                if (saved) closeEmployeeCreateModal(true);
+                else {
+                    const formError = document.getElementById('employee-form-error');
+                    if (formError) {
+                        formError.textContent = 'Xodimni saqlab bo‘lmadi. Kiritilgan ma’lumotlarni tekshiring.';
+                        formError.classList.remove('hidden');
+                    }
                 }
             } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = '+ Xodim qo‘shish';
+                employeeCreateSubmitting = false;
+                if (document.getElementById('employee-create-submit')) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = '+ Xodim qo‘shish';
+                    document.getElementById('employee-create-cancel').disabled = false;
+                }
             }
         }
 
@@ -1168,63 +1407,7 @@
             }
         }
 
-        function openEmployeeModal() {
-            const modalContainer = document.getElementById('modal-container');
-            modalContainer.innerHTML = `
-                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4">Yangi xodim qo‘shish</h3>
-                        <form onsubmit="createEmployee(event)" class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Ism va familiya</label>
-                                <input type="text" id="emp-name" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Lavozim</label>
-                                <select id="emp-position" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
-                                    <option value="waiter">Ofitsiant</option>
-                                    <option value="cashier">Kassir</option>
-                                    <option value="kitchen">Oshpaz</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Telefon raqam</label>
-                                <input type="text" id="emp-phone" placeholder="+998..." required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-1">Parol (Login uchun)</label>
-                                <input type="password" id="emp-password" required class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div class="flex justify-end gap-2 mt-6">
-                                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs font-medium">Bekor qilish</button>
-                                <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">Saqlash</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function createEmployee(event) {
-            event.preventDefault();
-            const name = document.getElementById('emp-name').value;
-            const position = document.getElementById('emp-position').value;
-            const phone = document.getElementById('emp-phone').value;
-            const password = document.getElementById('emp-password').value;
-
-            try {
-                await apiFetch('/api/employees', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, position, phone, password })
-                });
-                closeModal();
-                showToast('Xodim muvaffaqiyatli qo‘shildi');
-            } catch (e) {
-                showToast('Xodim qo‘shishda xatolik');
-            }
-        }
+        function openEmployeeModal() { openEmployeeCreateModal(); }
 
         function closeModal() {
             const modalContainer = document.getElementById('modal-container');
@@ -1260,7 +1443,6 @@
             renderOrders();
         });
         document.getElementById('menu-create-form').addEventListener('submit', addMenuItem);
-        document.getElementById('employee-create-form').addEventListener('submit', addEmployee);
         document.getElementById('menu-search').addEventListener('input', event => {
             menuSearchTerm = event.target.value.trim();
             renderMenu();
@@ -1277,20 +1459,6 @@
             employeeSearchTerm = event.target.value.trim();
             renderEmployees();
         });
-        document.getElementById('employee-role').addEventListener('change', event => {
-            document.getElementById('employee-commission-field').classList.toggle('hidden', event.target.value !== 'WAITER');
-        });
-        document.getElementById('employee-password-toggle').addEventListener('click', event => {
-            const passwordInput = document.getElementById('employee-password');
-            const showPassword = passwordInput.type === 'password';
-            passwordInput.type = showPassword ? 'text' : 'password';
-            event.currentTarget.textContent = showPassword ? 'Yashirish' : 'Ko‘rsatish';
-            event.currentTarget.setAttribute('aria-label', showPassword ? 'Parolni yashirish' : 'Parolni ko‘rsatish');
-        });
-        document.getElementById('employee-commission-field').classList.toggle(
-            'hidden',
-            document.getElementById('employee-role').value !== 'WAITER'
-        );
 
         async function checkAdminAuth() {
             try {
