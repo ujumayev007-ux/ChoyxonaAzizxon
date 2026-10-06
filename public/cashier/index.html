@@ -9,7 +9,31 @@
     <style>
         :root { color-scheme: light; }
         body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-        .nav-item.active { background: #eaf2ff; color: #1d4ed8; }
+        .nav-item { display: flex; align-items: center; gap: 12px; min-height: 44px; color: #475569; transition: background-color .15s ease, color .15s ease, transform .15s ease; }
+        .nav-item:hover { background: #f1f5f9; color: #0f172a; }
+        .nav-item.active { background: #eaf2ff; color: #1d4ed8; box-shadow: inset 3px 0 #2563eb; }
+        #sidebar { width: 256px; transition: width .2s ease; }
+        #app.sidebar-collapsed #sidebar { width: 76px; }
+        #app.sidebar-collapsed .sidebar-label,
+        #app.sidebar-collapsed .sidebar-brand-copy,
+        #app.sidebar-collapsed .sidebar-footer-copy { display: none; }
+        #app.sidebar-collapsed .sidebar-brand,
+        #app.sidebar-collapsed .sidebar-toggle-wrap { justify-content: center; }
+        #app.sidebar-collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+        #app.sidebar-collapsed .nav-item.active { box-shadow: inset 0 0 0 2px #bfdbfe; }
+        #app.sidebar-collapsed .sidebar-action { justify-content: center; padding-left: 0; padding-right: 0; }
+        @media (max-width: 767px) {
+            #sidebar { width: 76px; }
+            #app:not(.sidebar-collapsed) #sidebar { width: 220px; }
+            #app:not(.sidebar-collapsed) .sidebar-label,
+            #app:not(.sidebar-collapsed) .sidebar-brand-copy,
+            #app:not(.sidebar-collapsed) .sidebar-footer-copy { display: inline; }
+            #app:not(.sidebar-collapsed) .sidebar-brand { justify-content: flex-start; }
+            #app:not(.sidebar-collapsed) .sidebar-toggle-wrap { justify-content: flex-end; }
+            #app:not(.sidebar-collapsed) .nav-item { justify-content: flex-start; padding-left: 12px; padding-right: 12px; }
+            #app:not(.sidebar-collapsed) .nav-item.active { box-shadow: inset 3px 0 #2563eb; }
+            #app:not(.sidebar-collapsed) .sidebar-action { justify-content: flex-start; padding-left: 12px; padding-right: 12px; }
+        }
         .card { border: 1px solid #e2e8f0; border-radius: 16px; background: white; box-shadow: 0 5px 18px rgba(15, 23, 42, .045); }
         .btn { border-radius: 10px; font-weight: 700; transition: .15s ease; }
         .field { width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; outline: none; }
@@ -34,36 +58,40 @@
         </form>
     </section>
 
-    <div id="app" class="hidden min-h-screen md:flex">
-        <aside class="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-            <div class="border-b border-slate-100 px-5 py-5">
-                <div class="flex items-center gap-3">
+    <div id="app" class="hidden min-h-screen flex">
+        <aside id="sidebar" class="sticky top-0 flex h-screen shrink-0 flex-col border-r border-slate-200 bg-white">
+            <div class="border-b border-slate-100 px-3 py-4">
+                <div class="sidebar-brand flex items-center gap-3 px-1">
                     <span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xl text-white">🪙</span>
-                    <div><p class="font-black">ChoyxonaAzizxon</p><p class="text-xs text-slate-500">Kassa va POS</p></div>
+                    <div class="sidebar-brand-copy min-w-0"><p class="truncate font-black">ChoyxonaAzizxon</p><p class="text-xs text-slate-500">Kassa va POS</p></div>
+                </div>
+                <div class="sidebar-toggle-wrap mt-4 flex justify-end">
+                    <button id="sidebar-toggle" type="button" class="grid h-10 w-10 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" aria-label="Yon menyuni yig‘ish" title="Yon menyuni yig‘ish"><span id="sidebar-toggle-icon">‹</span></button>
                 </div>
             </div>
-            <nav id="navigation" class="flex-1 space-y-1 overflow-y-auto p-3">
-                <button data-tab="dashboard" class="nav-item active w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📊 Bosh sahifa</button>
-                <button data-tab="orders" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🧾 Buyurtmalar</button>
-                <button data-tab="tables" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🪑 Stollar</button>
-                <button data-tab="takeaway" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🥡 Olib ketish</button>
-                <button data-tab="payments" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💳 To‘lovlar</button>
-                <button data-tab="customers" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">👥 Mijozlar</button>
-                <button data-tab="debts" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📒 Qarzlar</button>
-                <button data-tab="refunds" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">↩️ Qaytarishlar</button>
-                <button data-tab="expenses" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💸 Xarajatlar</button>
-                <button data-tab="register" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💰 Kassa / smena</button>
-                <button data-tab="history" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🕘 Kassa tarixi</button>
-                <button data-tab="reports" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📈 Hisobotlar</button>
-                <button data-tab="receipts" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🖨 Cheklar</button>
-                <button data-tab="calls" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🔔 Ofitsiant chaqiruvi</button>
-                <button data-tab="printers" id="nav-printers" class="nav-item hidden w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🖨 Printer holati</button>
+            <nav id="navigation" class="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+                <button data-tab="dashboard" title="Bosh sahifa" class="nav-item active w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🏠</span><span class="sidebar-label">Bosh sahifa</span></button>
+                <button data-tab="orders" title="Buyurtmalar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🧾</span><span class="sidebar-label">Buyurtmalar</span></button>
+                <button data-tab="tables" title="Stollar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🪑</span><span class="sidebar-label">Stollar</span></button>
+                <button data-tab="takeaway" title="Olib ketish" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🥡</span><span class="sidebar-label">Olib ketish</span></button>
+                <button data-tab="register" title="Kassa" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">💵</span><span class="sidebar-label">Kassa</span></button>
+                <button data-tab="customers" title="Mijozlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">👥</span><span class="sidebar-label">Mijozlar</span></button>
+                <div class="my-3 border-t border-slate-100"></div>
+                <button data-tab="payments" title="To‘lovlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">💳</span><span class="sidebar-label">To‘lovlar</span></button>
+                <button data-tab="debts" title="Qarzlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">📒</span><span class="sidebar-label">Qarzlar</span></button>
+                <button data-tab="refunds" title="Qaytarishlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">↩️</span><span class="sidebar-label">Qaytarishlar</span></button>
+                <button data-tab="expenses" title="Xarajatlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">💸</span><span class="sidebar-label">Xarajatlar</span></button>
+                <button data-tab="history" title="Kassa tarixi" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🕘</span><span class="sidebar-label">Kassa tarixi</span></button>
+                <button data-tab="reports" title="Hisobotlar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">📈</span><span class="sidebar-label">Hisobotlar</span></button>
+                <button data-tab="receipts" title="Cheklar" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🖨</span><span class="sidebar-label">Cheklar</span></button>
+                <button data-tab="calls" title="Ofitsiant chaqiruvi" class="nav-item w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🔔</span><span class="sidebar-label">Ofitsiant chaqiruvi</span></button>
+                <button data-tab="printers" id="nav-printers" title="Printer holati" class="nav-item hidden w-full rounded-xl px-3 text-left text-sm font-semibold"><span class="nav-icon">🖨</span><span class="sidebar-label">Printer holati</span></button>
             </nav>
-            <div class="space-y-3 border-t border-slate-100 p-4">
-                <p class="flex items-center justify-between text-xs text-slate-500"><span>Socket.io</span><span id="connection-status" class="rounded-full bg-amber-100 px-2 py-1 text-amber-800">Ulanmoqda</span></p>
-                <button id="admin-access-button" class="btn w-full border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">🔐 Adminga o‘tish</button>
-                <button id="return-cashier-button" class="btn hidden w-full bg-violet-600 px-3 py-2 text-sm text-white hover:bg-violet-700">Kassir rejimiga qaytish</button>
-                <button id="logout-button" class="w-full px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50">Tizimdan chiqish</button>
+            <div class="space-y-2 border-t border-slate-100 p-3">
+                <p class="flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-50 px-2 text-xs text-slate-500" title="Socket.io"><span>●</span><span id="connection-status" class="sidebar-footer-copy rounded-full bg-amber-100 px-2 py-1 text-amber-800">Ulanmoqda</span></p>
+                <button id="admin-access-button" title="Adminga o‘tish" class="sidebar-action btn flex w-full items-center gap-3 border border-slate-200 bg-white px-3 py-2.5 text-left text-sm hover:bg-slate-50"><span>🔐</span><span class="sidebar-label">Adminga o‘tish</span></button>
+                <button id="return-cashier-button" title="Kassir rejimiga qaytish" class="sidebar-action btn hidden w-full items-center gap-3 bg-violet-600 px-3 py-2.5 text-left text-sm text-white hover:bg-violet-700"><span>↩️</span><span class="sidebar-label">Kassir rejimiga qaytish</span></button>
+                <button id="logout-button" title="Tizimdan chiqish" class="sidebar-action flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"><span>↪️</span><span class="sidebar-label">Tizimdan chiqish</span></button>
             </div>
         </aside>
 
@@ -82,14 +110,6 @@
                     <button data-action="new-order" class="btn whitespace-nowrap bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">+ Yangi buyurtma</button>
                 </div>
             </header>
-            <nav id="mobile-navigation" class="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-2 md:hidden">
-                <button data-tab="dashboard" class="nav-item active rounded-lg px-3 py-2 text-xs font-bold">Bosh sahifa</button>
-                <button data-tab="orders" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Buyurtmalar</button>
-                <button data-tab="tables" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Stollar</button>
-                <button data-tab="takeaway" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Olib ketish</button>
-                <button data-tab="register" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Kassa</button>
-                <button data-tab="customers" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Mijozlar</button>
-            </nav>
             <div id="content" class="mx-auto max-w-[1600px] space-y-5 p-4 md:p-7"></div>
         </main>
     </div>
@@ -114,6 +134,17 @@
         }[char]));
         const dateTime = value => value ? new Date(value).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' }) : '—';
         const newKey = () => crypto.randomUUID();
+
+        function updateSidebar(collapsed) {
+            const app = document.getElementById('app');
+            app.classList.toggle('sidebar-collapsed', collapsed);
+            const toggle = document.getElementById('sidebar-toggle');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            toggle.setAttribute('aria-label', collapsed ? 'Yon menyuni kengaytirish' : 'Yon menyuni yig‘ish');
+            toggle.title = collapsed ? 'Yon menyuni kengaytirish' : 'Yon menyuni yig‘ish';
+            icon.textContent = collapsed ? '›' : '‹';
+            localStorage.setItem('cashier-sidebar-collapsed', String(collapsed));
+        }
 
         async function api(url, options = {}) {
             const response = await fetch(url, {
@@ -817,6 +848,11 @@
 
         document.addEventListener('click', action);
         document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+        document.getElementById('sidebar-toggle').addEventListener('click', () => {
+            updateSidebar(!document.getElementById('app').classList.contains('sidebar-collapsed'));
+        });
+        const savedSidebarState = localStorage.getItem('cashier-sidebar-collapsed');
+        updateSidebar(savedSidebarState === null ? window.matchMedia('(max-width: 767px)').matches : savedSidebarState === 'true');
         document.getElementById('login-form').addEventListener('submit', async event => {
             event.preventDefault();
             const button = event.currentTarget.querySelector('button');
