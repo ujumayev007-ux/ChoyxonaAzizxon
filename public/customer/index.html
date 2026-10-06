@@ -74,6 +74,7 @@
         let cart = [];
         let authenticatedCustomer = null;
         let verifiedTableId = null;
+        let telegramInitData = '';
 
         // Initialize Telegram WebApp
         window.addEventListener('DOMContentLoaded', async () => {
@@ -81,6 +82,7 @@
                 const tg = window.Telegram.WebApp;
                 tg.ready();
                 tg.expand();
+                telegramInitData = tg.initData;
 
                 // Apply Telegram Theme Colors if available
                 if (tg.colorScheme === 'dark') {
@@ -98,7 +100,7 @@
                 }
 
                 if (tableParam) {
-                    verifiedTableId = parseInt(tableParam, 10);
+                    verifiedTableId = tableParam;
                     document.getElementById('table-badge').innerText = `Stol #${verifiedTableId}`;
                 } else {
                     document.getElementById('table-badge').innerText = "Stol ma’lumoti topilmadi";
@@ -169,6 +171,7 @@
             const orderPayload = {
                 tableId: verifiedTableId,
                 customerId: authenticatedCustomer.id,
+                initData: telegramInitData,
                 items: cart.map(i => ({ dishId: i.dishId, quantity: i.quantity }))
             };
 

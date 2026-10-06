@@ -353,7 +353,7 @@
                             </div>
 
                             <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                                <button onclick="processPayment()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
+                                <button id="process-payment-button" onclick="processPayment()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
                                     <i class="fa-solid fa-check"></i> To'lovni qabul qilish
                                 </button>
                                 <button onclick="printReceipt()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
@@ -479,6 +479,9 @@
             <div class="pt-4 border-t border-slate-100 flex flex-wrap gap-3">
                 <button onclick="openMenuForCurrentTable()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
                     <i class="fa-solid fa-plus"></i> Yangi buyurtma
+                </button>
+                <button onclick="callCashierForCurrentTable()" class="bg-violet-600 hover:bg-violet-700 text-white font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-bell"></i> Kassirni chaqirish
                 </button>
                 <button onclick="goToBillForCurrentTable()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
                     <i class="fa-solid fa-file-invoice-dollar"></i> Hisob chiqarish
@@ -984,6 +987,26 @@
             }
         }
 
+        async function callCashierForCurrentTable() {
+            if (!selectedTableForModal) return;
+            try {
+                const res = await fetch('/api/waiter/cashier-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableId: selectedTableForModal })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    showNotification(data.message || 'Kassirni chaqirib bo‘lmadi');
+                    return;
+                }
+                showNotification('Kassir chaqirildi');
+            } catch (error) {
+                console.error('Kassirni chaqirishda xatolik:', error);
+                showNotification('Internet aloqasini tekshiring');
+            }
+        }
+
         // Pending Customer Orders
         async function loadPendingOrders() {
             try {
@@ -1050,6 +1073,11 @@
                 const res = await fetch(`/api/orders/${orderId}/approve`, { method: 'POST' });
                 if (res.ok) {
                     showNotification('Buyurtma tasdiqlandi va oshxonaga yuborildi');
+                    loadPendingOrders();
+                    loadActiveOrders();
+                    loadRoomsAndTables();
+            });
+            socket.on('order_processing_changed', () => {
                     loadPendingOrders();
                     loadActiveOrders();
                     loadRoomsAndTables();
@@ -1122,6 +1150,7 @@
                     <div class="text-xs text-slate-600">
                         <p>Stol: <span class="font-bold text-slate-800">Stol #${ord.tableNumber || ord.tableId || '-'}</span></p>
                         <p>Vaqt: <span class="font-medium text-slate-800">${ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('uz-UZ', {hour: '2-digit', minute:'2-digit'}) : '-'}</span></p>
+                        ${ord.processingBy ? `<p class="mt-1 rounded-md bg-amber-50 p-2 font-semibold text-amber-800">🔒 Kassir ${ord.processingBy.fullName} ushbu buyurtmani qayta ishlamoqda.</p>` : ''}
                     </div>
                     <div class="space-y-1 text-xs pt-2 border-t border-slate-100">
                         ${ord.items && ord.items.map(it => `
@@ -1501,24 +1530,29 @@
         async function processPayment() {
             const tableId = document.getElementById('bill-table-select').value;
             if (!tableId) return;
-            if (!confirm('To‘lovni tasdiqlaysizmi?')) return;
-
+            const button = document.getElementById('process-payment-button');
+            if (button.disabled) return;
+            button.disabled = true;
             try {
                 const res = await fetch(`/api/tables/${tableId}/pay`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentMethod: selectedPaymentMethod })
+                    body: JSON.stringify({ paymentMethod: selectedPaymentMethod, idempotencyKey: crypto.randomUUID() })
                 });
-                if (res.ok) {
+                const data = await res.json();
+                if (res.ok && data.success) {
                     showNotification('To‘lov muvaffaqiyatli qabul qilindi');
                     document.getElementById('bill-details-wrapper').classList.add('hidden');
                     loadTableDropdowns();
                     loadRoomsAndTables();
                 } else {
-                    alert('To‘lovni amalga oshirishda xatolik');
+                    showNotification(data.message || 'To‘lovni amalga oshirishda xatolik');
                 }
-            } catch(e) {
-                alert('Internet aloqasi xatoligi');
+            } catch(error) {
+                console.error('Stol to‘lovida xatolik:', error);
+                showNotification('Internet aloqasi xatoligi');
+            } finally {
+                button.disabled = false;
             }
         }
 

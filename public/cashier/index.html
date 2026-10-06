@@ -3,269 +3,884 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kassa Paneli - ChoyxonaAzizxon</title>
+    <title>Kassa paneli - ChoyxonaAzizxon</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { color-scheme: light; }
+        body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .nav-item.active { background: #eaf2ff; color: #1d4ed8; }
+        .card { border: 1px solid #e2e8f0; border-radius: 16px; background: white; box-shadow: 0 5px 18px rgba(15, 23, 42, .045); }
+        .btn { border-radius: 10px; font-weight: 700; transition: .15s ease; }
+        .field { width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; outline: none; }
+        .field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .13); }
+        .modal-backdrop { animation: fade .15s ease-out; }
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        @media print { body * { visibility: hidden; } #print-root, #print-root * { visibility: visible; } #print-root { position: absolute; left: 0; top: 0; width: 100%; } }
+    </style>
 </head>
-<body class="bg-slate-100 font-sans antialiased text-slate-800">
-
-    <div class="flex h-screen overflow-hidden">
-        
-        <!-- Desktop Sidebar -->
-        <aside class="w-64 bg-slate-900 text-slate-300 hidden md:flex flex-col justify-between border-r border-slate-800">
-            <div>
-                <div class="p-6 text-xl font-bold tracking-wider text-emerald-400 border-b border-slate-800 flex items-center gap-2">
-                    <span>🪙</span> ChoyxonaAzizxon
-                </div>
-                <nav class="p-4 space-y-1.5">
-                    <a href="#dashboard" onclick="switchTab('dashboard')" id="nav-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium transition shadow-lg shadow-emerald-900/20"><span>📊</span> Bosh sahifa</a>
-                    <a href="#orders" onclick="switchTab('orders')" id="nav-orders" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>🧾</span> Buyurtmalar</a>
-                    <a href="#tables" onclick="switchTab('tables')" id="nav-tables" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>🪑</span> Stollar</a>
-                    <a href="#register" onclick="switchTab('register')" id="nav-register" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>💰</span> Kassa</a>
-                    <a href="#expenses" onclick="switchTab('expenses')" id="nav-expenses" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>💸</span> Xarajatlar</a>
-                    <a href="#reports" onclick="switchTab('reports')" id="nav-reports" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition"><span>📈</span> Hisobotlar</a>
-                </nav>
+<body class="bg-slate-100 text-slate-800 antialiased">
+    <section id="login-screen" class="min-h-screen hidden items-center justify-center p-4">
+        <form id="login-form" class="card w-full max-w-md p-8 space-y-5">
+            <div class="text-center">
+                <div class="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-2xl">🪙</div>
+                <h1 class="text-2xl font-black">Kassir tizimiga kirish</h1>
+                <p class="mt-1 text-sm text-slate-500">Shaxsiy login va parolingizni kiriting</p>
             </div>
-            <div class="p-4 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between">
-                <span>Azamatjon & Umidjon</span>
-                <span id="connection-status" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold">Ulangan</span>
+            <label class="block text-sm font-semibold">Login<input id="login-username" class="field mt-1" autocomplete="username" required></label>
+            <label class="block text-sm font-semibold">Parol<input id="login-password" class="field mt-1" type="password" autocomplete="current-password" required></label>
+            <p id="login-error" class="hidden rounded-lg bg-rose-50 p-3 text-sm text-rose-700"></p>
+            <button class="btn w-full bg-blue-600 px-4 py-3 text-white hover:bg-blue-700">Kirish</button>
+        </form>
+    </section>
+
+    <div id="app" class="hidden min-h-screen md:flex">
+        <aside class="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+            <div class="border-b border-slate-100 px-5 py-5">
+                <div class="flex items-center gap-3">
+                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-xl text-white">🪙</span>
+                    <div><p class="font-black">ChoyxonaAzizxon</p><p class="text-xs text-slate-500">Kassa va POS</p></div>
+                </div>
+            </div>
+            <nav id="navigation" class="flex-1 space-y-1 overflow-y-auto p-3">
+                <button data-tab="dashboard" class="nav-item active w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📊 Bosh sahifa</button>
+                <button data-tab="orders" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🧾 Buyurtmalar</button>
+                <button data-tab="tables" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🪑 Stollar</button>
+                <button data-tab="takeaway" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🥡 Olib ketish</button>
+                <button data-tab="payments" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💳 To‘lovlar</button>
+                <button data-tab="customers" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">👥 Mijozlar</button>
+                <button data-tab="debts" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📒 Qarzlar</button>
+                <button data-tab="refunds" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">↩️ Qaytarishlar</button>
+                <button data-tab="expenses" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💸 Xarajatlar</button>
+                <button data-tab="register" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">💰 Kassa / smena</button>
+                <button data-tab="history" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🕘 Kassa tarixi</button>
+                <button data-tab="reports" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">📈 Hisobotlar</button>
+                <button data-tab="receipts" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🖨 Cheklar</button>
+                <button data-tab="calls" class="nav-item w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🔔 Ofitsiant chaqiruvi</button>
+                <button data-tab="printers" id="nav-printers" class="nav-item hidden w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold">🖨 Printer holati</button>
+            </nav>
+            <div class="space-y-3 border-t border-slate-100 p-4">
+                <p class="flex items-center justify-between text-xs text-slate-500"><span>Socket.io</span><span id="connection-status" class="rounded-full bg-amber-100 px-2 py-1 text-amber-800">Ulanmoqda</span></p>
+                <button id="admin-access-button" class="btn w-full border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50">🔐 Adminga o‘tish</button>
+                <button id="return-cashier-button" class="btn hidden w-full bg-violet-600 px-3 py-2 text-sm text-white hover:bg-violet-700">Kassir rejimiga qaytish</button>
+                <button id="logout-button" class="w-full px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50">Tizimdan chiqish</button>
             </div>
         </aside>
 
-        <!-- Main Workspace -->
-        <main class="flex-1 flex flex-col overflow-y-auto">
-            
-            <!-- Top Header -->
-            <header class="bg-white h-16 border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-                <div class="flex items-center gap-4">
-                    <h1 id="current-page-title" class="text-lg font-bold text-slate-800">Kassa Bosh sahifasi</h1>
+        <main class="min-w-0 flex-1">
+            <header class="sticky top-0 z-20 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 md:px-7">
+                <div>
+                    <h1 id="page-title" class="text-lg font-black">Bosh sahifa</h1>
+                    <p id="header-user" class="text-xs text-slate-500"></p>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div id="live-datetime" class="text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                        02.10.2026 09:15
+                <div class="flex flex-1 items-center justify-end gap-2 sm:flex-none">
+                    <div class="relative w-full max-w-xs">
+                        <input id="global-search" class="field py-2 text-sm" placeholder="Buyurtma, mijoz, telefon, stol..." aria-label="Umumiy qidiruv">
+                        <div id="search-results" class="absolute right-0 top-11 z-30 hidden max-h-96 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"></div>
                     </div>
-                    <div class="flex items-center gap-2 pl-4 border-l border-slate-200">
-                        <div class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">K</div>
-                        <span class="text-sm font-semibold text-slate-700 hidden sm:inline">Kassir</span>
-                    </div>
+                    <span id="live-clock" class="hidden rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold sm:block"></span>
+                    <button data-action="new-order" class="btn whitespace-nowrap bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700">+ Yangi buyurtma</button>
                 </div>
             </header>
-
-            <!-- Dynamic Content Container -->
-            <div id="tab-content" class="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
-                
-                <!-- DASHBOARD VIEW -->
-                <div id="view-dashboard" class="space-y-6">
-                    <!-- Stats Grid -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bugungi tushum</p>
-                            <h3 id="stat-revenue" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
-                        </div>
-                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Naqd pul</p>
-                            <h3 id="stat-cash" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
-                        </div>
-                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Plastik karta</p>
-                            <h3 id="stat-card" class="text-2xl font-bold text-slate-900 mt-1">0 so'm</h3>
-                        </div>
-                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Bugungi xarajatlar</p>
-                            <h3 id="stat-expenses" class="text-2xl font-bold text-rose-600 mt-1">0 so'm</h3>
-                        </div>
-                    </div>
-
-                    <!-- Active Table Accounts Table -->
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div class="p-5 border-b border-slate-100 flex justify-between items-center">
-                            <h2 class="font-bold text-slate-800">Faol buyurtmalar va stollar</h2>
-                            <button onclick="loadDashboardData()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition">Yangilash</button>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-slate-50 text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                                        <th class="p-4">Buyurtma №</th>
-                                        <th class="p-4">Stol</th>
-                                        <th class="p-4">Ofitsiant</th>
-                                        <th class="p-4">Summasi</th>
-                                        <th class="p-4">Holat</th>
-                                        <th class="p-4 text-right">Amallar</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="active-orders-table" class="text-sm divide-y divide-slate-100">
-                                    <tr>
-                                        <td colspan="6" class="p-6 text-center text-slate-400">Faol buyurtmalar mavjud emas.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
+            <nav id="mobile-navigation" class="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white p-2 md:hidden">
+                <button data-tab="dashboard" class="nav-item active rounded-lg px-3 py-2 text-xs font-bold">Bosh sahifa</button>
+                <button data-tab="orders" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Buyurtmalar</button>
+                <button data-tab="tables" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Stollar</button>
+                <button data-tab="takeaway" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Olib ketish</button>
+                <button data-tab="register" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Kassa</button>
+                <button data-tab="customers" class="nav-item rounded-lg px-3 py-2 text-xs font-bold">Mijozlar</button>
+            </nav>
+            <div id="content" class="mx-auto max-w-[1600px] space-y-5 p-4 md:p-7"></div>
         </main>
     </div>
 
-    <!-- Payment Modal -->
-    <div id="payment-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-6">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-4">
-                <h3 class="font-bold text-lg text-slate-800">To‘lovni qabul qilish</h3>
-                <button onclick="closePaymentModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">To‘lov turi</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button type="button" onclick="setPaymentMethod('cash')" id="pm-cash" class="py-3 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-700 font-semibold text-sm transition">Naqd</button>
-                        <button type="button" onclick="setPaymentMethod('card')" id="pm-card" class="py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">Plastik karta</button>
-                        <button type="button" onclick="setPaymentMethod('electronic')" id="pm-electronic" class="py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">Elektron</button>
-                    </div>
-                </div>
-                <div class="bg-slate-50 p-4 rounded-2xl space-y-2">
-                    <div class="flex justify-between text-sm"><span class="text-slate-500">To‘lanadigan summa:</span> <span id="modal-total-due" class="font-bold text-slate-800">0 so'm</span></div>
-                </div>
-                <div id="cash-given-container">
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Mijoz bergan pul</label>
-                    <input type="number" id="customer-given-input" oninput="calculateChange()" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-600 font-bold text-lg" placeholder="100000">
-                    <div class="flex justify-between text-sm mt-2 font-medium"><span class="text-slate-500">Qaytim:</span> <span id="modal-change" class="text-emerald-600 font-bold">0 so'm</span></div>
-                </div>
-            </div>
-            <div class="flex gap-3 pt-2">
-                <button onclick="closePaymentModal()" class="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition">Bekor qilish</button>
-                <button onclick="confirmPayment()" class="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20">Tasdiqlash</button>
-            </div>
-        </div>
-    </div>
+    <div id="modal-root"></div>
+    <div id="toast-root" class="pointer-events-none fixed right-4 top-4 z-[80] space-y-2"></div>
+    <div id="print-root" class="hidden"></div>
 
     <script>
-        let currentSelectedOrderId = null;
-        let selectedPaymentMethod = 'cash';
-        let currentDueAmount = 0;
-
-        // Initialize Real-time Socket.io Connection
         const socket = io();
-        socket.on('connect', () => {
-            document.getElementById('connection-status').className = 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold';
-            document.getElementById('connection-status').innerText = 'Ulangan';
-            loadDashboardData();
-        });
-        socket.on('disconnect', () => {
-            document.getElementById('connection-status').className = 'px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-semibold';
-            document.getElementById('connection-status').innerText = 'Uzildi';
-        });
-        socket.on('paymentReceived', () => {
-            loadDashboardData();
-        });
+        const state = { user: null, tab: 'dashboard', menu: [], customers: [], cart: [], selectedCustomer: null, currentOrder: null };
+        const titles = {
+            dashboard: 'Bosh sahifa', orders: 'Buyurtmalar', tables: 'Stollar', takeaway: 'Olib ketish / Soboy',
+            payments: 'To‘lovlar tarixi', customers: 'Mijozlar', debts: 'Qarzlar',
+            refunds: 'Qaytarishlar', expenses: 'Xarajatlar', register: 'Kassa / smena',
+            history: 'Kassa tarixi', reports: 'Hisobotlar', receipts: 'Cheklar',
+            calls: 'Ofitsiant chaqiruvi', printers: 'Printer holati'
+        };
+        const money = value => `${Number(value || 0).toLocaleString('uz-UZ')} so‘m`;
+        const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[char]));
+        const dateTime = value => value ? new Date(value).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        const newKey = () => crypto.randomUUID();
 
-        function switchTab(tab) {
-            document.querySelectorAll('aside nav a').forEach(el => el.className = "flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-800/60 font-medium transition");
-            document.getElementById(`nav-${tab}`).className = "flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white font-medium transition shadow-lg shadow-emerald-900/20";
-            document.getElementById('current-page-title').innerText = document.getElementById(`nav-${tab}`).innerText.trim();
+        async function api(url, options = {}) {
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                ...options,
+                headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) }
+            });
+            const data = await response.json();
+            if (response.status === 401) {
+                showLogin('Sessiya yakunlangan. Qayta kiring.');
+                throw new Error(data.message || 'Tizimga qayta kiring');
+            }
+            if (!response.ok || data.success === false) throw new Error(data.message || 'So‘rov bajarilmadi');
+            return data;
         }
 
-        async function loadDashboardData() {
+        function toast(message, type = 'success') {
+            const node = document.createElement('div');
+            node.className = `pointer-events-auto rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl ${type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'}`;
+            node.textContent = message;
+            document.getElementById('toast-root').appendChild(node);
+            setTimeout(() => node.remove(), 3800);
+        }
+
+        function showLogin(message = '') {
+            document.getElementById('app').classList.add('hidden');
+            const screen = document.getElementById('login-screen');
+            screen.classList.remove('hidden');
+            screen.classList.add('flex');
+            const error = document.getElementById('login-error');
+            error.textContent = message;
+            error.classList.toggle('hidden', !message);
+        }
+
+        function showApp() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('flex');
+            document.getElementById('app').classList.remove('hidden');
+            document.getElementById('header-user').textContent = `${state.user.fullName} · ${state.user.role === 'ADMIN' ? 'Admin' : 'Kassir'}`;
+            document.getElementById('nav-printers').classList.toggle('hidden', state.user.role !== 'ADMIN');
+            const terminalAdmin = Boolean(state.user.terminalAccessId);
+            document.getElementById('admin-access-button').classList.toggle('hidden', terminalAdmin || state.user.role === 'ADMIN');
+            document.getElementById('return-cashier-button').classList.toggle('hidden', !terminalAdmin);
+            switchTab(state.tab);
+        }
+
+        async function verifySession() {
             try {
-                const res = await fetch('/api/cashier/dashboard');
-                const json = await res.json();
-                if (json.success) {
-                    const data = json.data;
-                    document.getElementById('stat-revenue').innerText = `${data.bugungiTushum.toLocaleString()} so'm`;
-                    document.getElementById('stat-cash').innerText = `${data.naqdPul.toLocaleString()} so'm`;
-                    document.getElementById('stat-card').innerText = `${data.plastikKarta.toLocaleString()} so'm`;
-                    document.getElementById('stat-expenses').innerText = `${data.bugungiXarajatlar.toLocaleString()} so'm`;
-                    
-                    const tbody = document.getElementById('active-orders-table');
-                    if (data.faolBuyurtmalar.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Faol buyurtmalar mavjud emas.</td></tr>`;
-                    } else {
-                        tbody.innerHTML = data.faolBuyurtmalar.map(o => `
-                            <tr class="hover:bg-slate-50/80 transition">
-                                <td class="p-4 font-semibold text-slate-700">#${o.id}</td>
-                                <td class="p-4 font-medium text-slate-600">Stol #${o.tableId}</td>
-                                <td class="p-4 text-slate-600">${o.waiter ? o.waiter.name : 'Noma\'lum'}</td>
-                                <td class="p-4 font-bold text-slate-900">${o.totalAmount.toLocaleString()} so'm</td>
-                                <td class="p-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">${o.status}</span></td>
-                                <td class="p-4 text-right">
-                                    <button onclick="openPaymentModal(${o.id}, ${o.totalAmount})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-emerald-600/20 transition">To‘lov qabul qilish</button>
-                                </td>
-                            </tr>
-                        `).join('');
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to load dashboard data', e);
+                const result = await api('/api/cashier/me');
+                state.user = result.user;
+                showApp();
+            } catch (error) {
+                if (!document.getElementById('login-screen').classList.contains('flex')) showLogin();
             }
         }
 
-        function openPaymentModal(orderId, totalAmount) {
-            currentSelectedOrderId = orderId;
-            currentDueAmount = totalAmount;
-            document.getElementById('modal-total-due').innerText = `${totalAmount.toLocaleString()} so'm`;
-            document.getElementById('customer-given-input').value = totalAmount;
-            calculateChange();
-            document.getElementById('payment-modal').classList.remove('hidden');
-            document.getElementById('payment-modal').classList.add('flex');
+        async function refreshMenu() {
+            const response = await fetch('/api/menu', { credentials: 'same-origin' });
+            if (!response.ok) throw new Error('Menyuni yuklab bo‘lmadi');
+            state.menu = await response.json();
         }
 
-        function closePaymentModal() {
-            document.getElementById('payment-modal').classList.remove('flex');
-            document.getElementById('payment-modal').classList.add('hidden');
-        }
-
-        function setPaymentMethod(method) {
-            selectedPaymentMethod = method;
-            ['cash', 'card', 'electronic'].forEach(m => {
-                const btn = document.getElementById(`pm-${m}`);
-                if (m === method) {
-                    btn.className = "py-3 rounded-xl border border-emerald-600 bg-emerald-50 text-emerald-700 font-semibold text-sm transition";
-                } else {
-                    btn.className = "py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition";
-                }
-            });
-            document.getElementById('cash-given-container').style.display = method === 'cash' ? 'block' : 'none';
-        }
-
-        function calculateChange() {
-            const given = parseFloat(document.getElementById('customer-given-input').value) || 0;
-            const change = given - currentDueAmount;
-            document.getElementById('modal-change').innerText = `${change > 0 ? change.toLocaleString() : 0} so'm`;
-        }
-
-        async function confirmPayment() {
-            const given = parseFloat(document.getElementById('customer-given-input').value) || currentDueAmount;
+        async function switchTab(tab) {
+            if (!titles[tab]) return;
+            state.tab = tab;
+            document.querySelectorAll('[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+            document.getElementById('page-title').textContent = titles[tab];
+            document.getElementById('search-results').classList.add('hidden');
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="card p-8 text-center text-sm font-semibold text-slate-500">Yuklanmoqda...</div>';
             try {
-                const res = await fetch('/api/cashier/payments', {
+                if (tab === 'dashboard') await renderDashboard();
+                else if (tab === 'tables') await renderTables();
+                else if (tab === 'orders' || tab === 'takeaway' || tab === 'refunds') await renderOrders(tab);
+                else if (tab === 'payments') await renderPayments();
+                else if (tab === 'customers') renderCustomers();
+                else if (tab === 'debts') await renderDebts();
+                else if (tab === 'expenses') await renderExpenses();
+                else if (tab === 'register') await renderRegister();
+                else if (tab === 'history') await renderHistory();
+                else if (tab === 'reports') renderReports();
+                else if (tab === 'receipts') await renderReceipts();
+                else if (tab === 'calls') await renderCalls();
+                else if (tab === 'printers') await renderPrinters();
+            } catch (error) {
+                content.innerHTML = `<div class="card border-rose-200 p-6 text-rose-700">${esc(error.message)} <button class="btn ml-3 bg-slate-100 px-3 py-2 text-slate-700" data-action="refresh">Qayta urinish</button></div>`;
+            }
+        }
+
+        function statCard(label, value, icon, color = 'blue') {
+            return `<article class="card p-4 sm:p-5"><div class="flex items-start justify-between"><p class="text-xs font-bold uppercase tracking-wide text-slate-500">${esc(label)}</p><span class="grid h-9 w-9 place-items-center rounded-xl bg-${color}-50 text-lg">${icon}</span></div><p class="mt-3 text-xl font-black text-slate-900 sm:text-2xl">${esc(value)}</p></article>`;
+        }
+
+        function orderSource(source) {
+            return ({ CUSTOMER_WEB: '📱 Telegram', TELEGRAM_BOT: '🤖 Bot', WAITER: '👨‍🍳 Ofitsiant', CASHIER: '💵 Kassir' })[source] || 'Noma’lum';
+        }
+
+        function orderCard(order, options = {}) {
+            const table = order.table ? `${order.table.room?.name || ''} · Stol ${order.table.number}` : 'Olib ketish';
+            const customer = order.customer
+                ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim()
+                : order.customerName;
+            const customerPhone = order.customer?.phone || order.customerPhone;
+            const items = (order.items || []).map(item => `<li class="flex justify-between gap-3 text-sm"><span>${esc(item.menuItem?.name || item.name)} × ${esc(item.quantity)}</span><b>${money(item.totalPrice)}</b></li>`).join('');
+            const locked = order.processingBy ? `<p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">🔒 ${esc(order.processingBy.fullName)} buyurtmani qayta ishlamoqda</p>` : '';
+            const due = Number(order.totalAmount) - (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(order.debt?.amount || 0);
+            const hasPayments = (order.payments || []).some(payment => Number(payment.amount) > 0);
+            const verificationReady = order.takeawayVerification && !order.takeawayVerification.usedAt &&
+                new Date(order.takeawayVerification.expiresAt) > new Date() && order.takeawayVerification.attempts < 5;
+            return `<article class="card space-y-3 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div><div class="font-black">#${esc(order.orderNumber)}</div><p class="mt-1 text-xs text-slate-500">${esc(table)} · ${esc(orderSource(order.source))}</p></div>
+                    <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">${esc(order.status)}</span>
+                </div>
+                ${order.orderType === 'TAKEAWAY' ? `<p class="rounded-lg bg-violet-50 p-2 text-xs"><b>🥡 OLIB KETISH</b> · ${esc(customer || 'Mijoz ko‘rsatilmagan')} ${customerPhone ? `· ${esc(customerPhone)}` : ''}</p>` : ''}
+                <ul class="space-y-1 border-y border-slate-100 py-2">${items}</ul>
+                <div class="flex items-end justify-between"><div><p class="text-xs text-slate-500">Jami</p><b class="text-lg">${money(order.totalAmount)}</b></div><span class="text-xs text-slate-500">${dateTime(order.createdAt)}</span></div>
+                ${locked}
+                <div class="flex flex-wrap gap-2">
+                    ${due > 0 && !options.closed ? `<button class="btn bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700" data-action="pay" data-id="${esc(order.id)}">To‘lov</button>` : ''}
+                    ${order.orderType === 'TAKEAWAY' && !options.closed && verificationReady ? `<button class="btn bg-violet-600 px-3 py-2 text-xs text-white hover:bg-violet-700" data-action="verify-pickup" data-id="${esc(order.id)}">Kod / topshirish</button>` : ''}
+                    ${order.orderType === 'TAKEAWAY' && !options.closed && !verificationReady && state.user.role === 'ADMIN' ? `<button class="btn bg-amber-600 px-3 py-2 text-xs text-white" data-action="renew-code" data-id="${esc(order.id)}">Yangi kod berish</button>` : ''}
+                    <button class="btn border border-slate-200 px-3 py-2 text-xs hover:bg-slate-50" data-action="timeline" data-id="${esc(order.id)}">Tarix</button>
+                    ${options.refund && hasPayments && order.status !== 'QAYTARILDI' ? `<button class="btn bg-rose-50 px-3 py-2 text-xs text-rose-700 hover:bg-rose-100" data-action="refund" data-id="${esc(order.id)}">Qaytarish</button>` : ''}
+                </div>
+            </article>`;
+        }
+
+        async function renderDashboard() {
+            const result = await api('/api/cashier/dashboard');
+            const data = result.data;
+            const attention = data.activeOrders.flatMap(order => {
+                const entries = [];
+                const ageMinutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+                if (order.status === 'TOLOV_KUTILMOQDA') entries.push(`💳 #${order.orderNumber} — to‘lov kutilmoqda`);
+                if (ageMinutes > 20 && ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TAYYOR', 'TOLOV_KUTILMOQDA'].includes(order.status)) {
+                    entries.push(`⏱ #${order.orderNumber} — ${ageMinutes} daqiqadan beri kutmoqda`);
+                }
+                if (order.orderType === 'TAKEAWAY' && order.status === 'TOLANDI') entries.push(`🥡 #${order.orderNumber} — olib ketish tasdig‘i kutilmoqda`);
+                if (order.takeawayVerification?.attempts > 0) entries.push(`⚠️ #${order.orderNumber} — noto‘g‘ri kod urinishlari: ${order.takeawayVerification.attempts}`);
+                if (order.takeawayVerification && new Date(order.takeawayVerification.expiresAt) <= new Date() && !order.takeawayVerification.usedAt) {
+                    entries.push(`🔴 #${order.orderNumber} — olib ketish kodi muddati tugagan`);
+                }
+                return entries;
+            });
+            const statusNames = { YANGI: 'Yangi', KUTILMOQDA: 'Kutilmoqda', ADMIN_TASDIGINI_KUTMOQDA: 'Tasdiq kutilmoqda', TASDIQLANDI: 'Tasdiqlangan', OSHXONAGA_YUBORILDI: 'Oshxonada', TAYYORLANMOQDA: 'Tayyorlanmoqda', TAYYOR: 'Tayyor', STOLGA_YETKAZILDI: 'Stolga yetkazildi', TOLOV_KUTILMOQDA: 'To‘lov kutilmoqda', QISMAN_TOLANDI: 'Qisman to‘landi' };
+            document.getElementById('content').innerHTML = `
+                <section class="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-6">
+                    ${statCard('Bugungi savdo', money(data.sales), '💵')}
+                    ${statCard('Naqd', money(data.cash), '💴', 'emerald')}
+                    ${statCard('Karta', money(data.card), '💳', 'indigo')}
+                    ${statCard('Elektron to‘lov', money(data.electronic), '📲', 'cyan')}
+                    ${statCard('Qarz qoldig‘i', money(data.debt), '📒', 'amber')}
+                    ${statCard('Qaytarilgan', money(data.refunds), '↩️', 'rose')}
+                    ${statCard('Bugungi xarajat', money(data.expenses), '💸', 'rose')}
+                    ${statCard('Sof tushum', money(data.netRevenue), '📈', 'emerald')}
+                    ${statCard('Ochiq buyurtma', data.openOrders, '🧾')}
+                    ${statCard('Soboy', data.takeawayOrders, '🥡', 'violet')}
+                    ${statCard('Qarzdor mijoz', data.debtors, '👥', 'amber')}
+                    ${statCard('Kassadagi joriy summa', data.registerCash === null ? 'Smena ochilmagan' : money(data.registerCash), '🏦', 'blue')}
+                </section>
+                <section class="card p-4 sm:p-5">
+                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">Buyurtma holatlari</h2><p class="text-xs text-slate-500">Real vaqt Socket.io yangilanishi</p></div><button class="btn bg-slate-100 px-3 py-2 text-sm" data-action="refresh">Yangilash</button></div>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">${Object.entries(statusNames).map(([key, label]) => `<div class="rounded-xl bg-slate-50 p-3"><p class="text-xs text-slate-500">${label}</p><b class="text-xl">${Number(data.statusCounts[key] || 0)}</b></div>`).join('')}</div>
+                </section>
+                <section class="card border-amber-200 p-4 sm:p-5"><h2 class="text-lg font-black">⚠️ Diqqat talab qilmoqda</h2><div class="mt-2 space-y-2 text-sm">${attention.length ? attention.map(item => `<p class="rounded-lg bg-amber-50 p-3 text-amber-900">${esc(item)}</p>`).join('') : '<p class="rounded-lg bg-emerald-50 p-3 text-emerald-800">Hozircha shoshilinch ogohlantirish yo‘q</p>'}${data.verificationAlerts ? `<p class="rounded-lg bg-rose-50 p-3 text-rose-800">Noto‘g‘ri verification urinishlari kuzatilgan kodlar: ${data.verificationAlerts}</p>` : ''}</div></section>
+                <section><div class="mb-3 flex items-center justify-between"><h2 class="text-lg font-black">Faol buyurtmalar</h2><button class="text-sm font-bold text-blue-700" data-tab="orders">Barchasi →</button></div><div class="grid gap-3 xl:grid-cols-2">${data.activeOrders.length ? data.activeOrders.map(order => orderCard(order)).join('') : '<div class="card col-span-full p-8 text-center text-slate-500">Faol buyurtmalar yo‘q</div>'}</div></section>
+                <section class="card p-4"><div class="flex items-center justify-between gap-3"><h2 class="font-black">🔔 Ofitsiant chaqiruvlari</h2><button class="btn bg-slate-100 px-3 py-2 text-xs" data-tab="calls">Ko‘rish</button></div><div id="dashboard-calls" class="mt-3 text-sm text-slate-500">Chaqiruvlar yuklanmoqda...</div></section>`;
+            loadDashboardCalls();
+        }
+
+        async function loadDashboardCalls() {
+            try {
+                const { data } = await api('/api/cashier/waiter-calls');
+                const container = document.getElementById('dashboard-calls');
+                if (container) container.innerHTML = data.length ? data.map(call => `<p class="border-t border-slate-100 py-2">🔔 ${esc(call.calledBy?.fullName || 'Ofitsiant')} · ${esc(call.table.room.name)} / Stol ${esc(call.table.number)} · ${dateTime(call.createdAt)}</p>`).join('') : 'Faol chaqiruv yo‘q';
+            } catch (error) { console.error('Chaqiruvlarni yuklashda xatolik:', error); }
+        }
+
+        async function renderOrders(tab) {
+            const url = tab === 'takeaway' ? '/api/cashier/orders?type=TAKEAWAY' :
+                tab === 'refunds' ? '/api/cashier/orders?closed=true' : '/api/cashier/orders';
+            const { data } = await api(url);
+            document.getElementById('content').innerHTML = `
+                <div class="card p-4"><div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">${tab === 'takeaway' ? 'Olib ketish buyurtmalari' : 'Barcha faol buyurtmalar'}</h2><p class="text-sm text-slate-500">Manba, holat va to‘lov holati bilan</p></div><button class="btn bg-slate-100 px-3 py-2 text-sm" data-action="refresh">Yangilash</button></div></div>
+                <div class="grid gap-3 xl:grid-cols-2">${data.length ? data.map(order => orderCard(order, { closed: tab === 'refunds', refund: tab === 'refunds' })).join('') : '<div class="card col-span-full p-8 text-center text-slate-500">Buyurtmalar topilmadi</div>'}</div>
+                <div class="card p-5"><h3 class="font-black">Yangi buyurtma yaratish</h3><div id="order-builder" class="mt-4">Yuklanmoqda...</div></div>`;
+            await renderOrderBuilder();
+        }
+
+        async function renderTables() {
+            const [roomsResponse, ordersResponse] = await Promise.all([
+                fetch('/api/rooms', { credentials: 'same-origin' }),
+                api('/api/cashier/orders')
+            ]);
+            const rooms = await roomsResponse.json();
+            if (!roomsResponse.ok) throw new Error(rooms.message || 'Xonalarni yuklab bo‘lmadi');
+            const byTable = new Map();
+            ordersResponse.data.forEach(order => {
+                if (!order.table) return;
+                const key = order.table.id;
+                if (!byTable.has(key)) byTable.set(key, []);
+                byTable.get(key).push(order);
+            });
+            document.getElementById('content').innerHTML = rooms.length ? rooms.map(room => `<section class="space-y-3"><div><h2 class="text-lg font-black">${esc(room.name)}</h2><p class="text-xs text-slate-500">${room.tables.length} ta stol</p></div><div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${room.tables.map(table => {
+                const orders = byTable.get(table.id) || [];
+                const statusColor = table.status === 'AVAILABLE' ? 'emerald' : table.status === 'PENDING' ? 'amber' : 'rose';
+                return `<article class="card p-4"><div class="flex items-center justify-between"><b>Stol ${esc(table.number)}</b><span class="rounded-full bg-${statusColor}-50 px-2 py-1 text-xs font-bold text-${statusColor}-700">${table.status === 'AVAILABLE' ? 'Bo‘sh' : table.status === 'PENDING' ? 'Tasdiq kutilmoqda' : 'Band'}</span></div><p class="mt-2 text-sm text-slate-500">${orders.length} ta faol buyurtma</p><div class="mt-3 space-y-2">${orders.map(order => {
+                    const due = Number(order.totalAmount) - (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(order.debt?.amount || 0);
+                    return `<div class="rounded-lg bg-slate-50 p-2"><p class="text-xs font-bold">#${esc(order.orderNumber)} · ${money(order.totalAmount)}</p>${due > 0 ? `<button class="mt-1 text-xs font-bold text-blue-700" data-action="pay" data-id="${esc(order.id)}">To‘lov</button> ` : ''}<button class="text-xs font-bold text-slate-600" data-action="timeline" data-id="${esc(order.id)}">Tarix</button></div>`;
+                }).join('')}</div></article>`;
+            }).join('')}</div></section>`).join('') : '<div class="card p-8 text-center text-slate-500">Faol xona yo‘q</div>';
+        }
+
+        async function renderOrderBuilder() {
+            if (!state.menu.length) await refreshMenu();
+            const [{ data: packaging }, rooms, inventory] = await Promise.all([
+                api('/api/cashier/packaging'),
+                fetch('/api/rooms', { credentials: 'same-origin' }).then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Stollarni yuklab bo‘lmadi');
+                    return data;
+                }),
+                state.user.role === 'ADMIN'
+                    ? api('/api/inventory').then(data => data)
+                    : Promise.resolve([])
+            ]);
+            const root = document.getElementById('order-builder');
+            if (!root) return;
+            root.innerHTML = `
+                <form id="order-form" class="grid gap-4 md:grid-cols-2">
+                    <label class="text-sm font-semibold">Buyurtma turi<select name="orderType" class="field mt-1"><option value="DINE_IN">Zalda</option><option value="TAKEAWAY">Olib ketish / Soboy</option></select></label>
+                    <label id="order-table-label" class="text-sm font-semibold">Stol<select name="tableId" class="field mt-1"><option value="">Stolni tanlang</option>${rooms.map(room => `<optgroup label="${esc(room.name)}">${room.tables.map(table => `<option value="${esc(table.id)}">${esc(table.number)}${table.status === 'AVAILABLE' ? ' · Bo‘sh' : ` · ${esc(table.status)}`}</option>`).join('')}</optgroup>`).join('')}</select></label>
+                    <label class="text-sm font-semibold">Mijoz ID (ixtiyoriy)<input name="customerId" class="field mt-1" placeholder="Mijoz bo‘lsa tanlang"></label>
+                    <label class="text-sm font-semibold">Mijoz qidirish<input id="order-customer-search" class="field mt-1" placeholder="Ism, telefon yoki #ID"><div id="order-customer-results" class="mt-1 space-y-1"></div></label>
+                    <label class="text-sm font-semibold">Mijoz ismi<input name="customerName" class="field mt-1"></label>
+                    <label class="text-sm font-semibold">Telefon<input name="customerPhone" class="field mt-1" inputmode="tel"></label>
+                    <div class="md:col-span-2 grid gap-2 sm:grid-cols-[1fr_150px_auto]">
+                        <label class="text-sm font-semibold">Taom<select id="builder-menu-item" class="field mt-1"><option value="">Taom tanlang</option>${state.menu.map(item => `<option value="${esc(item.id)}">${esc(item.name)} · ${money(item.sellingPrice)}</option>`).join('')}</select></label>
+                        <label class="text-sm font-semibold">Miqdor<input id="builder-quantity" type="number" min="0.01" step="0.01" value="1" class="field mt-1"></label>
+                        <button type="button" class="btn mt-6 bg-slate-900 px-4 py-2 text-white" data-action="cart-add">Savatga</button>
+                    </div>
+                    <div id="cart-lines" class="md:col-span-2 rounded-xl bg-slate-50 p-3 text-sm">Savat bo‘sh</div>
+                    ${packaging.length ? `<div class="md:col-span-2 rounded-xl border border-slate-200 p-3"><p class="mb-2 text-sm font-bold">Qadoqlash</p>${packaging.map(item => `<label class="mr-4 inline-flex items-center gap-2 text-sm"><input type="checkbox" data-package="${esc(item.id)}"> ${esc(item.name)} (${esc(item.inventory.unit)}) ${money(item.sellingPrice)} <input data-package-quantity="${esc(item.id)}" type="number" value="1" min="0.01" step="0.01" class="field w-20 py-1" disabled></label>`).join('')}</div>` : ''}
+                    ${state.user.role === 'ADMIN' ? `<div class="md:col-span-2 rounded-xl border border-violet-200 bg-violet-50/40 p-3"><p class="mb-2 text-sm font-bold">Admin · Qadoqlash mahsulotini sozlash</p><div class="grid gap-2 sm:grid-cols-3"><select id="package-inventory" class="field"><option value="">Ombor mahsulotini tanlang</option>${inventory.map(product => `<option value="${esc(product.id)}">${esc(product.name)} (${esc(product.unit)})</option>`).join('')}</select><input id="package-name" class="field" placeholder="Masalan: Paket"><input id="package-price" type="number" min="0" step="0.01" class="field" placeholder="Sotish narxi"></div><button type="button" class="btn mt-2 bg-violet-600 px-3 py-2 text-xs text-white" data-action="save-packaging">Qadoqlashni saqlash</button></div>` : ''}
+                    <p id="order-create-error" class="hidden md:col-span-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-700"></p>
+                    <button class="btn md:col-span-2 bg-blue-600 px-4 py-3 text-white hover:bg-blue-700">Buyurtmani yaratish</button>
+                </form>`;
+            state.cart = [];
+            root.querySelectorAll('[data-package]').forEach(check => check.addEventListener('change', () => {
+                const input = root.querySelector(`[data-package-quantity="${check.dataset.package}"]`);
+                input.disabled = !check.checked;
+            }));
+            root.querySelector('select[name="orderType"]').addEventListener('change', event => {
+                root.querySelector('#order-table-label').classList.toggle('hidden', event.target.value === 'TAKEAWAY');
+            });
+            root.querySelector('#order-customer-search').addEventListener('input', searchOrderCustomers);
+            root.querySelector('#order-form').addEventListener('submit', createOrder);
+            renderCartLines();
+        }
+
+        function searchOrderCustomers(event) {
+            clearTimeout(state.customerTimer);
+            const query = event.target.value.trim();
+            state.customerTimer = setTimeout(async () => {
+                if (query.length < 2) return;
+                try {
+                    const { data } = await api(`/api/cashier/customers?q=${encodeURIComponent(query)}`);
+                    const root = document.getElementById('order-customer-results');
+                    if (!root) return;
+                    root.innerHTML = data.map(customer => `<button type="button" class="block w-full rounded-lg bg-blue-50 p-2 text-left text-xs" data-action="select-customer" data-id="${esc(customer.id)}" data-name="${esc(`${customer.firstName} ${customer.lastName}`)}">${esc(customer.firstName)} ${esc(customer.lastName)} · ${esc(customer.phoneMasked || '')} · #${esc(customer.customerNumber)}</button>`).join('');
+                } catch (error) { toast(error.message, 'error'); }
+            }, 250);
+        }
+
+        function renderCartLines() {
+            const root = document.getElementById('cart-lines');
+            if (!root) return;
+            root.innerHTML = state.cart.length ? state.cart.map((line, index) => `<div class="flex items-center justify-between gap-2 border-b border-slate-200 py-2"><span>${esc(line.name)} × ${esc(line.quantity)}</span><b>${money(line.total)}</b><button type="button" data-action="cart-remove" data-index="${index}" class="font-bold text-rose-600">O‘chirish</button></div>`).join('') + `<p class="pt-3 text-right font-black">Jami: ${money(state.cart.reduce((sum, line) => sum + line.total, 0))}</p>` : 'Savat bo‘sh';
+        }
+
+        async function createOrder(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = new FormData(form);
+            const errorBox = form.querySelector('#order-create-error');
+            const items = state.cart.map(line => ({ menuItemId: line.id, quantity: line.quantity }));
+            const packaging = [...form.querySelectorAll('[data-package]:checked')].map(input => ({
+                optionId: input.dataset.package,
+                quantity: form.querySelector(`[data-package-quantity="${input.dataset.package}"]`).value
+            }));
+            if (!items.length) { errorBox.textContent = 'Savatga kamida bitta taom qo‘shing'; errorBox.classList.remove('hidden'); return; }
+            const body = Object.fromEntries(values.entries());
+            body.items = items;
+            body.packaging = packaging;
+            try {
+                const result = await api('/api/cashier/orders', { method: 'POST', body: JSON.stringify(body) });
+                state.cart = [];
+                toast(result.data.verificationCode ? `Buyurtma yaratildi. Olib ketish kodi: ${result.data.verificationCode}` : 'Buyurtma yaratildi va oshxonaga yuborildi');
+                await switchTab(state.tab);
+            } catch (error) {
+                errorBox.textContent = error.message;
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        async function renderPayments() {
+            const { data } = await api('/api/cashier/payments');
+            document.getElementById('content').innerHTML = `<section class="card overflow-hidden"><div class="flex items-center justify-between p-4"><div><h2 class="font-black">To‘lovlar</h2><p class="text-xs text-slate-500">Oxirgi 250 ta to‘lov</p></div><button data-action="refresh" class="btn bg-slate-100 px-3 py-2 text-sm">Yangilash</button></div><div class="overflow-x-auto"><table class="w-full min-w-[700px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Sana</th><th class="p-3">Buyurtma</th><th class="p-3">Turi</th><th class="p-3">Usul</th><th class="p-3">Summa</th><th class="p-3">Kassir</th></tr></thead><tbody>${data.length ? data.map(payment => `<tr class="border-t"><td class="p-3">${dateTime(payment.createdAt)}</td><td class="p-3 font-bold">${esc(payment.order.orderNumber)}</td><td class="p-3">${payment.order.orderType === 'TAKEAWAY' ? '🥡 Soboy' : `Stol ${esc(payment.order.table?.number || '—')}`}</td><td class="p-3">${esc(payment.method)}</td><td class="p-3 font-bold">${money(payment.amount)}</td><td class="p-3">${esc(payment.cashier.fullName)}</td></tr>`).join('') : '<tr><td colspan="6" class="p-8 text-center text-slate-500">To‘lovlar yo‘q</td></tr>'}</tbody></table></div></section>`;
+        }
+
+        function renderCustomers() {
+            document.getElementById('content').innerHTML = `<section class="card p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black">Mijozlar</h2><p class="text-sm text-slate-500">Ism, familiya, telefonning bir qismi yoki mijoz IDsi</p></div><button data-action="new-customer" class="btn bg-blue-600 px-4 py-2 text-sm text-white">+ Mijoz</button></div><form id="customer-search-form" class="mt-4 flex gap-2"><input id="customer-search" class="field" placeholder="Masalan: Anvar, 4567 yoki #1025"><button class="btn bg-slate-900 px-4 text-white">Qidirish</button></form><div id="customer-results" class="mt-4 grid gap-3 lg:grid-cols-2"></div><div id="customer-detail" class="mt-4"></div></section>`;
+            document.getElementById('customer-search-form').addEventListener('submit', searchCustomers);
+        }
+
+        async function searchCustomers(event) {
+            event.preventDefault();
+            const query = document.getElementById('customer-search').value.trim();
+            const root = document.getElementById('customer-results');
+            try {
+                const { data } = await api(`/api/cashier/customers?q=${encodeURIComponent(query)}`);
+                root.innerHTML = data.length ? data.map(customer => `<button class="card p-4 text-left hover:border-blue-300" data-action="customer-detail" data-id="${esc(customer.id)}"><b>${esc(customer.firstName)} ${esc(customer.lastName)}</b><p class="mt-1 text-xs text-slate-500">${esc(customer.phoneMasked || 'Telefon yo‘q')} · #${esc(customer.customerNumber)}</p><p class="mt-2 text-sm">Tashrif: ${customer.visits} · Xarid: ${money(customer.purchases)} · Qarz: ${money(customer.debt)}</p></button>`).join('') : '<div class="text-sm text-slate-500">Mijoz topilmadi</div>';
+            } catch (error) { toast(error.message, 'error'); }
+        }
+
+        async function showCustomer(id) {
+            try {
+                const { data } = await api(`/api/cashier/customers/${encodeURIComponent(id)}`);
+                const root = document.getElementById('customer-detail');
+                if (!root) return;
+                root.innerHTML = `<div class="rounded-2xl border border-blue-200 bg-blue-50/50 p-4"><div class="flex flex-wrap justify-between gap-2"><div><h3 class="text-lg font-black">${esc(data.firstName)} ${esc(data.lastName)}</h3><p class="text-sm">${esc(data.phone || 'Telefon yo‘q')} · #${esc(data.customerNumber)}</p></div><div class="text-right"><b>${money(data.debts.reduce((sum, debt) => sum + Number(debt.remaining), 0))}</b><p class="text-xs">Joriy qarz</p></div></div><h4 class="mt-4 font-bold">Buyurtmalar tarixi</h4><div class="mt-2 space-y-1">${data.orders.map(order => `<p class="flex justify-between border-t border-blue-100 py-2 text-sm"><span>#${esc(order.orderNumber)} · ${esc(order.status)}</span><span>${money(order.totalAmount)}</span></p>`).join('') || '<p class="text-sm text-slate-500">Buyurtma yo‘q</p>'}</div><h4 class="mt-4 font-bold">Qarz tarixi</h4><div class="mt-2 space-y-2">${data.debts.map(debt => `<div class="rounded-lg bg-white p-3 text-sm"><div class="flex justify-between"><b>#${esc(debt.order.orderNumber)}</b><span>Qoldiq ${money(debt.remaining)}</span></div><p class="text-xs text-slate-500">Jami ${money(debt.amount)} · ${dateTime(debt.createdAt)}</p>${debt.remaining > 0 ? `<button class="btn mt-2 bg-emerald-600 px-3 py-1.5 text-xs text-white" data-action="debt-pay" data-id="${esc(debt.id)}" data-amount="${esc(debt.remaining)}" data-customer="${esc(data.id)}">Qarz to‘lash</button>` : ''}</div>`).join('') || '<p class="text-sm text-slate-500">Qarz yo‘q</p>'}</div></div>`;
+            } catch (error) { toast(error.message, 'error'); }
+        }
+
+        async function renderDebts() {
+            const { data } = await api('/api/cashier/debts');
+            document.getElementById('content').innerHTML = `<section class="card overflow-hidden"><div class="p-4"><h2 class="font-black">Faol qarzlar</h2><p class="text-xs text-slate-500">Qarzlar tarixda saqlanadi, yozuvlar o‘chirilmaydi</p></div><div class="overflow-x-auto"><table class="w-full min-w-[750px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Mijoz</th><th class="p-3">Buyurtma</th><th class="p-3">Boshlang‘ich</th><th class="p-3">Qoldiq</th><th class="p-3">Kim qo‘shdi</th><th class="p-3">Sana</th><th class="p-3">Amal</th></tr></thead><tbody>${data.length ? data.map(debt => `<tr class="border-t"><td class="p-3">${esc(debt.customer.firstName)} ${esc(debt.customer.lastName)}<br><small>#${esc(debt.customer.customerNumber)} ${esc(debt.customer.phone || '')}</small></td><td class="p-3">${esc(debt.order.orderNumber)}</td><td class="p-3">${money(debt.amount)}</td><td class="p-3 font-bold text-rose-700">${money(debt.remaining)}</td><td class="p-3">${esc(debt.createdBy.fullName)}</td><td class="p-3">${dateTime(debt.createdAt)}</td><td class="p-3"><button data-action="debt-pay" data-id="${esc(debt.id)}" data-amount="${esc(debt.remaining)}" data-customer="${esc(debt.customerId)}" class="btn bg-emerald-600 px-3 py-2 text-xs text-white">To‘lov</button></td></tr>`).join('') : '<tr><td colspan="7" class="p-8 text-center text-slate-500">Faol qarz yo‘q</td></tr>'}</tbody></table></div></section>`;
+        }
+
+        async function renderExpenses() {
+            const { data } = await api('/api/cashier/expenses');
+            document.getElementById('content').innerHTML = `<section class="grid gap-4 lg:grid-cols-[minmax(280px,380px)_1fr]"><form id="expense-form" class="card space-y-3 p-5"><h2 class="text-lg font-black">Xarajat qo‘shish</h2><label class="block text-sm font-semibold">Kategoriya<input name="category" class="field mt-1" required placeholder="Masalan: Transport"></label><label class="block text-sm font-semibold">Izoh<input name="description" class="field mt-1" required placeholder="Xarajat tavsifi"></label><label class="block text-sm font-semibold">Summa<input name="amount" class="field mt-1" type="number" min="1" step="0.01" required></label><label class="block text-sm font-semibold">To‘lov usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="expense-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-blue-600 px-4 py-3 text-white">Xarajatni saqlash</button></form><div class="card overflow-hidden"><div class="p-4 font-black">Xarajatlar tarixi</div><div class="divide-y">${data.length ? data.map(expense => `<div class="flex justify-between gap-3 p-4 text-sm"><div><b>${esc(expense.category)}</b><p class="text-xs text-slate-500">${esc(expense.description)} · ${esc(expense.cashier.fullName)} · ${dateTime(expense.createdAt)}</p></div><b class="text-rose-700">${money(expense.amount)}</b></div>`).join('') : '<p class="p-8 text-center text-slate-500">Xarajatlar yo‘q</p>'}</div></div></section>`;
+            document.getElementById('expense-form').addEventListener('submit', createExpense);
+        }
+
+        async function createExpense(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const body = Object.fromEntries(new FormData(form).entries());
+            const button = form.querySelector('button[type="submit"]') || form.querySelector('button');
+            button.disabled = true;
+            try {
+                await api('/api/cashier/expenses', { method: 'POST', body: JSON.stringify({ ...body, idempotencyKey: newKey() }) });
+                toast('Xarajat saqlandi');
+                await switchTab('expenses');
+            } catch (error) {
+                const box = form.querySelector('#expense-error');
+                box.textContent = error.message;
+                box.classList.remove('hidden');
+            } finally { button.disabled = false; }
+        }
+
+        async function renderRegister() {
+            const { data: session } = await api('/api/cashier/register');
+            state.register = session;
+            document.getElementById('content').innerHTML = session ? `
+                <section class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                    <div class="card p-5"><div class="flex items-center justify-between"><div><p class="text-xs font-bold uppercase text-slate-500">Ochiq smena</p><h2 class="mt-1 text-xl font-black">${esc(state.user.fullName)}</h2></div><span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-800">Faol</span></div><p class="mt-3 text-sm">Boshlang‘ich kassa: <b>${money(session.startingBalance)}</b></p><p class="text-sm">Ochildi: ${dateTime(session.openedAt)}</p>                    <div class="mt-4 rounded-xl bg-slate-50 p-4">Kutilgan kassa: <b>${money(session.currentExpected)}</b></div></div>
+                    <form id="register-close-form" class="card space-y-3 p-5"><h3 class="text-lg font-black">Smenani yopish</h3><label class="text-sm font-semibold">Amaldagi pul<input name="actualCash" class="field mt-1" type="number" min="0" step="0.01" required></label><label class="text-sm font-semibold">Izoh (ixtiyoriy)<input name="closingNote" class="field mt-1"></label><p id="register-error" class="hidden text-sm text-rose-700"></p><button class="btn bg-rose-600 px-4 py-3 text-white">Yopish va hisoblash</button></form>
+                </section>` : `
+                <form id="register-open-form" class="card mx-auto max-w-xl space-y-4 p-6"><div><h2 class="text-xl font-black">Kassir smenasini ochish</h2><p class="text-sm text-slate-500">Boshlang‘ich qoldiq moliyaviy tarixga yoziladi.</p></div><label class="text-sm font-semibold">Boshlang‘ich kassa, so‘m<input name="startingBalance" class="field mt-1" type="number" min="0" step="0.01" value="0" required></label><label class="text-sm font-semibold">Terminal identifikatori (ixtiyoriy)<input name="terminalId" class="field mt-1"></label><p id="register-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-blue-600 px-4 py-3 text-white">Smenani ochish</button></form>`;
+            const openForm = document.getElementById('register-open-form');
+            const closeForm = document.getElementById('register-close-form');
+            if (openForm) openForm.addEventListener('submit', openRegister);
+            if (closeForm) closeForm.addEventListener('submit', closeRegister);
+        }
+
+        async function openRegister(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = Object.fromEntries(new FormData(form).entries());
+            const button = form.querySelector('button');
+            button.disabled = true;
+            try {
+                await api('/api/cashier/register/open', { method: 'POST', body: JSON.stringify({ ...values, idempotencyKey: newKey() }) });
+                toast('Smena ochildi');
+                await switchTab('register');
+            } catch (error) { form.querySelector('#register-error').textContent = error.message; form.querySelector('#register-error').classList.remove('hidden'); }
+            finally { button.disabled = false; }
+        }
+
+        async function closeRegister(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = Object.fromEntries(new FormData(form).entries());
+            const expected = Number(state.register?.currentExpected || 0);
+            const actual = Number(values.actualCash);
+            openModal('Smenani yakunlaysizmi?', `<div class="space-y-3"><p class="text-sm">Kutilgan summa: <b>${money(expected)}</b></p><p class="text-sm">Sanab chiqilgan: <b>${money(actual)}</b></p><p class="text-sm">Farq: <b>${money(actual - expected)}</b></p><form id="confirm-register-close"><input type="hidden" name="actualCash" value="${esc(values.actualCash)}"><input type="hidden" name="closingNote" value="${esc(values.closingNote)}"><button class="btn w-full bg-rose-600 px-4 py-3 text-white">Tasdiqlash va yopish</button></form></div>`);
+            document.getElementById('confirm-register-close').addEventListener('submit', async closeEvent => {
+                closeEvent.preventDefault();
+                const confirmForm = closeEvent.currentTarget, button = confirmForm.querySelector('button');
+                button.disabled = true;
+                try {
+                    const { data } = await api('/api/cashier/register/close', {
+                        method: 'POST',
+                        body: JSON.stringify({ ...Object.fromEntries(new FormData(confirmForm).entries()), idempotencyKey: newKey() })
+                    });
+                    closeModal();
+                    toast(`Smena yopildi · Farq ${money(data.difference)}`);
+                    await switchTab('register');
+                } catch (error) {
+                    const errorBox = document.createElement('p');
+                    errorBox.className = 'mt-2 text-sm text-rose-700';
+                    errorBox.textContent = error.message;
+                    confirmForm.appendChild(errorBox);
+                } finally { button.disabled = false; }
+            });
+        }
+
+        async function renderHistory() {
+            const { data } = await api('/api/cashier/history');
+            document.getElementById('content').innerHTML = `<section class="grid gap-4 lg:grid-cols-2"><div class="card overflow-hidden"><h2 class="p-4 font-black">Pul harakatlari</h2><div class="divide-y">${data.movements.length ? data.movements.map(item => `<div class="flex justify-between gap-3 p-4 text-sm"><div><b>${esc(item.type)}</b><p class="text-xs text-slate-500">${esc(item.user.fullName)} · ${dateTime(item.createdAt)}</p></div><b>${money(item.amount)}</b></div>`).join('') : '<p class="p-8 text-center text-slate-500">Harakatlar yo‘q</p>'}</div></div><div class="card overflow-hidden"><h2 class="p-4 font-black">Smenalar</h2><div class="divide-y">${data.sessions.length ? data.sessions.map(session => `<div class="p-4 text-sm"><b>${esc(session.cashier.fullName)}</b><p class="text-xs text-slate-500">${dateTime(session.openedAt)} – ${dateTime(session.closedAt)}</p><p>Kutilgan ${money(session.expectedCash)} · Amalda ${money(session.actualCash)} · Farq ${money(session.difference)}</p></div>`).join('') : '<p class="p-8 text-center text-slate-500">Smena tarixi yo‘q</p>'}</div></div></section>`;
+        }
+
+        function renderReports() {
+            const today = new Date().toISOString().slice(0, 10);
+            document.getElementById('content').innerHTML = `<section class="card p-5"><h2 class="text-lg font-black">Savdo hisoboti</h2><form id="report-form" class="mt-4 flex flex-wrap items-end gap-3"><label class="text-sm font-semibold">Boshlanish<input class="field mt-1" name="from" type="date" value="${today}"></label><label class="text-sm font-semibold">Tugash<input class="field mt-1" name="to" type="date" value="${today}"></label><button class="btn bg-blue-600 px-5 py-2.5 text-white">Hisobot</button></form><div id="report-results" class="mt-5"></div></section>`;
+            document.getElementById('report-form').addEventListener('submit', loadReport);
+            loadReport({ preventDefault() {}, currentTarget: document.getElementById('report-form') });
+        }
+
+        async function loadReport(event) {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            const from = new Date(`${values.get('from')}T00:00:00`).toISOString();
+            const to = new Date(`${values.get('to')}T23:59:59.999`).toISOString();
+            try {
+                const { data } = await api(`/api/cashier/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+                const payments = data.payments || {};
+                const total = Number(payments.NAQD || 0) + Number(payments.PLASTIK || 0) + Number(payments.ELEKTRON || 0) + Number(data.debtsCreated || 0);
+                document.getElementById('report-results').innerHTML = `<div class="grid grid-cols-2 gap-3 md:grid-cols-4">${statCard('Savdo + qarz', money(total), '💵')}${statCard('Naqd', money(payments.NAQD), '💴')}${statCard('Karta', money(payments.PLASTIK), '💳')}${statCard('Elektron', money(payments.ELEKTRON), '📲')}${statCard('Qarz yaratildi', money(data.debtsCreated), '📒')}${statCard('Qarz undirildi', money(data.debtsCollected), '✅')}${statCard('Qaytarildi', money(data.refunds), '↩️')}${statCard('Xarajat', money(data.expenses), '💸')}</div><div class="card mt-4 p-4"><h3 class="font-black">Buyurtma turi</h3><p class="mt-2 text-sm">Zalda: ${data.orders.DINE_IN?.count || 0} ta · ${money(data.orders.DINE_IN?.amount)}</p><p class="text-sm">Olib ketish: ${data.orders.TAKEAWAY?.count || 0} ta · ${money(data.orders.TAKEAWAY?.amount)}</p></div>`;
+            } catch (error) { document.getElementById('report-results').innerHTML = `<p class="text-sm text-rose-700">${esc(error.message)}</p>`; }
+        }
+
+        async function renderReceipts() {
+            const { data } = await api('/api/cashier/receipts');
+            document.getElementById('content').innerHTML = `<section class="card overflow-hidden"><h2 class="p-4 font-black">Cheklar</h2><div class="divide-y">${data.length ? data.map(receipt => `<div class="flex flex-wrap items-center justify-between gap-3 p-4"><div><b>${esc(receipt.receiptNumber)}</b><p class="text-xs text-slate-500">Buyurtma ${esc(receipt.order.orderNumber)} · ${dateTime(receipt.createdAt)}</p></div><button class="btn bg-slate-900 px-3 py-2 text-xs text-white" data-action="reprint" data-id="${esc(receipt.id)}">Qayta chiqarish</button></div>`).join('') : '<p class="p-8 text-center text-slate-500">Cheklar yo‘q</p>'}</div></section>`;
+        }
+
+        async function renderCalls() {
+            const { data } = await api('/api/cashier/waiter-calls');
+            document.getElementById('content').innerHTML = `<section class="space-y-3">${data.length ? data.map(call => `<article class="card flex flex-wrap items-center justify-between gap-3 p-4"><div><b>🔔 ${esc(call.calledBy?.fullName || 'Ofitsiant')} chaqirmoqda</b><p class="text-sm text-slate-500">${esc(call.table.room.name)} · Stol ${esc(call.table.number)} · ${dateTime(call.createdAt)}</p><p class="text-xs">${esc(call.status)}</p></div><div class="flex gap-2">${call.status === 'YANGI' ? `<button class="btn bg-blue-600 px-3 py-2 text-xs text-white" data-action="call-status" data-status="QABUL_QILINDI" data-id="${esc(call.id)}">Qabul qilish</button>` : ''}<button class="btn bg-emerald-600 px-3 py-2 text-xs text-white" data-action="call-status" data-status="YAKUNLANDI" data-id="${esc(call.id)}">Bajarildi</button></div></article>`).join('') : '<div class="card p-8 text-center text-slate-500">Faol chaqiruvlar yo‘q</div>'}</section>`;
+        }
+
+        async function renderPrinters() {
+            const { data } = await api('/api/cashier/printers');
+            document.getElementById('content').innerHTML = `<section class="card p-5"><h2 class="text-lg font-black">Printerlar</h2><p class="mt-1 text-sm text-amber-700">Ulanish holati ushbu serverda faol printer drayveri orqali tekshirilmaydi. “Sozlangan” faqat konfiguratsийг bildiradi.</p><div class="mt-4 grid gap-3 md:grid-cols-2">${data.map(printer => `<article class="rounded-xl border p-4"><b>${esc(printer.name)}</b><p class="text-sm text-slate-500">${esc(printer.department)} · ${esc(printer.ipAddress)}:${printer.port}</p><span class="mt-2 inline-block rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">${printer.isActive ? 'Sozlangan' : 'O‘chirilgan'}</span></article>`).join('') || '<p class="text-slate-500">Printer sozlanmagan</p>'}</div></section>`;
+        }
+
+        function openModal(title, body, options = {}) {
+            const root = document.getElementById('modal-root');
+            root.innerHTML = `<div class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" data-backdrop><section role="dialog" aria-modal="true" aria-labelledby="modal-title" class="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div class="mb-4 flex items-center justify-between"><h2 id="modal-title" class="text-lg font-black">${esc(title)}</h2><button type="button" class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-xl" data-action="modal-close" aria-label="Yopish">&times;</button></div>${body}</section></div>`;
+            root.querySelector('[data-backdrop]').addEventListener('click', event => { if (event.target === event.currentTarget) closeModal(); });
+            root.querySelectorAll('[data-modal-submit]').forEach(button => button.addEventListener('click', options.submit));
+        }
+        function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+
+        async function openPayment(orderId) {
+            try {
+                await api(`/api/cashier/orders/${encodeURIComponent(orderId)}/lock`, { method: 'POST' });
+                const { data } = await api(`/api/cashier/orders?q=${encodeURIComponent(orderId)}`);
+                const order = data.find(item => item.id === orderId);
+                if (!order) throw new Error('Buyurtma topilmadi');
+                state.currentOrder = order;
+                const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+                const due = Number(order.totalAmount) - paid - Number(order.debt?.amount || 0);
+                openModal('To‘lovni qabul qilish', `<form id="payment-form" class="space-y-3"><div class="rounded-xl bg-blue-50 p-4"><p class="text-sm">Buyurtma #${esc(order.orderNumber)}</p><p class="text-2xl font-black">${money(due)}</p><p class="text-xs text-slate-500">Naqd, karta, elektron va qarz aralashtirish mumkin</p></div><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">Naqd<input class="field mt-1" name="cash" type="number" min="0" step="0.01" value="${due}"></label><label class="text-sm font-semibold">Mijoz bergan naqd<input class="field mt-1" name="given" type="number" min="0" step="0.01" value="${due}"></label><label class="text-sm font-semibold">Karta<input class="field mt-1" name="card" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Elektron<input class="field mt-1" name="electronic" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Qarz qismi<input class="field mt-1" name="debt" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Mijoz IDsi (qarz uchun)<input class="field mt-1" name="customerId" value="${esc(order.customer?.id || '')}"></label></div><p id="payment-sum" class="rounded-lg bg-slate-50 p-3 text-sm font-bold"></p><p id="payment-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-blue-600 px-4 py-3 text-white">To‘lovni tasdiqlash</button><button type="button" data-action="unlock-order" data-id="${esc(orderId)}" class="w-full py-2 text-sm font-semibold text-slate-500">Bekor qilish</button></form>`);
+                const form = document.getElementById('payment-form');
+                const update = () => {
+                    const values = Object.fromEntries(new FormData(form).entries());
+                    const amount = ['cash', 'card', 'electronic', 'debt'].reduce((sum, key) => sum + Number(values[key] || 0), 0);
+                    form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amount)} · Qoldiq: ${money(due - amount)}`;
+                };
+                form.addEventListener('input', event => {
+                    if (event.target.name === 'cash') form.elements.given.value = event.target.value;
+                    update();
+                });
+                update();
+                form.addEventListener('submit', submitPayment);
+            } catch (error) { await api(`/api/cashier/orders/${encodeURIComponent(orderId)}/unlock`, { method: 'POST' }).catch(() => {}); toast(error.message, 'error'); }
+        }
+
+        async function submitPayment(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = Object.fromEntries(new FormData(form).entries());
+            const due = Number(state.currentOrder.totalAmount) - state.currentOrder.payments.reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(state.currentOrder.debt?.amount || 0);
+            const cash = Number(values.cash || 0), card = Number(values.card || 0), electronic = Number(values.electronic || 0), debt = Number(values.debt || 0);
+            const sum = cash + card + electronic + debt;
+            const error = form.querySelector('#payment-error');
+            if ([cash, card, electronic, debt].some(value => !Number.isFinite(value) || value < 0) || Math.abs(sum - due) > 0.001) {
+                error.textContent = 'To‘lov va qarz summasi to‘lanadigan qoldiqqa teng bo‘lishi kerak';
+                error.classList.remove('hidden');
+                return;
+            }
+            if (debt > 0 && !values.customerId) { error.textContent = 'Qarz uchun mijoz IDsi kerak'; error.classList.remove('hidden'); return; }
+            const payments = [
+                ...(cash > 0 ? [{ method: 'NAQD', amount: cash, customerGiven: Number(values.given || cash) }] : []),
+                ...(card > 0 ? [{ method: 'PLASTIK', amount: card }] : []),
+                ...(electronic > 0 ? [{ method: 'ELEKTRON', amount: electronic }] : [])
+            ];
+            const button = form.querySelector('button[type="submit"]');
+            button.disabled = true;
+            try {
+                await api('/api/cashier/payments', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        orderId: currentSelectedOrderId,
-                        method: selectedPaymentMethod,
-                        amountPaid: currentDueAmount,
-                        customerGiven: given
+                        orderId: state.currentOrder.id, payments, debtAmount: debt,
+                        customerId: values.customerId || null, idempotencyKey: newKey()
                     })
                 });
-                const json = await res.json();
-                if (json.success) {
-                    alert('To‘lov muvaffaqiyatli qabul qilindi');
-                    closePaymentModal();
-                    loadDashboardData();
-                } else {
-                    alert(json.message || 'Xatolik yuz berdi');
-                }
-            } catch (e) {
-                alert('To‘lovni amalga oshirib bo‘lmadi');
-            }
+                closeModal();
+                toast('To‘lov saqlandi. Chek chop etish navbatiga qo‘yildi.');
+                await switchTab(state.tab);
+            } catch (error) { form.querySelector('#payment-error').textContent = error.message; form.querySelector('#payment-error').classList.remove('hidden'); }
+            finally { button.disabled = false; }
         }
 
-        // Clock updater
+        function openDebtPayment(id, remaining) {
+            openModal('Qarz to‘lovi', `<form id="debt-payment-form" class="space-y-3"><label class="block text-sm font-semibold">Qoldiq: ${money(remaining)}<input name="amount" class="field mt-1" type="number" min="1" max="${esc(remaining)}" step="0.01" required></label><label class="block text-sm font-semibold">To‘lov usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="debt-payment-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-emerald-600 px-4 py-3 text-white">To‘lovni saqlash</button></form>`);
+            document.getElementById('debt-payment-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const button = form.querySelector('button');
+                button.disabled = true;
+                try {
+                    await api(`/api/cashier/debts/${encodeURIComponent(id)}/payments`, { method: 'POST', body: JSON.stringify({ ...Object.fromEntries(new FormData(form).entries()), idempotencyKey: newKey() }) });
+                    closeModal(); toast('Qarz to‘lovi saqlandi. Chek chop etish navbatiga qo‘yildi.'); await switchTab(state.tab);
+                } catch (error) { form.querySelector('#debt-payment-error').textContent = error.message; form.querySelector('#debt-payment-error').classList.remove('hidden'); }
+                finally { button.disabled = false; }
+            });
+        }
+
+        async function openRefund(id) {
+            const { data } = await api(`/api/cashier/orders?q=${encodeURIComponent(id)}&closed=true`);
+            const order = data.find(item => item.id === id);
+            if (!order) { toast('Buyurtma topilmadi', 'error'); return; }
+            const refunded = (order.refunds || []).flatMap(refund => refund.items || []).reduce((map, item) => {
+                map[item.orderItemId] = (map[item.orderItemId] || 0) + Number(item.quantity);
+                return map;
+            }, {});
+            openModal('Buyurtmadan mahsulot qaytarish', `<form id="refund-form" class="space-y-3"><input type="hidden" name="orderId" value="${esc(id)}"><div class="space-y-2">${order.items.map(item => {
+                const available = Math.max(0, Number(item.quantity) - (refunded[item.id] || 0));
+                return `<label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>${esc(item.menuItem.name)} · Qaytarish mumkin ${available} / ${esc(item.quantity)} × ${money(item.unitPrice)}</span><input class="field w-28" data-refund-item="${esc(item.id)}" type="number" min="0" max="${available}" step="0.01" value="0" ${available === 0 ? 'disabled' : ''} aria-label="${esc(item.menuItem.name)} qaytarish miqdori"></label>`;
+            }).join('')}</div><label class="block text-sm font-semibold">Sabab<input name="reason" class="field mt-1" required></label><label class="block text-sm font-semibold">Qaytarish usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="refund-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-rose-600 px-4 py-3 text-white">Qaytarishni saqlash</button></form>`);
+            document.getElementById('refund-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const items = [...form.querySelectorAll('[data-refund-item]')].filter(input => Number(input.value) > 0).map(input => ({ orderItemId: input.dataset.refundItem, quantity: input.value }));
+                if (!items.length) { form.querySelector('#refund-error').textContent = 'Qaytariladigan mahsulot miqdorini kiriting'; form.querySelector('#refund-error').classList.remove('hidden'); return; }
+                const button = form.querySelector('button'); button.disabled = true;
+                try {
+                    await api('/api/cashier/refunds', { method: 'POST', body: JSON.stringify({ ...Object.fromEntries(new FormData(form).entries()), items, idempotencyKey: newKey() }) });
+                    closeModal(); toast('Qaytarish saqlandi'); await switchTab(state.tab);
+                } catch (error) { form.querySelector('#refund-error').textContent = error.message; form.querySelector('#refund-error').classList.remove('hidden'); }
+                finally { button.disabled = false; }
+            });
+        }
+
+        async function showTimeline(id) {
+            try {
+                const { data } = await api(`/api/cashier/orders/${encodeURIComponent(id)}/timeline`);
+                openModal(`Buyurtma tarixi · ${data.order.orderNumber}`, `<ol class="space-y-3">${data.entries.map(entry => `<li class="border-l-2 border-blue-200 pl-3"><p class="text-xs text-slate-500">${dateTime(entry.at)}</p><b class="text-sm">${esc(entry.action)}</b><p class="text-xs">${esc(entry.employee || 'Tizim')} ${entry.role ? `· ${esc(entry.role)}` : ''} ${entry.details ? `· ${esc(entry.details)}` : ''}</p></li>`).join('')}</ol>`);
+            } catch (error) { toast(error.message, 'error'); }
+        }
+
+        async function openCustomerModal() {
+            openModal('Yangi mijoz', `<form id="new-customer-form" class="space-y-3"><label class="block text-sm font-semibold">Ism<input class="field mt-1" name="firstName" required></label><label class="block text-sm font-semibold">Familiya<input class="field mt-1" name="lastName"></label><label class="block text-sm font-semibold">Telefon<input class="field mt-1" name="phone" inputmode="tel" required></label><p id="new-customer-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-blue-600 px-4 py-3 text-white">Mijozni saqlash</button></form>`);
+            document.getElementById('new-customer-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget, button = form.querySelector('button'); button.disabled = true;
+                try {
+                    const result = await api('/api/cashier/customers', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form).entries())) });
+                    closeModal(); toast(`Mijoz yaratildi · #${result.data.customerNumber}`); await switchTab('customers');
+                } catch (error) { form.querySelector('#new-customer-error').textContent = error.message; form.querySelector('#new-customer-error').classList.remove('hidden'); }
+                finally { button.disabled = false; }
+            });
+        }
+
+        async function verifyPickup(id) {
+            openModal('Olib ketish kodini tekshirish', `<form id="verification-form" class="space-y-3"><p class="text-sm text-slate-600">Mijoz ko‘rsatgan 6 xonali bir martalik kodni kiriting. Kod buyurtma IDsi emas.</p><label class="block text-sm font-semibold">Tasdiqlash kodi<input class="field mt-1 text-lg tracking-[.3em]" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required></label><p id="verification-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-violet-600 px-4 py-3 text-white">Tekshirish va topshirish</button></form>`);
+            document.getElementById('verification-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget, button = form.querySelector('button'); button.disabled = true;
+                try {
+                    await api(`/api/cashier/orders/${encodeURIComponent(id)}/verify-pickup`, { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form).entries())) });
+                    closeModal(); toast('Verification tasdiqlandi, buyurtma topshirildi'); await switchTab(state.tab);
+                } catch (error) { form.querySelector('#verification-error').textContent = error.message; form.querySelector('#verification-error').classList.remove('hidden'); }
+                finally { button.disabled = false; }
+            });
+        }
+
+        async function reprintReceipt(id) {
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) { toast('Chop etish oynasini ochishga ruxsat bering', 'error'); return; }
+            try {
+                const { data } = await api(`/api/cashier/receipts/${encodeURIComponent(id)}/reprint`, { method: 'POST' });
+                printWindow.document.write(`<html><head><title>Chek ${esc(data.payload.receiptNumber)}</title><style>body{font:14px monospace;max-width:320px;margin:16px auto}hr{border:0;border-top:1px dashed #444}p{display:flex;justify-content:space-between}</style></head><body><h2>${esc(data.payload.restaurantName)}</h2><p>Buyurtma: ${esc(data.payload.orderNumber)}</p><p>Chek: ${esc(data.payload.receiptNumber)}</p><hr>${data.payload.items.map(item => `<p>${esc(item.name)} × ${esc(item.quantity)} <b>${money(item.amount)}</b></p>`).join('')}<hr><p><b>Jami</b><b>${money(data.payload.total)}</b></p><p>Chop etish vazifasi: ${esc(data.status)}</p><script>window.onload=()=>window.print()<\/script></body></html>`);
+                printWindow.document.close();
+            } catch (error) { printWindow.close(); toast(error.message, 'error'); }
+        }
+
+        async function showGlobalSearch(query) {
+            const resultRoot = document.getElementById('search-results');
+            if (query.trim().length < 2) { resultRoot.classList.add('hidden'); return; }
+            try {
+                const { data } = await api(`/api/cashier/search?q=${encodeURIComponent(query.trim())}`);
+                resultRoot.innerHTML = data.length ? data.map(item => item.kind === 'ORDER'
+                    ? `<button class="block w-full rounded-lg p-2 text-left hover:bg-slate-50" data-action="timeline" data-id="${esc(item.id)}"><b>🧾 ${esc(item.orderNumber)}</b><p class="text-xs text-slate-500">${esc(item.status)} · ${item.table ? `Stol ${esc(item.table.number)}` : 'Olib ketish'} · ${money(item.totalAmount)}</p></button>`
+                    : `<button class="block w-full rounded-lg p-2 text-left hover:bg-slate-50" data-action="customer-detail" data-id="${esc(item.id)}"><b>👤 ${esc(item.firstName)} ${esc(item.lastName)} · #${esc(item.customerNumber)}</b><p class="text-xs text-slate-500">${esc(item.phone || '')}</p></button>`).join('')
+                    : '<p class="p-3 text-sm text-slate-500">Natija topilmadi</p>';
+                resultRoot.classList.remove('hidden');
+            } catch (error) { console.error('Umumiy qidiruv xatoligi:', error); }
+        }
+
+        async function action(event) {
+            const button = event.target.closest('[data-action]');
+            if (!button) {
+                const tabButton = event.target.closest('[data-tab]');
+                if (tabButton) switchTab(tabButton.dataset.tab);
+                return;
+            }
+            const id = button.dataset.id;
+            const actionName = button.dataset.action;
+            try {
+                if (actionName === 'refresh') await switchTab(state.tab);
+                else if (actionName === 'pay') await openPayment(id);
+                else if (actionName === 'timeline') await showTimeline(id);
+                else if (actionName === 'refund') await openRefund(id);
+                else if (actionName === 'verify-pickup') await verifyPickup(id);
+                else if (actionName === 'renew-code') {
+                    button.disabled = true;
+                    try {
+                        const { data } = await api(`/api/cashier/orders/${encodeURIComponent(id)}/verification/renew`, { method: 'POST' });
+                        toast(data.telegramSent ? 'Yangi kod Telegram orqali yuborildi' : `Yangi kod: ${data.code}`);
+                        await switchTab(state.tab);
+                    } finally { button.disabled = false; }
+                }
+                else if (actionName === 'debt-pay') openDebtPayment(id, Number(button.dataset.amount));
+                else if (actionName === 'customer-detail') {
+                    if (state.tab !== 'customers') await switchTab('customers');
+                    await showCustomer(id);
+                }
+                else if (actionName === 'new-customer') await openCustomerModal();
+                else if (actionName === 'modal-close') closeModal();
+                else if (actionName === 'new-order') {
+                    await switchTab('orders');
+                    document.getElementById('order-form')?.scrollIntoView({ behavior: 'smooth' });
+                } else if (actionName === 'cart-add') {
+                    const menuId = document.getElementById('builder-menu-item')?.value;
+                    const quantity = Number(document.getElementById('builder-quantity')?.value);
+                    const item = state.menu.find(menuItem => menuItem.id === menuId);
+                    if (!item || !Number.isFinite(quantity) || quantity <= 0) { toast('Taom va to‘g‘ri miqdorni tanlang', 'error'); return; }
+                    state.cart.push({ id: item.id, name: item.name, quantity, total: Number(item.sellingPrice) * quantity });
+                    renderCartLines();
+                } else if (actionName === 'cart-remove') { state.cart.splice(Number(button.dataset.index), 1); renderCartLines(); }
+                else if (actionName === 'select-customer') {
+                    document.querySelector('#order-form [name="customerId"]').value = id;
+                    document.querySelector('#order-form [name="customerName"]').value = button.dataset.name;
+                    document.getElementById('order-customer-results').innerHTML = '';
+                } else if (actionName === 'unlock-order') {
+                    await api(`/api/cashier/orders/${encodeURIComponent(id)}/unlock`, { method: 'POST' });
+                    closeModal(); await switchTab(state.tab);
+                } else if (actionName === 'call-status') {
+                    await api(`/api/cashier/waiter-calls/${encodeURIComponent(id)}/status`, { method: 'POST', body: JSON.stringify({ status: button.dataset.status }) });
+                    toast('Chaqiruv yangilandi'); await switchTab(state.tab);
+                } else if (actionName === 'reprint') await reprintReceipt(id);
+                else if (actionName === 'save-packaging') {
+                    const inventoryId = document.getElementById('package-inventory').value;
+                    const name = document.getElementById('package-name').value.trim();
+                    const sellingPrice = document.getElementById('package-price').value;
+                    await api('/api/cashier/packaging', { method: 'POST', body: JSON.stringify({ inventoryId, name, sellingPrice }) });
+                    toast('Qadoqlash sozlamasi saqlandi');
+                    await switchTab(state.tab);
+                }
+            } catch (error) { toast(error.message, 'error'); }
+        }
+
+        document.addEventListener('click', action);
+        document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+        document.getElementById('login-form').addEventListener('submit', async event => {
+            event.preventDefault();
+            const button = event.currentTarget.querySelector('button');
+            button.disabled = true;
+            try {
+                const result = await api('/api/cashier/login', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        username: document.getElementById('login-username').value,
+                        password: document.getElementById('login-password').value
+                    })
+                });
+                state.user = result.user;
+                showApp();
+            } catch (error) {
+                const box = document.getElementById('login-error');
+                box.textContent = error.message;
+                box.classList.remove('hidden');
+            } finally { button.disabled = false; }
+        });
+        document.getElementById('global-search').addEventListener('input', event => {
+            clearTimeout(state.searchTimer);
+            state.searchTimer = setTimeout(() => showGlobalSearch(event.target.value), 250);
+        });
+        document.getElementById('admin-access-button').addEventListener('click', () => {
+            openModal('Admin ruxsatini tasdiqlash', `<form id="admin-access-form" class="space-y-3"><p class="text-sm text-slate-600">Admin o‘z login va paroli bilan tasdiqlanadi. Kassir sessiyasi Admin hisobiga almashtirilmaydi.</p><label class="block text-sm font-semibold">Admin login<input class="field mt-1" name="username" required autocomplete="username"></label><label class="block text-sm font-semibold">Admin paroli<input class="field mt-1" name="password" type="password" required autocomplete="current-password"></label><p id="admin-access-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-violet-600 px-4 py-3 text-white">Admin sessiyasini ochish</button></form>`);
+            document.getElementById('admin-access-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const form = event.currentTarget, button = form.querySelector('button'); button.disabled = true;
+                try {
+                    const { data } = await api('/api/cashier/admin-access', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form).entries())) });
+                    closeModal();
+                    const session = await api('/api/cashier/me');
+                    state.user = session.user;
+                    showApp();
+                    window.open(data.adminUrl, '_blank', 'noopener');
+                    toast(`Admin ${data.admin} tizimga kirdi. Ish tugagach Kassir rejimiga qayting.`);
+                } catch (error) { form.querySelector('#admin-access-error').textContent = error.message; form.querySelector('#admin-access-error').classList.remove('hidden'); }
+                finally { button.disabled = false; }
+            });
+        });
+        document.getElementById('return-cashier-button').addEventListener('click', async () => {
+            try {
+                await api('/api/cashier/admin-access/close', { method: 'POST' });
+                const session = await api('/api/cashier/me');
+                state.user = session.user;
+                showApp();
+                toast('Kassir rejimiga qaytdingiz');
+            } catch (error) { toast(error.message, 'error'); }
+        });
+        document.getElementById('logout-button').addEventListener('click', async () => {
+            try {
+                if (state.user?.terminalAccessId) await api('/api/cashier/admin-access/close', { method: 'POST' });
+                await api('/api/auth/logout', { method: 'POST' });
+                state.user = null;
+                showLogin();
+            } catch (error) { toast(error.message, 'error'); }
+        });
+
+        socket.on('connect', () => {
+            const status = document.getElementById('connection-status');
+            status.textContent = 'Ulangan';
+            status.className = 'rounded-full bg-emerald-100 px-2 py-1 text-emerald-800';
+            if (state.user) switchTab(state.tab);
+        });
+        socket.on('disconnect', () => {
+            const status = document.getElementById('connection-status');
+            status.textContent = 'Uzildi';
+            status.className = 'rounded-full bg-rose-100 px-2 py-1 text-rose-800';
+        });
+        ['orderUpdate', 'order_status_updated', 'paymentReceived', 'waiter_call', 'waiter_call_updated', 'cashMovement', 'debtUpdated', 'cashRegisterUpdated']
+            .forEach(eventName => socket.on(eventName, () => { if (state.user) switchTab(state.tab); }));
         setInterval(() => {
-            const now = new Date();
-            const pad = n => String(n).padStart(2, '0');
-            document.getElementById('live-datetime').innerText = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            document.getElementById('live-clock').textContent = new Date().toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' });
         }, 1000);
+        verifySession();
     </script>
 </body>
 </html>

@@ -15,7 +15,10 @@ router.get('/orders', async (_req, res) => {
     try {
         const orders = await prisma.order.findMany({
             where: { status: { in: ['TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR'] } },
-            include: { waiter: { select: { fullName: true } }, items: { include: { menuItem: true } },
+            include: {
+                waiter: { select: { fullName: true } },
+                table: { select: { number: true, room: { select: { name: true } } } },
+                items: { include: { menuItem: { select: { id: true, name: true, unit: true } } } },
             },
             orderBy: { createdAt: 'asc' }
         });
@@ -36,7 +39,15 @@ router.patch('/orders/:id/status', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Buyurtma holati noto‘g‘ri' });
         }
 
-        const updated = await prisma.order.update({ where: { id: order.id }, data: { status } });
+        const updated = await prisma.order.update({
+            where: { id: order.id },
+            data: {
+                status,
+                ...(status === 'TAYYORLANMOQDA' ? { sentToKitchenAt: new Date() } : {}),
+                ...(status === 'STOLGA_YETKAZILDI' ? { completedAt: new Date() } : {}),
+                statusHistory: { create: { status, comment: 'Oshxona paneli' } }
+            }
+        });
         emitSocketEvent('order_status_updated', { orderId: updated.id, status });
         if (status === 'TAYYORLANMOQDA') emitSocketEvent('kitchen_order_started', { orderId: updated.id });
         if (status === 'TAYYOR') emitSocketEvent('kitchen_order_ready', { orderId: updated.id });
