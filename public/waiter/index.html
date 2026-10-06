@@ -1353,18 +1353,15 @@
                 if (!res.ok) throw new Error(result.message || 'Xonalar va stollarni yuklashda xatolik');
                 if (!Array.isArray(result)) throw new Error('Server xonalar ro‘yxatini noto‘g‘ri qaytardi');
                 const rooms = result;
-                let optionsHtml = '<option value="">-- Stolni tanlang --</option>';
-                rooms.forEach(room => {
-                    if (room.tables) {
-                        room.tables.forEach(t => {
-                            optionsHtml += `<option value="${escapeWaiterHtml(t.id)}">${escapeWaiterHtml(room.name)} - Stol #${escapeWaiterHtml(t.number || t.id)}</option>`;
-                        });
-                    }
-                });
+                const renderTableOptions = placeholder => `<option value="">${placeholder}</option>${rooms
+                    .filter(room => Array.isArray(room.tables) && room.tables.length > 0)
+                    .map(room => `<optgroup label="${escapeWaiterHtml(room.name)}">${room.tables.map(table =>
+                        `<option value="${escapeWaiterHtml(table.id)}">Stol #${escapeWaiterHtml(table.number || table.id)}</option>`
+                    ).join('')}</optgroup>`).join('')}`;
                 const builderSelect = document.getElementById('builder-table-select');
-                if (builderSelect) builderSelect.innerHTML = optionsHtml;
+                if (builderSelect) builderSelect.innerHTML = renderTableOptions('-- Stol tanlanmagan --');
                 const billSelect = document.getElementById('bill-table-select');
-                if (billSelect) billSelect.innerHTML = optionsHtml;
+                if (billSelect) billSelect.innerHTML = renderTableOptions('-- Stolni tanlang --');
             } catch(e) {
                 console.error('Stol tanlash ro‘yxatini yuklashda xatolik:', e);
             }
