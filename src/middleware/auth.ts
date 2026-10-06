@@ -12,6 +12,7 @@ declare global {
                 fullName: string;
                 role: RoleType;
                 terminalAccessId?: string;
+                sessionIssuedAt?: number;
             };
         }
     }
@@ -41,12 +42,13 @@ function sign(payload: string): string {
     return createHmac('sha256', getAuthSecret()).update(payload).digest('base64url');
 }
 
-export function setAuthCookie(res: Response, user: { id: string; role: RoleType }): void {
+export function setAuthCookie(res: Response, user: { id: string; role: RoleType; updatedAt?: Date }): void {
     clearTerminalAdminCookie(res);
     const payload = Buffer.from(JSON.stringify({
         sub: user.id,
         role: user.role,
-        exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
+        exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+        issuedAt: Math.max(Date.now(), (user.updatedAt?.getTime() || 0) + 1)
     })).toString('base64url');
     const value = `${payload}.${sign(payload)}`;
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
@@ -58,11 +60,16 @@ export function setAuthCookie(res: Response, user: { id: string; role: RoleType 
     ]);
 }
 
-export function setTerminalAdminCookie(res: Response, user: { id: string; role: RoleType }, accessId: string): void {
+export function setTerminalAdminCookie(
+    res: Response,
+    user: { id: string; role: RoleType; updatedAt?: Date },
+    accessId: string
+): void {
     const payload = Buffer.from(JSON.stringify({
         sub: user.id,
         role: user.role,
         exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
+        issuedAt: Math.max(Date.now(), (user.updatedAt?.getTime() || 0) + 1),
         terminalAccessId: accessId
     })).toString('base64url');
     const value = `${payload}.${sign(payload)}`;
@@ -95,7 +102,7 @@ export function clearAuthCookie(res: Response): void {
     ]);
 }
 
-function readSession(req: Request): { id: string; role: RoleType; terminalAccessId?: string } | null {
+function readSession(req: Request): { id: string; role: RoleType; issuedAt: number; terminalAccessId?: string } | null {
     const cookieHeader = req.headers.cookie;
     if (!cookieHeader) return null;
     const cookies = cookieHeader.split(';').map(part => part.trim());
@@ -116,11 +123,13 @@ function readSession(req: Request): { id: string; role: RoleType; terminalAccess
             sub?: unknown;
             role?: unknown;
             exp?: unknown;
+            issuedAt?: unknown;
             terminalAccessId?: unknown;
         };
         if (typeof session.sub !== 'string' || typeof session.role !== 'string' ||
             !Object.values(RoleType).includes(session.role as RoleType) ||
-            typeof session.exp !== 'number' || session.exp <= Date.now() / 1000) {
+            typeof session.exp !== 'number' || session.exp <= Date.now() / 1000 ||
+            typeof session.issuedAt !== 'number' || !Number.isSafeInteger(session.issuedAt)) {
             return null;
         }
         if (terminalCookie && (session.role !== RoleType.ADMIN || typeof session.terminalAccessId !== 'string')) {
@@ -129,6 +138,7 @@ function readSession(req: Request): { id: string; role: RoleType; terminalAccess
         return {
             id: session.sub,
             role: session.role as RoleType,
+            issuedAt: session.issuedAt,
             ...(typeof session.terminalAccessId === 'string' ? { terminalAccessId: session.terminalAccessId } : {})
         };
     } catch {
@@ -145,9 +155,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     try {
         const user = await prisma.user.findUnique({
             where: { id: session.id },
-            select: { id: true, username: true, fullName: true, role: true, isActive: true }
+            select: { id: true, username: true, fullName: true, role: true, isActive: true, updatedAt: true }
         });
-        if (!user || !user.isActive || user.role !== session.role) {
+        if (!user || !user.isActive || user.role !== session.role || session.issuedAt <= user.updatedAt.getTime()) {
             res.status(401).json({ success: false, message: 'Foydalanuvchi sessiyasi faol emas' });
             return;
         }
@@ -166,6 +176,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
             username: user.username,
             fullName: user.fullName,
             role: user.role,
+            sessionIssuedAt: session.issuedAt,
             ...(session.terminalAccessId ? { terminalAccessId: session.terminalAccessId } : {})
         };
         next();
@@ -184,9 +195,9 @@ export const optionalAuthenticateToken = async (req: Request, res: Response, nex
     try {
         const user = await prisma.user.findUnique({
             where: { id: session.id },
-            select: { id: true, username: true, fullName: true, role: true, isActive: true }
+            select: { id: true, username: true, fullName: true, role: true, isActive: true, updatedAt: true }
         });
-        if (!user || !user.isActive || user.role !== session.role) {
+        if (!user || !user.isActive || user.role !== session.role || session.issuedAt <= user.updatedAt.getTime()) {
             next();
             return;
         }
@@ -205,6 +216,7 @@ export const optionalAuthenticateToken = async (req: Request, res: Response, nex
             username: user.username,
             fullName: user.fullName,
             role: user.role,
+            sessionIssuedAt: session.issuedAt,
             ...(session.terminalAccessId ? { terminalAccessId: session.terminalAccessId } : {})
         };
         next();
@@ -227,4 +239,17 @@ export const requireRole = (roles: string[]) => {
         }
         next();
     };
+};
+
+export const requireCashierAccess = (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Tizimga qayta kiring' });
+        return;
+    }
+    if (req.user.role !== RoleType.CASHIER &&
+        !(req.user.role === RoleType.ADMIN && req.user.terminalAccessId)) {
+        res.status(403).json({ success: false, message: 'Kassir hisobi yoki tasdiqlangan Admin terminali kerak' });
+        return;
+    }
+    next();
 };

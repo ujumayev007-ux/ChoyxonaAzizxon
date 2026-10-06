@@ -126,6 +126,10 @@
                 showLogin('Sessiya yakunlangan. Qayta kiring.');
                 throw new Error(data.message || 'Tizimga qayta kiring');
             }
+            if (response.status === 403) {
+                showLogin(data.message || 'Kassir hisobi bilan tizimga kiring.');
+                throw new Error(data.message || 'Bu amal uchun ruxsat yo‘q');
+            }
             if (!response.ok || data.success === false) throw new Error(data.message || 'So‘rov bajarilmadi');
             return data;
         }
@@ -139,6 +143,10 @@
         }
 
         function showLogin(message = '') {
+            state.user = null;
+            state.currentOrder = null;
+            state.cart = [];
+            closeModal();
             document.getElementById('app').classList.add('hidden');
             const screen = document.getElementById('login-screen');
             screen.classList.remove('hidden');
@@ -163,6 +171,11 @@
         async function verifySession() {
             try {
                 const result = await api('/api/cashier/me');
+                if (result.user?.role !== 'CASHIER' &&
+                    !(result.user?.role === 'ADMIN' && result.user?.terminalAccessId)) {
+                    showLogin('Kassir sifatida tizimga kiring.');
+                    return;
+                }
                 state.user = result.user;
                 showApp();
             } catch (error) {
@@ -269,7 +282,6 @@
                     ${statCard('Qarz qoldig‘i', money(data.debt), '📒', 'amber')}
                     ${statCard('Qaytarilgan', money(data.refunds), '↩️', 'rose')}
                     ${statCard('Bugungi xarajat', money(data.expenses), '💸', 'rose')}
-                    ${statCard('Sof tushum', money(data.netRevenue), '📈', 'emerald')}
                     ${statCard('Ochiq buyurtma', data.openOrders, '🧾')}
                     ${statCard('Soboy', data.takeawayOrders, '🥡', 'violet')}
                     ${statCard('Qarzdor mijoz', data.debtors, '👥', 'amber')}
@@ -881,6 +893,12 @@
             document.getElementById('live-clock').textContent = new Date().toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' });
         }, 1000);
         verifySession();
+        window.addEventListener('pageshow', event => {
+            if (event.persisted) {
+                showLogin();
+                verifySession();
+            }
+        });
     </script>
 </body>
 </html>

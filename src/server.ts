@@ -9,7 +9,7 @@ import { Context, Telegraf } from 'telegraf';
 import kitchenRoutes from './routes/kitchen.routes';
 import { emitSocketEvent, initSocket } from './socket';
 import { createHash, randomBytes } from 'crypto';
-import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializeAuthSecret, optionalAuthenticateToken, requireRole, setAuthCookie } from './middleware/auth';
+import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializeAuthSecret, optionalAuthenticateToken, requireCashierAccess, requireRole, setAuthCookie } from './middleware/auth';
 import { hashPassword, verifyPassword } from './utils/password';
 import cashierRoutes from './routes/cashier.routes';
 import { deductPackaging } from './utils/order-packaging';
@@ -88,7 +88,7 @@ async function loginUser(username: unknown, password: unknown, allowedRoles: Rol
     return user;
 }
 
-app.get('/api/auth/me', authenticateToken, (req, res) => {
+app.get('/api/auth/me', authenticateToken, requireRole(['ADMIN']), (req, res) => {
     res.json({ success: true, user: req.user });
 });
 
@@ -108,24 +108,33 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/logout', optionalAuthenticateToken, async (req, res) => {
-    if (req.user?.terminalAccessId) {
+    if (req.user) {
         try {
-            const access = await prisma.adminTerminalAccess.update({
-                where: { id: req.user.terminalAccessId },
-                data: { endedAt: new Date() }
-            });
-            await prisma.auditLog.create({
-                data: {
-                    userId: access.adminId,
-                    action: 'ADMIN_TERMINAL_ACCESS_ENDED',
-                    entity: 'AdminTerminalAccess',
-                    entityId: access.id,
-                    newValue: JSON.stringify({ cashierId: access.cashierId, endedBy: 'AUTH_LOGOUT' })
+            await prisma.$transaction(async tx => {
+                if (req.user!.terminalAccessId) {
+                    const access = await tx.adminTerminalAccess.update({
+                        where: { id: req.user!.terminalAccessId },
+                        data: { endedAt: new Date() }
+                    });
+                    await tx.auditLog.create({
+                        data: {
+                            userId: access.adminId,
+                            action: 'ADMIN_TERMINAL_ACCESS_ENDED',
+                            entity: 'AdminTerminalAccess',
+                            entityId: access.id,
+                            newValue: JSON.stringify({ cashierId: access.cashierId, endedBy: 'AUTH_LOGOUT' })
+                        }
+                    });
                 }
+                await tx.user.update({
+                    where: { id: req.user!.id },
+                    data: { updatedAt: new Date(Math.max(Date.now(), (req.user!.sessionIssuedAt || 0) + 1)) },
+                    select: { id: true }
+                });
             });
         } catch (error) {
-            console.error('Admin terminal sessiyasini yopishda xatolik:', error);
-            res.status(500).json({ success: false, message: 'Admin sessiyasini yopib bo‘lmadi' });
+            console.error('Sessiyani bekor qilishda xatolik:', error);
+            res.status(500).json({ success: false, message: 'Sessiyani bekor qilib bo‘lmadi' });
             return;
         }
     }
@@ -159,7 +168,7 @@ app.post('/api/waiter/login', async (req, res) => {
     }
 });
 
-app.get('/api/cashier/me', authenticateToken, requireRole(['CASHIER', 'ADMIN']), (req, res) => {
+app.get('/api/cashier/me', authenticateToken, requireCashierAccess, (req, res) => {
     res.json({ success: true, user: req.user });
 });
 

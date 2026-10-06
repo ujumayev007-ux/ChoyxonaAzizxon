@@ -1,14 +1,14 @@
 import { createHash, randomBytes, randomInt } from 'crypto';
 import { OrderSource, OrderStatus, OrderType, PaymentMethod, Prisma, RoleType } from '@prisma/client';
 import { Router } from 'express';
-import { authenticateToken, clearTerminalAdminCookie, requireRole, setTerminalAdminCookie } from '../middleware/auth';
+import { authenticateToken, clearTerminalAdminCookie, requireCashierAccess, requireRole, setTerminalAdminCookie } from '../middleware/auth';
 import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 import { verifyPassword } from '../utils/password';
 import { deductPackaging } from '../utils/order-packaging';
 
 const router = Router();
-router.use(authenticateToken, requireRole(['CASHIER', 'ADMIN']));
+router.use(authenticateToken, requireCashierAccess);
 
 const activeStatuses: OrderStatus[] = [
     OrderStatus.YANGI,
@@ -254,7 +254,9 @@ router.get('/dashboard', async (req, res) => {
                 debt: (debts._sum.remaining || new Prisma.Decimal(0)).toString(),
                 refunds: refundAmount.toString(),
                 expenses: expenseAmount.toString(),
-                netRevenue: sales.minus(refundAmount).minus(expenseAmount).toString(),
+                ...(req.user!.role === RoleType.ADMIN
+                    ? { netRevenue: sales.minus(refundAmount).minus(expenseAmount).toString() }
+                    : {}),
                 openOrders: activeOrders.filter(order => activeStatuses.includes(order.status)).length,
                 takeawayOrders: activeOrders.filter(order => order.orderType === OrderType.TAKEAWAY).length,
                 debtors: debts._count.customerId,
@@ -1795,7 +1797,7 @@ router.post('/admin-access', async (req, res) => {
     try {
         const admin = await prisma.user.findUnique({
             where: { username },
-            select: { id: true, role: true, fullName: true, passwordHash: true, isActive: true }
+            select: { id: true, role: true, fullName: true, passwordHash: true, isActive: true, updatedAt: true }
         });
         if (!admin || !admin.isActive || admin.role !== RoleType.ADMIN || !await verifyPassword(password, admin.passwordHash)) {
             res.status(401).json({ success: false, message: 'Admin login yoki paroli noto‘g‘ri' });

@@ -11,9 +11,9 @@
 </head>
 <body class="bg-gray-100 font-sans h-full flex flex-col overflow-hidden">
 
-    <div id="admin-auth-overlay" class="hidden fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <form id="admin-login-form" class="bg-white w-full max-w-md rounded-xl p-6 shadow-xl space-y-4">
-            <h2 class="text-xl font-bold text-gray-800">Administrator tizimiga kirish</h2>
+    <div id="admin-auth-overlay" class="fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <form id="admin-login-form" role="dialog" aria-modal="true" aria-labelledby="admin-login-title" class="bg-white w-full max-w-md rounded-xl p-6 shadow-xl space-y-4">
+        <h2 id="admin-login-title" class="text-xl font-bold text-gray-800">Administrator tizimiga kirish</h2>
             <input id="admin-login-username" type="text" autocomplete="username" required placeholder="Login" class="w-full border rounded-lg px-4 py-2 text-sm">
             <input id="admin-login-password" type="password" autocomplete="current-password" required placeholder="Parol" class="w-full border rounded-lg px-4 py-2 text-sm">
             <p id="admin-login-error" class="hidden text-sm text-red-600"></p>
@@ -27,7 +27,7 @@
     <!-- Modals Container -->
     <div id="modal-container"></div>
 
-    <div class="flex h-full overflow-hidden">
+    <div id="admin-app" class="flex h-full overflow-hidden" inert>
         
         <!-- Sidebar -->
         <aside class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 shadow-lg">
@@ -559,10 +559,11 @@
     <script>
         // Universal Robust API Helper
         async function apiFetch(url, options = {}) {
-            const response = await fetch(url, options);
+            const response = await fetch(url, { credentials: 'same-origin', ...options });
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) lockAdminPanel(data.message || 'Administrator sifatida qayta kiring.');
                 throw new Error(data.error || data.message || `So'rov bajarilmadi: ${response.status}`);
             }
             return data;
@@ -664,11 +665,31 @@
 
         async function requestJson(url, options) {
             const response = await fetch(url, { credentials: 'include', ...options });
-            const result = await response.json();
+            const result = await response.json().catch(() => ({}));
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) lockAdminPanel(result.message || 'Administrator sifatida qayta kiring.');
                 throw new Error(result.message || 'So‘rov bajarilmadi');
             }
             return result;
+        }
+
+        function lockAdminPanel(message) {
+            adminCurrentUser = null;
+            adminData.menu = [];
+            adminData.inventory = [];
+            adminData.employees = [];
+            adminData.orders = [];
+            adminData.rooms = [];
+            adminData.purchases = [];
+            loadedAdminData.menu = false;
+            loadedAdminData.inventory = false;
+            loadedAdminData.employees = false;
+            loadedAdminData.orders = false;
+            loadedAdminData.rooms = false;
+            document.getElementById('admin-app').setAttribute('inert', '');
+            document.getElementById('admin-login-error').textContent = message;
+            document.getElementById('admin-login-error').classList.remove('hidden');
+            document.getElementById('admin-auth-overlay').classList.remove('hidden');
         }
 
         function renderMenu() {
@@ -1866,6 +1887,7 @@
                     return;
                 }
                 document.getElementById('admin-auth-overlay').classList.add('hidden');
+                document.getElementById('admin-app').removeAttribute('inert');
                 adminCurrentUser = session.user;
                 document.getElementById('shopping-added-by').value =
                     adminCurrentUser.fullName || adminCurrentUser.username || 'Administrator';
@@ -1905,6 +1927,12 @@
         });
 
         checkAdminAuth();
+        window.addEventListener('pageshow', event => {
+            if (event.persisted) {
+                lockAdminPanel('Sessiyani tekshiryapmiz...');
+                checkAdminAuth();
+            }
+        });
     </script>
 </body>
 </html>
