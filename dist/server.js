@@ -86,6 +86,9 @@ app.use(express_1.default.json());
 app.use(express_1.default.static(path_1.default.join(__dirname, '..', 'public')));
 // Public papkani statik qilish (sahifalar ochilishi uchun)
 app.use(express_1.default.static(path_1.default.join(process.cwd(), 'public')));
+app.get('/favicon.ico', (_req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '..', 'public', 'favicon.svg'));
+});
 const io = new socket_io_1.Server(server, {
     cors: {
         origin: "*",
@@ -761,7 +764,10 @@ io.on('connection', (socket) => {
 // 4. SERVERNI ISHGA TUSHIRISH
 // ==========================================
 const PORT = process.env.PORT || 3000;
-ensureInitialAdmin().then(() => {
+Promise.resolve().then(() => {
+    (0, auth_1.initializeAuthSecret)();
+    return ensureInitialAdmin();
+}).then(() => {
     server.listen(PORT, () => {
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });

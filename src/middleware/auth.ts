@@ -22,12 +22,17 @@ let authSecret: string | undefined;
 
 function getAuthSecret(): string {
     if (!authSecret) {
-        authSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET || randomBytes(32).toString('hex');
-        if (process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET && !process.env.SESSION_SECRET) {
-            console.warn('AUTH_SECRET is not configured; sessions will be invalidated when the server restarts.');
+        const configuredSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET;
+        if (!configuredSecret && process.env.NODE_ENV === 'production') {
+            throw new Error('Set a stable AUTH_SECRET or SESSION_SECRET in production to keep sessions valid.');
         }
+        authSecret = configuredSecret || randomBytes(32).toString('hex');
     }
     return authSecret;
+}
+
+export function initializeAuthSecret(): void {
+    getAuthSecret();
 }
 
 function sign(payload: string): string {

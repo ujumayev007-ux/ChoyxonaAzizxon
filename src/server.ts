@@ -9,7 +9,7 @@ import { Context, Telegraf } from 'telegraf';
 import kitchenRoutes from './routes/kitchen.routes';
 import { emitSocketEvent, initSocket } from './socket';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'crypto';
-import { authenticateToken, clearAuthCookie, requireRole, setAuthCookie } from './middleware/auth';
+import { authenticateToken, clearAuthCookie, initializeAuthSecret, requireRole, setAuthCookie } from './middleware/auth';
 
 // 1. Muhit o'zgaruvchilarini eng boshida yuklash
 dotenv.config();
@@ -88,6 +88,9 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Public papkani statik qilish (sahifalar ochilishi uchun)
 app.use(express.static(path.join(process.cwd(), 'public')));
+app.get('/favicon.ico', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'favicon.svg'));
+});
 
 const io = new Server(server, {
   cors: {
@@ -784,7 +787,10 @@ io.on('connection', (socket) => {
 // 4. SERVERNI ISHGA TUSHIRISH
 // ==========================================
 const PORT = process.env.PORT || 3000;
-ensureInitialAdmin().then(() => {
+Promise.resolve().then(() => {
+    initializeAuthSecret();
+    return ensureInitialAdmin();
+}).then(() => {
     server.listen(PORT, () => {
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });

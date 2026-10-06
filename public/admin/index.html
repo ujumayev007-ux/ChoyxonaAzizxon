@@ -433,7 +433,7 @@
         }
 
         async function requestJson(url, options) {
-            const response = await fetch(url, options);
+            const response = await fetch(url, { credentials: 'include', ...options });
             const result = await response.json();
             if (!response.ok) {
                 throw new Error(result.message || 'So‘rov bajarilmadi');
@@ -1023,7 +1023,7 @@
 
         function logout() {
             if (confirm('Tizimdan chiqishni tasdiqlaysizmi?')) {
-                fetch('/api/auth/logout', { method: 'POST' })
+                fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
                     .then(() => window.location.reload())
                     .catch(error => {
                         console.error('Tizimdan chiqishda xatolik:', error);

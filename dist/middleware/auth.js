@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireRole = exports.authenticateToken = void 0;
+exports.initializeAuthSecret = initializeAuthSecret;
 exports.setAuthCookie = setAuthCookie;
 exports.clearAuthCookie = clearAuthCookie;
 const crypto_1 = require("crypto");
@@ -11,12 +12,16 @@ const SESSION_TTL_SECONDS = 8 * 60 * 60;
 let authSecret;
 function getAuthSecret() {
     if (!authSecret) {
-        authSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET || (0, crypto_1.randomBytes)(32).toString('hex');
-        if (process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET && !process.env.SESSION_SECRET) {
-            console.warn('AUTH_SECRET is not configured; sessions will be invalidated when the server restarts.');
+        const configuredSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET;
+        if (!configuredSecret && process.env.NODE_ENV === 'production') {
+            throw new Error('Set a stable AUTH_SECRET or SESSION_SECRET in production to keep sessions valid.');
         }
+        authSecret = configuredSecret || (0, crypto_1.randomBytes)(32).toString('hex');
     }
     return authSecret;
+}
+function initializeAuthSecret() {
+    getAuthSecret();
 }
 function sign(payload) {
     return (0, crypto_1.createHmac)('sha256', getAuthSecret()).update(payload).digest('base64url');
