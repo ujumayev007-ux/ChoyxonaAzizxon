@@ -494,6 +494,127 @@ const createInventoryProduct = async (req, res) => {
 };
 app.post('/api/inventory', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), createInventoryProduct);
 app.post('/api/warehouse', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), createInventoryProduct);
+app.get('/api/purchases', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (_req, res) => {
+    try {
+        const purchases = await prisma.purchase.findMany({
+            include: {
+                user: { select: { id: true, fullName: true, username: true } },
+                items: {
+                    include: {
+                        inventory: { select: { id: true, name: true, unit: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(purchases);
+    }
+    catch (error) {
+        console.error('Bozorlik tarixini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Bozorlik tarixini olib bo‘lmadi' });
+    }
+});
+app.post('/api/purchases', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (req, res) => {
+    const submittedItems = req.body?.items;
+    if (!Array.isArray(submittedItems) || submittedItems.length === 0 || submittedItems.length > 100) {
+        res.status(400).json({ success: false, message: 'Bozorlik uchun mahsulotlarni kiriting' });
+        return;
+    }
+    const parsedItems = [];
+    const inventoryIds = new Set();
+    let totalAmount = 0n;
+    for (const submittedItem of submittedItems) {
+        if (!submittedItem || typeof submittedItem !== 'object') {
+            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti ma’lumotlari noto‘g‘ri' });
+            return;
+        }
+        const item = submittedItem;
+        const quantityText = String(item.quantity ?? '');
+        const amountText = String(item.totalCost ?? '');
+        if (typeof item.inventoryId !== 'string' || !item.inventoryId ||
+            !/^\d{1,12}(?:\.\d{1,6})?$/.test(quantityText) ||
+            !/^\d{1,15}$/.test(amountText) || inventoryIds.has(item.inventoryId)) {
+            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti ma’lumotlari noto‘g‘ri' });
+            return;
+        }
+        const quantity = new client_1.Prisma.Decimal(quantityText);
+        const totalCost = new client_1.Prisma.Decimal(amountText);
+        if (!quantity.isFinite() || !quantity.greaterThan(0) || !totalCost.isFinite() || !totalCost.greaterThan(0)) {
+            res.status(400).json({ success: false, message: 'Miqdor va jami summa 0 dan katta bo‘lishi kerak' });
+            return;
+        }
+        inventoryIds.add(item.inventoryId);
+        parsedItems.push({ inventoryId: item.inventoryId, quantity, totalCost });
+        totalAmount += BigInt(amountText);
+        if (totalAmount > BigInt(Number.MAX_SAFE_INTEGER)) {
+            res.status(400).json({ success: false, message: 'Bozorlik summasi ruxsat etilgan chegaradan oshdi' });
+            return;
+        }
+    }
+    try {
+        const purchase = await prisma.$transaction(async (transaction) => {
+            const products = await transaction.inventoryProduct.findMany({
+                where: { id: { in: [...inventoryIds] }, isActive: true }
+            });
+            if (products.length !== inventoryIds.size) {
+                throw new Error('BOZORLIK_MAHSULOT_TOPILMADI');
+            }
+            const productsById = new Map(products.map(product => [product.id, product]));
+            const createdPurchase = await transaction.purchase.create({
+                data: {
+                    userId: req.user.id,
+                    totalAmount: new client_1.Prisma.Decimal(totalAmount.toString()),
+                    items: {
+                        create: parsedItems.map(item => ({
+                            inventoryId: item.inventoryId,
+                            quantity: item.quantity,
+                            unitPrice: item.totalCost.div(item.quantity),
+                            totalCost: item.totalCost
+                        }))
+                    }
+                },
+                include: {
+                    user: { select: { id: true, fullName: true, username: true } },
+                    items: { include: { inventory: { select: { id: true, name: true, unit: true } } } }
+                }
+            });
+            for (const item of parsedItems) {
+                const product = productsById.get(item.inventoryId);
+                const quantityBefore = new client_1.Prisma.Decimal(product.quantity);
+                const quantityAfter = quantityBefore.plus(item.quantity);
+                await transaction.inventoryProduct.update({
+                    where: { id: item.inventoryId },
+                    data: { quantity: quantityAfter }
+                });
+                await transaction.inventoryTransaction.create({
+                    data: {
+                        inventoryId: item.inventoryId,
+                        type: 'XARID',
+                        quantityChange: item.quantity,
+                        quantityBefore,
+                        quantityAfter,
+                        reason: `Bozorlik ${createdPurchase.id}`,
+                        userId: req.user.id
+                    }
+                });
+            }
+            return createdPurchase;
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
+        res.status(201).json({ success: true, data: purchase });
+    }
+    catch (error) {
+        if (error instanceof Error && error.message === 'BOZORLIK_MAHSULOT_TOPILMADI') {
+            res.status(400).json({ success: false, message: 'Tanlangan ombor mahsuloti topilmadi yoki faol emas' });
+            return;
+        }
+        if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+            res.status(409).json({ success: false, message: 'Ombor ma’lumotlari bir vaqtda o‘zgardi. Bozorlikni qayta yuboring.' });
+            return;
+        }
+        console.error('Bozorlikni yakunlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Bozorlikni yakunlab bo‘lmadi' });
+    }
+});
 // Xodimlar
 app.get('/api/users', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (req, res) => {
     try {

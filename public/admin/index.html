@@ -104,7 +104,7 @@
                             <p class="text-xs font-bold text-gray-800">Profil</p>
                             <button onclick="logout()" class="text-xs text-red-500 hover:underline">Tizimdan chiqish</button>
                         </div>
-                    </div>
+                    </section>
                 </div>
             </header>
 
@@ -350,27 +350,138 @@
 
                 <!-- 5. OMBOR -->
                 <div id="section-ombor" class="tab-content hidden space-y-6">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center gap-4 flex-wrap">
-                        <h2 class="text-lg font-bold text-gray-800">Omborxona Qoldiqlari</h2>
+                    <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                        <div>
+                            <h2 class="text-xl font-bold tracking-tight text-slate-900">Bozorlik qo‘shish va xarajatlar tarixi</h2>
+                            <p class="mt-1 text-sm text-slate-500">Xaridlarni qayd eting va ombor qoldiqlarini yangilang</p>
+                        </div>
                         <div class="flex gap-2">
-                            <button onclick="loadInventory()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition">Yangilash</button>
-                            <button onclick="openInventoryProductModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">+ Mahsulot qo‘shish</button>
+                            <button onclick="loadInventory(); loadPurchases();" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Yangilash</button>
+                            <button onclick="openInventoryProductModal()" class="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">+ Mahsulot qo‘shish</button>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <table class="w-full text-left text-sm text-gray-600">
-                            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
-                                <tr>
-                                    <th class="py-3 px-4">Mahsulot nomi</th>
-                                    <th class="py-3 px-4">Kategoriya</th>
-                                    <th class="py-3 px-4">Miqdor</th>
-                                    <th class="py-3 px-4">O‘lchov birligi</th>
-                                    <th class="py-3 px-4">Holat</th>
-                                    <th class="py-3 px-4">Amallar</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y" id="inventory-table-body"></tbody>
-                        </table>
+
+                    <div class="grid grid-cols-1 gap-5 xl:grid-cols-3">
+                        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
+                            <div class="mb-5 flex items-center gap-3">
+                                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-xl" aria-hidden="true">🛒</div>
+                                <div>
+                                    <h3 class="font-bold text-slate-900">Bozorlik qo‘shish</h3>
+                                    <p class="text-xs text-slate-500">Mavjud ombor mahsulotini xarid ro‘yxatiga kiriting</p>
+                                </div>
+                            </div>
+                            <form id="shopping-item-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5" novalidate>
+                                <div class="sm:col-span-2 xl:col-span-2">
+                                    <label for="shopping-product" class="block text-sm font-medium text-slate-700">Mahsulot</label>
+                                    <input id="shopping-product" list="shopping-product-options" autocomplete="off" required placeholder="Mahsulotni qidiring..." class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    <datalist id="shopping-product-options"></datalist>
+                                    <button type="button" onclick="openInventoryProductModal()" class="mt-1.5 text-xs font-semibold text-blue-700 hover:text-blue-800">Mahsulot topilmadimi? Omborga qo‘shish</button>
+                                </div>
+                                <label class="block text-sm font-medium text-slate-700">Miqdori
+                                    <input id="shopping-quantity" type="number" min="0" step="any" required placeholder="Masalan: 25" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <div>
+                                    <label for="shopping-unit" class="block text-sm font-medium text-slate-700">O‘lchov birligi</label>
+                                    <input id="shopping-unit" readonly placeholder="Mahsulotni tanlang" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-600">
+                                </div>
+                                <label class="block text-sm font-medium text-slate-700">Jami summa (so‘m)
+                                    <input id="shopping-amount" type="number" min="1" step="1" required placeholder="Masalan: 1000000" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <div class="sm:col-span-2 xl:col-span-5">
+                                    <label for="shopping-added-by" class="block text-sm font-medium text-slate-700">Kim qo‘shdi?</label>
+                                    <input id="shopping-added-by" readonly value="Sessiya aniqlanmoqda..." class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-600">
+                                </div>
+                                <p id="shopping-item-error" class="hidden rounded-xl bg-red-50 px-3.5 py-3 text-sm text-red-700 sm:col-span-2 xl:col-span-5" role="alert" aria-live="polite"></p>
+                                <div class="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-5">
+                                    <button id="shopping-item-submit" type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60">Bozorlikka qo‘shish</button>
+                                    <button id="shopping-item-cancel-edit" type="button" onclick="cancelShoppingItemEdit()" class="hidden rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Tahrirni bekor qilish</button>
+                                </div>
+                            </form>
+                        </section>
+                        <section class="flex flex-col justify-between rounded-2xl border border-blue-100 bg-blue-50/60 p-5 shadow-sm sm:p-6">
+                            <div>
+                                <p class="text-sm font-medium text-blue-900">Joriy oy bozorlik xarajatlari</p>
+                                <p id="shopping-current-month" class="mt-1 text-xs capitalize text-blue-700">—</p>
+                            </div>
+                            <p id="shopping-month-total" class="mt-5 text-3xl font-bold tracking-tight text-slate-900">0 so‘m</p>
+                            <p class="mt-2 text-xs text-slate-500">Faqat yakunlangan bozorliklar hisoblanadi</p>
+                        </section>
+                    </div>
+
+                    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-5 sm:p-6">
+                            <div>
+                                <h3 class="font-bold text-slate-900">Joriy bozorlik</h3>
+                                <p class="mt-1 text-xs text-slate-500">Xaridlar yakunlangunga qadar ombor qoldig‘iga ta’sir qilmaydi</p>
+                            </div>
+                            <span id="shopping-cart-count" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">0 mahsulot</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[680px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                        <th class="px-5 py-3.5">Mahsulot</th>
+                                        <th class="px-5 py-3.5">Miqdor</th>
+                                        <th class="px-5 py-3.5">Birlik</th>
+                                        <th class="px-5 py-3.5">Jami summa</th>
+                                        <th class="px-5 py-3.5">Amal</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shopping-cart-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div class="flex flex-col gap-4 border-t border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                            <div>
+                                <p class="text-xs font-medium text-slate-500">Jami bozorlik summasi</p>
+                                <p id="shopping-cart-total" class="mt-1 text-2xl font-bold text-slate-900">0 so‘m</p>
+                            </div>
+                            <button id="shopping-finalize-open" type="button" onclick="openShoppingFinalizeModal()" disabled class="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Bozorlikni omborga va yakunlash</button>
+                        </div>
+                    </section>
+
+                    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-100 p-5 sm:p-6">
+                            <h3 class="font-bold text-slate-900">Bozorlik va xarajatlar tarixi</h3>
+                            <p class="mt-1 text-xs text-slate-500">Yakunlangan xaridlar va ularni kiritgan xodimlar</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[850px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                        <th class="px-5 py-3.5">Sana / vaqt</th>
+                                        <th class="px-5 py-3.5">Kim qo‘shdi?</th>
+                                        <th class="px-5 py-3.5">Mahsulotlar</th>
+                                        <th class="px-5 py-3.5">Jami</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shopping-history-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-5 sm:p-6">
+                            <div>
+                                <h3 class="font-bold text-slate-900">Ombor qoldiqlari</h3>
+                                <p class="mt-1 text-xs text-slate-500">Mavjud mahsulotlar, bozorliklar yakunlangach miqdorlar yangilanadi</p>
+                            </div>
+                            <button onclick="loadInventory()" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Yangilash</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[680px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                        <th class="px-5 py-3.5">Mahsulot nomi</th>
+                                        <th class="px-5 py-3.5">Kategoriya</th>
+                                        <th class="px-5 py-3.5">Miqdor</th>
+                                        <th class="px-5 py-3.5">O‘lchov birligi</th>
+                                        <th class="px-5 py-3.5">Holat</th>
+                                        <th class="px-5 py-3.5">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" id="inventory-table-body"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -518,8 +629,12 @@
             if (pageTitle) pageTitle.innerText = titles[tabId] || 'Boshqaruv paneli';
         }
 
-        const adminData = { menu: [], inventory: [], employees: [], orders: [], rooms: [] };
+        const adminData = { menu: [], inventory: [], employees: [], orders: [], rooms: [], purchases: [] };
         const loadedAdminData = { menu: false, inventory: false, employees: false, orders: false, rooms: false };
+        let adminCurrentUser = null;
+        let shoppingCart = [];
+        let shoppingEditingProductId = null;
+        let shoppingFinalizing = false;
         let adminSearchTerm = '';
         let orderSearchTerm = '';
         let employeeSearchTerm = '';
@@ -536,6 +651,10 @@
 
         function formatMoney(value) {
             return `${Number(value || 0).toLocaleString('uz-UZ')} so'm`;
+        }
+
+        function formatSomAmount(value) {
+            return `${BigInt(value || 0).toLocaleString('uz-UZ')} so'm`;
         }
 
         function matchesSearch(values, term) {
@@ -603,6 +722,14 @@
 
         function renderInventory() {
             const body = document.getElementById('inventory-table-body');
+            const activeProducts = adminData.inventory.filter(product => product.isActive !== false);
+            const productOptions = document.getElementById('shopping-product-options');
+            if (productOptions) {
+                productOptions.innerHTML = activeProducts.map(product => {
+                    const label = `${product.name} — ${product.unit} · ${product.id.slice(-6)}`;
+                    return `<option value="${escapeHtml(label)}"></option>`;
+                }).join('');
+            }
             const products = adminData.inventory.filter(product => matchesSearch([
                 product.name, product.unit, product.quantity, product.minQuantity
             ], adminSearchTerm));
@@ -617,6 +744,58 @@
                     <td class="py-3 px-4">—</td>
                 </tr>`;
             }).join('') : '<tr><td class="py-3 px-4 text-gray-500" colspan="6">Ombor ma’lumotlari topilmadi.</td></tr>';
+            renderShoppingCart();
+        }
+
+        function renderShoppingCart() {
+            const body = document.getElementById('shopping-cart-body');
+            if (!body) return;
+            const productsById = new Map(adminData.inventory.map(product => [product.id, product]));
+            body.innerHTML = shoppingCart.length ? shoppingCart.map(item => {
+                const product = productsById.get(item.inventoryId);
+                return `<tr class="transition hover:bg-slate-50/80">
+                    <td class="px-5 py-4 font-semibold text-slate-900">${escapeHtml(product?.name || 'Mahsulot topilmadi')}</td>
+                    <td class="px-5 py-4 text-slate-700">${escapeHtml(item.quantity)}</td>
+                    <td class="px-5 py-4 text-slate-600">${escapeHtml(product?.unit || '—')}</td>
+                    <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">${formatSomAmount(item.totalCost)}</td>
+                    <td class="whitespace-nowrap px-5 py-4">
+                        <button type="button" onclick="editShoppingItem('${escapeHtml(item.inventoryId)}')" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Tahrirlash</button>
+                        <button type="button" onclick="removeShoppingItem('${escapeHtml(item.inventoryId)}')" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50">O‘chirish</button>
+                    </td>
+                </tr>`;
+            }).join('') : '<tr><td class="px-5 py-8 text-center text-sm text-slate-500" colspan="5">Joriy bozorlik ro‘yxati bo‘sh.</td></tr>';
+
+            const total = shoppingCart.reduce((sum, item) => sum + BigInt(item.totalCost), 0n);
+            document.getElementById('shopping-cart-count').textContent = `${shoppingCart.length} mahsulot`;
+            document.getElementById('shopping-cart-total').textContent = formatSomAmount(total);
+            document.getElementById('shopping-finalize-open').disabled = shoppingCart.length === 0 || shoppingFinalizing;
+        }
+
+        function renderPurchaseHistory() {
+            const body = document.getElementById('shopping-history-body');
+            if (!body) return;
+            const purchases = adminData.purchases;
+            body.innerHTML = purchases.length ? purchases.map(purchase => {
+                const products = purchase.items.map(item =>
+                    `${escapeHtml(item.inventory.name)} ${escapeHtml(item.quantity)} ${escapeHtml(item.inventory.unit)}`
+                ).join(', ');
+                return `<tr class="transition hover:bg-slate-50/80">
+                    <td class="whitespace-nowrap px-5 py-4 text-slate-600">${escapeHtml(new Date(purchase.createdAt).toLocaleString('uz-UZ'))}</td>
+                    <td class="px-5 py-4 font-medium text-slate-800">${escapeHtml(purchase.user.fullName || purchase.user.username)}</td>
+                    <td class="px-5 py-4 text-slate-600">${products}</td>
+                    <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">${formatMoney(purchase.totalAmount)}</td>
+                </tr>`;
+            }).join('') : '<tr><td class="px-5 py-8 text-center text-sm text-slate-500" colspan="4">Yakunlangan bozorliklar tarixi hali yo‘q.</td></tr>';
+
+            const now = new Date();
+            const monthPurchases = purchases.filter(purchase => {
+                const date = new Date(purchase.createdAt);
+                return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+            });
+            const monthlyTotal = monthPurchases.reduce((sum, purchase) => sum + BigInt(String(purchase.totalAmount)), 0n);
+            const monthNames = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktyabr', 'Noyabr', 'Dekabr'];
+            document.getElementById('shopping-current-month').textContent = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+            document.getElementById('shopping-month-total').textContent = formatSomAmount(monthlyTotal);
         }
 
         function renderEmployees() {
@@ -761,6 +940,219 @@
         function loadInventory() { return loadAdminData('inventory', '/api/inventory'); }
         function loadEmployees() { return loadAdminData('employees', '/api/users'); }
         function loadOrders() { return loadAdminData('orders', '/api/orders'); }
+
+        async function loadPurchases() {
+            try {
+                const purchases = await requestJson('/api/purchases');
+                if (!Array.isArray(purchases)) throw new Error('Bozorlik tarixi noto‘g‘ri formatda');
+                adminData.purchases = purchases;
+                renderPurchaseHistory();
+            } catch (error) {
+                console.error('Bozorlik tarixini yuklashda xatolik:', error);
+                showToast(error.message || 'Bozorlik tarixini yuklab bo‘lmadi', 'error');
+            }
+        }
+
+        function getShoppingProductByLabel(label) {
+            return adminData.inventory.filter(product => product.isActive !== false).find(product =>
+                `${product.name} — ${product.unit} · ${product.id.slice(-6)}` === label
+            );
+        }
+
+        function updateShoppingProductUnit() {
+            const product = getShoppingProductByLabel(document.getElementById('shopping-product').value);
+            document.getElementById('shopping-unit').value = product?.unit || '';
+        }
+
+        function showShoppingItemError(message) {
+            const error = document.getElementById('shopping-item-error');
+            error.textContent = message;
+            error.classList.toggle('hidden', !message);
+        }
+
+        function resetShoppingItemForm() {
+            document.getElementById('shopping-item-form').reset();
+            document.getElementById('shopping-unit').value = '';
+            document.getElementById('shopping-product').disabled = false;
+            document.getElementById('shopping-item-submit').textContent = 'Bozorlikka qo‘shish';
+            document.getElementById('shopping-item-cancel-edit').classList.add('hidden');
+            shoppingEditingProductId = null;
+            showShoppingItemError('');
+        }
+
+        function addShoppingItem(event) {
+            event.preventDefault();
+            const label = document.getElementById('shopping-product').value.trim();
+            const product = getShoppingProductByLabel(label);
+            const quantity = document.getElementById('shopping-quantity').value.trim();
+            const totalCost = document.getElementById('shopping-amount').value.trim();
+            if (!product) {
+                showShoppingItemError('Ombordagi mavjud mahsulotlardan birini tanlang.');
+                document.getElementById('shopping-product').focus();
+                return;
+            }
+            if (!/^\d{1,12}(?:\.\d{1,6})?$/.test(quantity) || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0) {
+                showShoppingItemError('Miqdorni 0 dan katta, to‘g‘ri son bilan kiriting.');
+                document.getElementById('shopping-quantity').focus();
+                return;
+            }
+            if (!/^\d{1,15}$/.test(totalCost) || BigInt(totalCost) <= 0n ||
+                BigInt(totalCost) > BigInt(Number.MAX_SAFE_INTEGER)) {
+                showShoppingItemError('Jami summani 0 dan katta, butun so‘m miqdorida kiriting.');
+                document.getElementById('shopping-amount').focus();
+                return;
+            }
+            if (!shoppingEditingProductId && shoppingCart.some(item => item.inventoryId === product.id)) {
+                showShoppingItemError('Bu mahsulot bozorlikka qo‘shilgan. Uni tahrirlash orqali o‘zgartiring.');
+                return;
+            }
+
+            const cartItem = { inventoryId: product.id, quantity, totalCost };
+            if (shoppingEditingProductId) {
+                shoppingCart = shoppingCart.map(item =>
+                    item.inventoryId === shoppingEditingProductId ? cartItem : item
+                );
+                showToast('Bozorlik mahsuloti yangilandi');
+            } else {
+                shoppingCart.push(cartItem);
+            }
+            resetShoppingItemForm();
+            renderShoppingCart();
+        }
+
+        function editShoppingItem(inventoryId) {
+            const item = shoppingCart.find(cartItem => cartItem.inventoryId === inventoryId);
+            const product = adminData.inventory.find(inventoryProduct => inventoryProduct.id === inventoryId);
+            if (!item || !product) {
+                showToast('Tahrirlash uchun mahsulot topilmadi', 'error');
+                return;
+            }
+            shoppingEditingProductId = inventoryId;
+            document.getElementById('shopping-product').value =
+                `${product.name} — ${product.unit} · ${product.id.slice(-6)}`;
+            document.getElementById('shopping-product').disabled = true;
+            document.getElementById('shopping-unit').value = product.unit;
+            document.getElementById('shopping-quantity').value = item.quantity;
+            document.getElementById('shopping-amount').value = item.totalCost;
+            document.getElementById('shopping-item-submit').textContent = 'O‘zgarishni saqlash';
+            document.getElementById('shopping-item-cancel-edit').classList.remove('hidden');
+            showShoppingItemError('');
+            document.getElementById('shopping-quantity').focus();
+        }
+
+        function cancelShoppingItemEdit() {
+            resetShoppingItemForm();
+        }
+
+        function removeShoppingItem(inventoryId) {
+            shoppingCart = shoppingCart.filter(item => item.inventoryId !== inventoryId);
+            if (shoppingEditingProductId === inventoryId) resetShoppingItemForm();
+            renderShoppingCart();
+        }
+
+        function formatShoppingQuantityByUnit() {
+            const totals = new Map();
+            const productsById = new Map(adminData.inventory.map(product => [product.id, product]));
+            shoppingCart.forEach(item => {
+                const product = productsById.get(item.inventoryId);
+                const unit = product?.unit || 'birlik';
+                const [wholePart, fractionPart = ''] = item.quantity.split('.');
+                const scaledQuantity = BigInt(wholePart) * 1000000n + BigInt(fractionPart.padEnd(6, '0'));
+                totals.set(unit, (totals.get(unit) || 0n) + scaledQuantity);
+            });
+            return [...totals.entries()].map(([unit, scaledQuantity]) => {
+                const whole = scaledQuantity / 1000000n;
+                const fraction = (scaledQuantity % 1000000n).toString().padStart(6, '0').replace(/0+$/, '');
+                const formattedWhole = whole.toLocaleString('uz-UZ');
+                return `${fraction ? `${formattedWhole}.${fraction}` : formattedWhole} ${unit}`;
+            }).join(', ');
+        }
+
+        function openShoppingFinalizeModal() {
+            if (!shoppingCart.length || shoppingFinalizing) return;
+            const total = shoppingCart.reduce((sum, item) => sum + BigInt(item.totalCost), 0n);
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div id="shopping-finalize-backdrop" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+                    <section class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="shopping-finalize-title">
+                        <div class="mb-5 flex items-center gap-3">
+                            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-xl" aria-hidden="true">✓</div>
+                            <h2 id="shopping-finalize-title" class="text-lg font-bold text-slate-900">Bozorlikni yakunlaysizmi?</h2>
+                        </div>
+                        <dl class="space-y-3 rounded-xl bg-slate-50 p-4 text-sm">
+                            <div class="flex justify-between gap-4"><dt class="text-slate-500">Mahsulotlar</dt><dd class="font-semibold text-slate-900">${shoppingCart.length} ta</dd></div>
+                            <div class="flex justify-between gap-4"><dt class="text-slate-500">Jami miqdor</dt><dd class="text-right font-semibold text-slate-900">${escapeHtml(formatShoppingQuantityByUnit())}</dd></div>
+                            <div class="flex justify-between gap-4 border-t border-slate-200 pt-3"><dt class="font-medium text-slate-700">Jami summa</dt><dd class="font-bold text-slate-900">${formatSomAmount(total)}</dd></div>
+                        </dl>
+                        <p id="shopping-finalize-error" class="mt-4 hidden rounded-xl bg-red-50 px-3.5 py-3 text-sm text-red-700" role="alert" aria-live="polite"></p>
+                        <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button id="shopping-finalize-cancel" type="button" onclick="closeShoppingFinalizeModal()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Bekor qilish</button>
+                            <button id="shopping-finalize-confirm" type="button" onclick="finalizeShopping()" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60">Yakunlash</button>
+                        </div>
+                    </section>
+                </div>`;
+            document.getElementById('shopping-finalize-backdrop').addEventListener('click', event => {
+                if (event.target === event.currentTarget) closeShoppingFinalizeModal();
+            });
+            window.addEventListener('keydown', handleShoppingFinalizeEscape);
+            document.getElementById('shopping-finalize-confirm').focus();
+        }
+
+        function handleShoppingFinalizeEscape(event) {
+            if (event.key === 'Escape') closeShoppingFinalizeModal();
+        }
+
+        function closeShoppingFinalizeModal(force = false) {
+            if (shoppingFinalizing && !force) return;
+            document.getElementById('modal-container').innerHTML = '';
+            window.removeEventListener('keydown', handleShoppingFinalizeEscape);
+        }
+
+        async function finalizeShopping() {
+            if (shoppingFinalizing || shoppingCart.length === 0) return;
+            shoppingFinalizing = true;
+            renderShoppingCart();
+            const confirmButton = document.getElementById('shopping-finalize-confirm');
+            const cancelButton = document.getElementById('shopping-finalize-cancel');
+            confirmButton.disabled = true;
+            confirmButton.textContent = 'Yakunlanmoqda...';
+            cancelButton.disabled = true;
+            try {
+                await requestJson('/api/purchases', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: shoppingCart.map(item => ({
+                            inventoryId: item.inventoryId,
+                            quantity: item.quantity,
+                            totalCost: item.totalCost
+                        }))
+                    })
+                });
+                shoppingCart = [];
+                resetShoppingItemForm();
+                closeShoppingFinalizeModal(true);
+                await Promise.all([loadInventory(), loadPurchases()]);
+                showToast('Bozorlik omborga qo‘shildi va yakunlandi');
+            } catch (error) {
+                console.error('Bozorlikni yakunlashda xatolik:', error);
+                const errorMessage = document.getElementById('shopping-finalize-error');
+                if (errorMessage) {
+                    errorMessage.textContent = error.message || 'Bozorlikni yakunlab bo‘lmadi';
+                    errorMessage.classList.remove('hidden');
+                } else {
+                    showToast(error.message || 'Bozorlikni yakunlab bo‘lmadi', 'error');
+                }
+            } finally {
+                shoppingFinalizing = false;
+                renderShoppingCart();
+                if (document.getElementById('shopping-finalize-confirm')) {
+                    confirmButton.disabled = false;
+                    confirmButton.textContent = 'Yakunlash';
+                    cancelButton.disabled = false;
+                }
+            }
+        }
 
         async function submitNewRecord(url, payload, reload, successMessage) {
             try {
@@ -1459,6 +1851,9 @@
             employeeSearchTerm = event.target.value.trim();
             renderEmployees();
         });
+        document.getElementById('shopping-item-form').addEventListener('submit', addShoppingItem);
+        document.getElementById('shopping-product').addEventListener('input', updateShoppingProductUnit);
+        document.getElementById('shopping-product').addEventListener('change', updateShoppingProductUnit);
 
         async function checkAdminAuth() {
             try {
@@ -1471,9 +1866,13 @@
                     return;
                 }
                 document.getElementById('admin-auth-overlay').classList.add('hidden');
+                adminCurrentUser = session.user;
+                document.getElementById('shopping-added-by').value =
+                    adminCurrentUser.fullName || adminCurrentUser.username || 'Administrator';
                 loadRooms();
                 loadMenu();
                 loadInventory();
+                loadPurchases();
                 loadEmployees();
                 loadOrders();
             } catch (error) {
