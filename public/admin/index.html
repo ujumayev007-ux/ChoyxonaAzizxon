@@ -253,13 +253,99 @@
 
                 <!-- 4. MENYU -->
                 <div id="section-menyu" class="tab-content hidden space-y-6">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
-                        <h2 class="text-lg font-bold text-gray-800">Menyu va Mahsulot Tannarxi</h2>
-                        <button onclick="addMenuItem()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Taom qo‘shish</button>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div id="menu-items-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
-                    </div>
+                    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                        <div class="mb-6 flex items-start gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-700">🍽️</div>
+                            <div>
+                                <h2 class="text-xl font-bold tracking-tight text-slate-900">Menyu boshqaruvi</h2>
+                                <p class="mt-1 text-sm text-slate-500">Taomlar va ichimliklar, narxlar va ko‘rinishini boshqarish</p>
+                            </div>
+                        </div>
+                        <form id="menu-create-form" class="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-6">
+                            <div class="mb-5">
+                                <h3 class="font-semibold text-slate-900">Yangi taom yoki ichimlik qo‘shish</h3>
+                                <p class="mt-1 text-xs text-slate-500">Yangi mahsulot menyuda saqlanadi.</p>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                <label class="text-sm font-medium text-slate-700">Nomi
+                                    <input id="menu-name" name="name" required maxlength="100" placeholder="Masalan: Lag‘mon" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="text-sm font-medium text-slate-700">Kategoriya
+                                    <select id="menu-category-id" name="categoryId" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                        <option value="">Kategoriyani tanlang</option>
+                                    </select>
+                                </label>
+                                <label class="text-sm font-medium text-slate-700">Ichki narx
+                                    <input name="internalCostPrice" type="number" min="0" step="0.01" value="0" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="text-sm font-medium text-slate-700">Sotish narxi
+                                    <input name="sellingPrice" type="number" min="0" step="0.01" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                            </div>
+                            <details class="mt-4">
+                                <summary class="w-fit cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-800">Qo‘shimcha taom ma’lumotlari</summary>
+                                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                    <label class="text-sm font-medium text-slate-700">Tavsif
+                                        <input name="description" maxlength="500" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    </label>
+                                    <label class="text-sm font-medium text-slate-700">O‘lchov birligi
+                                        <input name="unit" value="porsiya" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    </label>
+                                    <label class="text-sm font-medium text-slate-700">Tayyorlash vaqti (daqiqa)
+                                        <input name="preparationTime" type="number" min="0" step="1" value="15" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    </label>
+                                    <label class="text-sm font-medium text-slate-700">Oshxona bo‘limi
+                                        <input name="kitchenSection" value="Umumiy oshxona" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                    </label>
+                                </div>
+                            </details>
+                            <div class="mt-5 flex justify-end">
+                                <button id="menu-create-submit" type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60">+ Taom qo‘shish</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div class="border-b border-slate-100 p-4 sm:p-6">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                <label class="relative md:col-span-1">
+                                    <span class="sr-only">Taom yoki ichimlik nomi bo‘yicha qidirish</span>
+                                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+                                    <input id="menu-search" type="search" placeholder="Taom yoki ichimlik nomi bo‘yicha qidirish..." class="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label>
+                                    <span class="sr-only">Kategoriya filtri</span>
+                                    <select id="menu-category-filter" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                        <option value="">Barcha kategoriyalar</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span class="sr-only">Ko‘rinish filtri</span>
+                                    <select id="menu-visibility-filter" class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                        <option value="all">Barchasi</option>
+                                        <option value="visible">Ko‘rinadi</option>
+                                        <option value="hidden">Yashirilgan</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[760px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                        <th class="px-5 py-3.5">ID</th>
+                                        <th class="px-5 py-3.5">Nomi</th>
+                                        <th class="px-5 py-3.5">Kategoriya</th>
+                                        <th class="px-5 py-3.5">Ichki narx</th>
+                                        <th class="px-5 py-3.5">Sotish narxi</th>
+                                        <th class="px-5 py-3.5">Ofitsiant uchun ko‘rinishi</th>
+                                        <th class="px-5 py-3.5">Amal</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="menu-items-container" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
 
                 <!-- 5. OMBOR -->
@@ -290,24 +376,70 @@
 
                 <!-- 6. XODIMLAR -->
                 <div id="section-xodimlar" class="tab-content hidden space-y-6">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
-                        <h2 class="text-lg font-bold text-gray-800">Xodimlar Ro'yxati va Ofitsiantlar</h2>
-                        <button onclick="addEmployee()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition">+ Xodim qo‘shish</button>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <table class="w-full text-left text-sm text-gray-600">
-                            <thead class="bg-gray-50 text-xs uppercase text-gray-500 border-b">
-                                <tr>
-                                    <th class="py-3 px-4">Xodim</th>
-                                    <th class="py-3 px-4">Lavozim</th>
-                                    <th class="py-3 px-4">Telefon</th>
-                                    <th class="py-3 px-4">Holat</th>
-                                    <th class="py-3 px-4">Amallar</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y" id="employees-table-body"></tbody>
-                        </table>
-                    </div>
+                    <section class="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(320px,0.8fr)_minmax(0,1.7fr)]">
+                        <div class="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                            <div class="mb-6 flex items-center gap-3">
+                                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-xl">👥</div>
+                                <div>
+                                    <h2 class="text-lg font-bold text-slate-900">Xodim qo‘shish</h2>
+                                    <p class="mt-0.5 text-xs text-slate-500">Ofitsiant yoki kassir hisobini yarating</p>
+                                </div>
+                            </div>
+                            <form id="employee-create-form" class="space-y-4">
+                                <label class="block text-sm font-medium text-slate-700">Lavozimi
+                                    <select id="employee-role" name="role" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                        <option value="WAITER">Ofitsiant</option>
+                                        <option value="CASHIER">Kassir</option>
+                                        <option value="KITCHEN">Oshxona xodimi</option>
+                                        <option value="ADMIN">Administrator</option>
+                                    </select>
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">Xodim ismi
+                                    <input name="fullName" required maxlength="100" autocomplete="name" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">Login
+                                    <input name="username" required maxlength="50" autocomplete="username" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">Telefon raqami
+                                    <input name="phone" type="tel" required maxlength="50" placeholder="+998..." autocomplete="tel" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <label class="block text-sm font-medium text-slate-700">Parol
+                                    <span class="mt-1.5 flex rounded-xl border border-slate-200 bg-white transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                        <input id="employee-password" name="password" type="password" required minlength="8" autocomplete="new-password" class="min-w-0 flex-1 rounded-l-xl px-3.5 py-2.5 text-sm outline-none">
+                                        <button id="employee-password-toggle" type="button" aria-label="Parolni ko‘rsatish" class="rounded-r-xl px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50">Ko‘rsatish</button>
+                                    </span>
+                                </label>
+                                <label id="employee-commission-field" class="block text-sm font-medium text-slate-700">Ofitsiant komissiyasi (%)
+                                    <input name="commissionPercent" type="number" min="0" max="100" step="0.1" value="10" class="mt-1.5 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                                </label>
+                                <button id="employee-create-submit" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60">+ Xodim qo‘shish</button>
+                            </form>
+                        </div>
+                        <div class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div class="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                                <div>
+                                    <h2 class="text-lg font-bold text-slate-900">Xodimlar</h2>
+                                    <p class="mt-1 text-xs text-slate-500">Parollar ro‘yxatda ko‘rsatilmaydi</p>
+                                </div>
+                                <input id="employee-search" type="search" placeholder="Ism yoki login bo‘yicha qidirish..." class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 sm:max-w-xs">
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full min-w-[680px] text-left text-sm">
+                                    <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                            <th class="px-5 py-3.5">Ismi</th>
+                                            <th class="px-5 py-3.5">Lavozimi</th>
+                                            <th class="px-5 py-3.5">Login</th>
+                                            <th class="px-5 py-3.5">Telefon</th>
+                                            <th class="px-5 py-3.5">Holati</th>
+                                            <th class="px-5 py-3.5">Amallar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100" id="employees-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <!-- 7. MOLIYA -->
@@ -367,12 +499,12 @@
         updateClock();
 
         // Toast Notification System
-        function showToast(message) {
+        function showToast(message, variant = 'success') {
             const container = document.getElementById('toast-container');
             if (!container) return;
             const toast = document.createElement('div');
-            toast.className = 'bg-slate-900 text-white text-xs px-4 py-3 rounded-lg shadow-lg transition transform translate-y-2 opacity-0 flex items-center gap-2';
-            toast.innerHTML = `<span>✅</span> <span>${message}</span>`;
+            toast.className = `${variant === 'error' ? 'bg-red-700' : 'bg-slate-900'} text-white text-xs px-4 py-3 rounded-lg shadow-lg transition transform translate-y-2 opacity-0 flex items-center gap-2`;
+            toast.innerHTML = `<span>${variant === 'error' ? '⚠️' : '✅'}</span> <span>${message}</span>`;
             container.appendChild(toast);
             setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
             setTimeout(() => {
@@ -416,6 +548,11 @@
         const loadedAdminData = { menu: false, inventory: false, employees: false, orders: false, rooms: false };
         let adminSearchTerm = '';
         let orderSearchTerm = '';
+        let employeeSearchTerm = '';
+        let menuSearchTerm = '';
+        let menuCategoryFilter = '';
+        let menuVisibilityFilter = 'all';
+        let adminMenuCategories = [];
 
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -443,21 +580,51 @@
 
         function renderMenu() {
             const container = document.getElementById('menu-items-container');
-            const menuItems = adminData.menu.filter(item => matchesSearch([
-                item.name, item.category?.name, item.description, item.sellingPrice, item.unit
-            ], adminSearchTerm));
+            if (!container) return;
+
+            const categories = new Map(adminMenuCategories.map(category => [category.id, category.name]));
+            adminData.menu.forEach(item => {
+                if (item.category) categories.set(item.category.id, item.category.name);
+            });
+            const categoryOptions = [...categories.entries()].map(([id, name]) =>
+                `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`
+            ).join('');
+            const categorySelect = document.getElementById('menu-category-id');
+            const categoryFilter = document.getElementById('menu-category-filter');
+            if (categorySelect) {
+                const selectedCategory = categorySelect.value;
+                categorySelect.innerHTML = `<option value="">Kategoriyani tanlang</option>${categoryOptions}`;
+                categorySelect.value = selectedCategory;
+            }
+            if (categoryFilter) {
+                const selectedCategory = categoryFilter.value;
+                categoryFilter.innerHTML = `<option value="">Barcha kategoriyalar</option>${categoryOptions}`;
+                categoryFilter.value = selectedCategory;
+            }
+
+            const menuItems = adminData.menu.filter(item => {
+                const isVisible = item.isActive !== false;
+                const matchesVisibility = menuVisibilityFilter === 'all' ||
+                    (menuVisibilityFilter === 'visible' && isVisible) ||
+                    (menuVisibilityFilter === 'hidden' && !isVisible);
+                return matchesSearch([item.name, item.category?.name, item.description], [adminSearchTerm, menuSearchTerm].filter(Boolean).join(' ')) &&
+                    (!menuCategoryFilter || item.categoryId === menuCategoryFilter) && matchesVisibility;
+            });
             container.innerHTML = menuItems.length ? menuItems.map(item => {
-                const cost = Number(item.internalCostPrice || 0);
-                const price = Number(item.sellingPrice || 0);
-                return `
-                    <div class="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                        <h4 class="font-bold text-gray-800 text-base mb-1">${escapeHtml(item.name)}</h4>
-                        <p class="text-xs text-gray-500 mb-3">Kategoriya: ${escapeHtml(item.category?.name || '—')}</p>
-                        <div class="flex justify-between text-sm py-1 border-t"><span class="text-gray-500">Tannarx:</span><span class="font-semibold text-gray-700">${formatMoney(cost)}</span></div>
-                        <div class="flex justify-between text-sm py-1"><span class="text-gray-500">Sotuv narxi:</span><span class="font-semibold text-amber-600">${formatMoney(price)}</span></div>
-                        <div class="flex justify-between text-sm py-1 border-b pb-2"><span class="text-gray-500">Foyda:</span><span class="font-semibold text-green-600">${formatMoney(price - cost)}</span></div>
-                    </div>`;
-            }).join('') : '<p class="text-gray-500 text-sm">Menyu ma’lumotlari topilmadi.</p>';
+                const isVisible = item.isActive !== false;
+                return `<tr class="transition hover:bg-slate-50/80">
+                    <td class="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-400">${escapeHtml(item.id.slice(0, 8))}</td>
+                    <td class="px-5 py-4"><div class="font-semibold text-slate-900">${escapeHtml(item.name)}</div>
+                        <div class="mt-0.5 text-xs text-slate-400">${escapeHtml(item.unit || 'porsiya')}</div></td>
+                    <td class="px-5 py-4">${escapeHtml(item.category?.name || '—')}</td>
+                    <td class="whitespace-nowrap px-5 py-4 font-medium text-slate-600">${formatMoney(item.internalCostPrice)}</td>
+                    <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">${formatMoney(item.sellingPrice)}</td>
+                    <td class="px-5 py-4"><span class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
+                        <span class="h-1.5 w-1.5 rounded-full ${isVisible ? 'bg-emerald-500' : 'bg-slate-400'}"></span>${isVisible ? 'Ko‘rinadi' : 'Yashirilgan'}
+                    </span></td>
+                    <td class="px-5 py-4"><span class="text-xs text-slate-400" title="Menyu tahrirlash API mavjud emas">—</span></td>
+                </tr>`;
+            }).join('') : '<tr><td class="px-5 py-8 text-center text-sm text-slate-500" colspan="7">Filtrga mos menyu topilmadi.</td></tr>';
         }
 
         function renderInventory() {
@@ -480,18 +647,22 @@
 
         function renderEmployees() {
             const body = document.getElementById('employees-table-body');
+            if (!body) return;
             const employees = adminData.employees.filter(employee => matchesSearch([
-                employee.fullName, employee.username, employee.role, employee.waiterProfile?.phone
-            ], adminSearchTerm));
+                employee.fullName, employee.username, employee.role, employee.phone, employee.waiterProfile?.phone
+            ], [adminSearchTerm, employeeSearchTerm].filter(Boolean).join(' ')));
             const roleNames = { ADMIN: 'Administrator', CASHIER: 'Kassir', WAITER: 'Ofitsiant', KITCHEN: 'Oshxona xodimi', CUSTOMER: 'Mijoz' };
             body.innerHTML = employees.length ? employees.map(employee => `
-                <tr>
-                    <td class="py-3 px-4 font-bold text-gray-800">${escapeHtml(employee.fullName)}</td>
-                    <td class="py-3 px-4">${escapeHtml(roleNames[employee.role] || employee.role)}</td>
-                    <td class="py-3 px-4">${escapeHtml(employee.phone || employee.waiterProfile?.phone || '—')}</td>
-                    <td class="py-3 px-4"><span class="${employee.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'} text-xs px-2.5 py-1 rounded-full font-medium">${employee.isActive ? 'Faol' : 'Faol emas'}</span></td>
-                    <td class="py-3 px-4">—</td>
-                </tr>`).join('') : '<tr><td class="py-3 px-4 text-gray-500" colspan="5">Xodimlar topilmadi.</td></tr>';
+                <tr class="transition hover:bg-slate-50/80">
+                    <td class="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">${escapeHtml(employee.fullName)}</td>
+                    <td class="px-5 py-4 text-slate-600">${escapeHtml(roleNames[employee.role] || employee.role)}</td>
+                    <td class="px-5 py-4 font-mono text-xs text-slate-600">${escapeHtml(employee.username)}</td>
+                    <td class="px-5 py-4 text-slate-600">${escapeHtml(employee.phone || employee.waiterProfile?.phone || '—')}</td>
+                    <td class="px-5 py-4"><span class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${employee.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">
+                        <span class="h-1.5 w-1.5 rounded-full ${employee.isActive ? 'bg-emerald-500' : 'bg-slate-400'}"></span>${employee.isActive ? 'Faol' : 'Nofaol'}
+                    </span></td>
+                    <td class="px-5 py-4"><span class="text-xs text-slate-400" title="Xodimlarni boshqarish API mavjud emas">—</span></td>
+                </tr>`).join('') : '<tr><td class="py-3 px-4 text-gray-500" colspan="6">Xodimlar topilmadi.</td></tr>';
         }
 
         function renderOrders() {
@@ -587,7 +758,32 @@
             }
         }
 
-        function loadMenu() { return loadAdminData('menu', '/api/menu'); }
+        async function loadMenuCategories() {
+            try {
+                adminMenuCategories = await requestJson('/api/menu/categories');
+                if (!Array.isArray(adminMenuCategories)) throw new Error('Menyu kategoriyalari noto‘g‘ri formatda');
+                const createSelect = document.getElementById('menu-category-id');
+                const filterSelect = document.getElementById('menu-category-filter');
+                if (createSelect) {
+                    createSelect.innerHTML = '<option value="">Kategoriyani tanlang</option>' +
+                        adminMenuCategories.map(category => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`).join('');
+                }
+                if (filterSelect) {
+                    filterSelect.innerHTML = '<option value="">Barcha kategoriyalar</option>' +
+                        adminMenuCategories.map(category => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`).join('');
+                    filterSelect.value = menuCategoryFilter;
+                }
+                renderMenu();
+            } catch (error) {
+                console.error('Menyu kategoriyalarini olishda xatolik:', error);
+                showToast(error.message || 'Menyu kategoriyalarini olib bo‘lmadi', 'error');
+            }
+        }
+
+        async function loadMenu() {
+            await loadAdminData('menu', '/api/menu');
+            await loadMenuCategories();
+        }
         function loadInventory() { return loadAdminData('inventory', '/api/inventory'); }
         function loadEmployees() { return loadAdminData('employees', '/api/users'); }
         function loadOrders() { return loadAdminData('orders', '/api/orders'); }
@@ -601,43 +797,49 @@
                 });
                 showToast(successMessage);
                 await reload();
+                return true;
             } catch (error) {
                 console.error('Ma’lumotni saqlashda xatolik:', error);
-                showToast(error.message || 'Ma’lumotni saqlab bo‘lmadi');
+                showToast(error.message || 'Ma’lumotni saqlab bo‘lmadi', 'error');
+                return false;
             }
         }
 
-        async function addMenuItem() {
-            const name = prompt('Taom nomi:');
-            if (name === null || !name.trim()) return;
-            let categories;
-            try {
-                categories = await requestJson('/api/menu/categories');
-                if (!Array.isArray(categories) || categories.length === 0) {
-                    throw new Error('Menyu kategoriyalari topilmadi');
-                }
-            } catch (error) {
-                console.error('Menyu kategoriyalarini olishda xatolik:', error);
-                showToast(error.message || 'Menyu kategoriyalarini olib bo‘lmadi');
+        async function addMenuItem(event) {
+            event.preventDefault();
+            const form = document.getElementById('menu-create-form');
+            const submitButton = document.getElementById('menu-create-submit');
+            const formData = new FormData(form);
+            const name = String(formData.get('name') || '').trim();
+            const categoryId = String(formData.get('categoryId') || '');
+            const sellingPrice = Number(formData.get('sellingPrice'));
+            const internalCostPrice = Number(formData.get('internalCostPrice'));
+            const preparationTime = Number(formData.get('preparationTime'));
+            if (!name || !categoryId || !Number.isFinite(sellingPrice) || sellingPrice < 0 ||
+                !Number.isFinite(internalCostPrice) || internalCostPrice < 0 ||
+                !Number.isInteger(preparationTime) || preparationTime < 0) {
+                showToast('Menyu ma’lumotlarini to‘g‘ri kiriting', 'error');
                 return;
             }
-            const categoryId = prompt(`Kategoriya IDsi:\n${categories.map(category => `${category.name}: ${category.id}`).join('\n')}`);
-            if (categoryId === null || !categoryId.trim()) return;
-            const sellingPrice = prompt('Sotuv narxi:');
-            if (sellingPrice === null) return;
-            const internalCostPrice = prompt('Tannarx:', '0');
-            if (internalCostPrice === null) return;
-            const unit = prompt('O‘lchov birligi:', 'porsiya');
-            if (unit === null || !unit.trim()) return;
-            const preparationTime = prompt('Tayyorlash vaqti (daqiqa):', '15');
-            if (preparationTime === null) return;
-            const kitchenSection = prompt('Oshxona bo‘limi:', 'Umumiy oshxona');
-            if (kitchenSection === null) return;
-            await submitNewRecord('/api/menu', {
-                name: name.trim(), categoryId: categoryId.trim(), sellingPrice: Number(sellingPrice),
-                internalCostPrice: Number(internalCostPrice), unit: unit.trim(),
-                preparationTime: Number(preparationTime), kitchenSection: kitchenSection.trim()
-            }, loadMenu, 'Taom qo‘shildi');
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Saqlanmoqda...';
+            try {
+                const saved = await submitNewRecord('/api/menu', {
+                    name,
+                    categoryId,
+                    description: String(formData.get('description') || '').trim(),
+                    sellingPrice,
+                    internalCostPrice,
+                    unit: String(formData.get('unit') || 'porsiya').trim(),
+                    preparationTime,
+                    kitchenSection: String(formData.get('kitchenSection') || 'Umumiy oshxona').trim()
+                }, loadMenu, 'Taom qo‘shildi');
+                if (saved) form.reset();
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = '+ Taom qo‘shish';
+            }
         }
 
         async function addInventoryProduct() {
@@ -654,31 +856,39 @@
             }, loadInventory, 'Mahsulot qo‘shildi');
         }
 
-        async function addEmployee() {
-            const fullName = prompt('Xodimning to‘liq ismi:');
-            if (fullName === null || !fullName.trim()) return;
-            const username = prompt('Tizimga kirish uchun login:');
-            if (username === null || !username.trim()) return;
-            const password = prompt('Parol (kamida 8 belgi):');
-            if (password === null || password.length < 8) {
-                if (password !== null) showToast('Parol kamida 8 belgidan iborat bo‘lishi kerak');
+        async function addEmployee(event) {
+            event.preventDefault();
+            const form = document.getElementById('employee-create-form');
+            const submitButton = document.getElementById('employee-create-submit');
+            const formData = new FormData(form);
+            const fullName = String(formData.get('fullName') || '').trim();
+            const username = String(formData.get('username') || '').trim();
+            const phone = String(formData.get('phone') || '').trim();
+            const password = String(formData.get('password') || '');
+            const role = String(formData.get('role') || '');
+            const payload = { fullName, username, phone, password, role };
+            if (role === 'WAITER') payload.commissionPercent = Number(formData.get('commissionPercent'));
+            if (!fullName || !username || !phone || password.length < 8) {
+                showToast('Xodim ma’lumotlarini tekshiring. Parol kamida 8 belgidan iborat bo‘lsin.', 'error');
                 return;
             }
-            const role = prompt('Lavozim: WAITER, CASHIER, KITCHEN yoki ADMIN', 'WAITER');
-            if (role === null) return;
-            const phone = prompt('Telefon raqami:', '');
-            if (phone === null || !phone.trim()) {
-                if (phone !== null) showToast('Telefon raqamini kiriting');
-                return;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Saqlanmoqda...';
+            try {
+                const saved = await submitNewRecord('/api/employees', payload, loadEmployees, 'Xodim qo‘shildi');
+                if (saved) {
+                    form.reset();
+                    document.getElementById('employee-password').type = 'password';
+                    const passwordToggle = document.getElementById('employee-password-toggle');
+                    passwordToggle.textContent = 'Ko‘rsatish';
+                    passwordToggle.setAttribute('aria-label', 'Parolni ko‘rsatish');
+                    document.getElementById('employee-commission-field').classList.remove('hidden');
+                }
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = '+ Xodim qo‘shish';
             }
-            const payload = { fullName: fullName.trim(), username: username.trim(), password, role: role.trim().toUpperCase() };
-            Object.assign(payload, { phone: phone.trim() });
-            if (payload.role === 'WAITER') {
-                const commissionPercent = prompt('Komissiya foizi:', '10');
-                if (commissionPercent === null) return;
-                Object.assign(payload, { commissionPercent: Number(commissionPercent) });
-            }
-            await submitNewRecord('/api/employees', payload, loadEmployees, 'Xodim qo‘shildi');
         }
 
         // Room & Table Management API Functions
@@ -1049,6 +1259,38 @@
             orderSearchTerm = event.target.value.trim();
             renderOrders();
         });
+        document.getElementById('menu-create-form').addEventListener('submit', addMenuItem);
+        document.getElementById('employee-create-form').addEventListener('submit', addEmployee);
+        document.getElementById('menu-search').addEventListener('input', event => {
+            menuSearchTerm = event.target.value.trim();
+            renderMenu();
+        });
+        document.getElementById('menu-category-filter').addEventListener('change', event => {
+            menuCategoryFilter = event.target.value;
+            renderMenu();
+        });
+        document.getElementById('menu-visibility-filter').addEventListener('change', event => {
+            menuVisibilityFilter = event.target.value;
+            renderMenu();
+        });
+        document.getElementById('employee-search').addEventListener('input', event => {
+            employeeSearchTerm = event.target.value.trim();
+            renderEmployees();
+        });
+        document.getElementById('employee-role').addEventListener('change', event => {
+            document.getElementById('employee-commission-field').classList.toggle('hidden', event.target.value !== 'WAITER');
+        });
+        document.getElementById('employee-password-toggle').addEventListener('click', event => {
+            const passwordInput = document.getElementById('employee-password');
+            const showPassword = passwordInput.type === 'password';
+            passwordInput.type = showPassword ? 'text' : 'password';
+            event.currentTarget.textContent = showPassword ? 'Yashirish' : 'Ko‘rsatish';
+            event.currentTarget.setAttribute('aria-label', showPassword ? 'Parolni yashirish' : 'Parolni ko‘rsatish');
+        });
+        document.getElementById('employee-commission-field').classList.toggle(
+            'hidden',
+            document.getElementById('employee-role').value !== 'WAITER'
+        );
 
         async function checkAdminAuth() {
             try {

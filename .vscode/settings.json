@@ -1,3 +1,7 @@
 {
-    "CodeGPT.apiKey": "Antigravity"
+    "CodeGPT.apiKey": "Antigravity",
+    "chat.tools.terminal.autoApprove": {
+        "git fetch": true,
+        "git rev-parse": true
+    }
 }
