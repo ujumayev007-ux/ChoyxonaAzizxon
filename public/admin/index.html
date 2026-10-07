@@ -18,6 +18,10 @@
             #reports-panel { color: #111827 !important; }
             canvas { max-height: 280px !important; }
         }
+        .reports-container, .content-body {
+            overflow-y: auto;
+            padding-bottom: 80px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans h-full flex flex-col overflow-hidden">
@@ -564,8 +568,8 @@
                 </div>
 
                 <!-- 8. HISOBOTLAR -->
-                <div id="section-hisobotlar" class="tab-content hidden space-y-6">
-                    <div class="space-y-5">
+                <div id="section-hisobotlar" class="tab-content hidden space-y-6 reports-container">
+                    <div class="space-y-5 content-body">
                         <div class="flex flex-wrap items-end justify-between gap-4">
                             <div>
                                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Tahlil markazi</p>
