@@ -13,6 +13,7 @@ import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializ
 import { hashPassword, verifyPassword } from './utils/password';
 import cashierRoutes from './routes/cashier.routes';
 import menuRoutes from './routes/menu.routes';
+import adminReportsRoutes from './routes/admin-reports.routes';
 import { deductPackaging } from './utils/order-packaging';
 import { deductOrderRecipes } from './utils/order-recipes';
 import telegramRoutes from './routes/telegram.routes';
@@ -64,6 +65,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.get('/kitchen/tv', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'kitchen-tv.html'));
+});
 
 // Public papkani statik qilish (sahifalar ochilishi uchun)
 app.use(express.static(path.join(process.cwd(), 'public')));
@@ -79,6 +83,7 @@ const io = new Server(server, {
 });
 initSocket(io);
 app.use('/api/kitchen', kitchenRoutes);
+app.use('/api/admin/reports', adminReportsRoutes);
 app.use('/api', telegramRoutes);
 
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
@@ -150,6 +155,90 @@ app.get('/api/waiter/me', authenticateToken, requireRole(['WAITER']), (req, res)
         success: true,
         waiter: { id: req.user!.id, name: req.user!.fullName, login: req.user!.username }
     });
+});
+
+app.get('/api/waiter/stats', authenticateToken, requireRole(['WAITER']), async (req, res) => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(now);
+    const date = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    const start = new Date(Date.UTC(Number(date.year), Number(date.month) - 1, Number(date.day)) - 5 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    try {
+        const [orders, waiterProfile] = await Promise.all([
+            prisma.order.findMany({
+                where: { waiterId: req.user!.id, createdAt: { gte: start, lt: end } },
+                select: {
+                    status: true,
+                    payments: { select: { amount: true } },
+                    refunds: { select: { amount: true } }
+                }
+            }),
+            prisma.waiterProfile.findUnique({
+                where: { userId: req.user!.id },
+                select: { commissionPercent: true }
+            })
+        ]);
+        const commissionRate = waiterProfile?.commissionPercent || new Prisma.Decimal(0);
+        const completedStatuses: OrderStatus[] = [OrderStatus.TOLANDI, OrderStatus.YAKUNLANDI];
+        const completedOrders = orders.filter(order => completedStatuses.includes(order.status));
+        const cancelledCount = orders.filter(order => order.status === OrderStatus.BEKOR_QILINDI).length;
+        const completedSales = completedOrders.reduce((sum, order) => {
+            const paid = order.payments.reduce((total, payment) => total.plus(payment.amount), new Prisma.Decimal(0));
+            const refunded = order.refunds.reduce((total, refund) => total.plus(refund.amount), new Prisma.Decimal(0));
+            return sum.plus(Prisma.Decimal.max(paid.minus(refunded), new Prisma.Decimal(0)));
+        }, new Prisma.Decimal(0));
+        res.json({
+            todayOrdersCount: orders.length,
+            todaySales: completedSales.toString(),
+            todayCommission: completedSales.mul(commissionRate).dividedBy(100).toString(),
+            commissionRate: commissionRate.toString(),
+            completedCount: completedOrders.length,
+            cancelledCount
+        });
+    } catch (error) {
+        console.error('Ofitsiant statistikasini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Statistikani yuklab bo‘lmadi' });
+    }
+});
+
+app.get('/api/kitchen/session', authenticateToken, requireRole(['KITCHEN', 'ADMIN']), (req, res) => {
+    res.json({ success: true, user: { id: req.user!.id, fullName: req.user!.fullName, role: req.user!.role } });
+});
+
+app.get('/api/kitchen/me', authenticateToken, requireRole(['KITCHEN']), (req, res) => {
+    res.json({ success: true, user: { id: req.user!.id, fullName: req.user!.fullName, role: req.user!.role } });
+});
+
+app.post('/api/kitchen/logout', authenticateToken, requireRole(['KITCHEN']), async (req, res) => {
+    try {
+        await prisma.user.update({
+            where: { id: req.user!.id },
+            data: { updatedAt: new Date(Math.max(Date.now(), (req.user!.sessionIssuedAt || 0) + 1)) },
+            select: { id: true }
+        });
+        clearAuthCookie(res);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Oshxona sessiyasidan chiqishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Sessiyadan chiqib bo‘lmadi' });
+    }
+});
+
+app.post('/api/kitchen/login', async (req, res) => {
+    try {
+        const user = await loginUser(req.body?.username ?? req.body?.login, req.body?.password, [RoleType.KITCHEN]);
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
+            return;
+        }
+        setAuthCookie(res, user);
+        res.json({ success: true, user: { id: user.id, fullName: user.fullName, role: user.role } });
+    } catch (error) {
+        console.error('Oshxona tizimiga kirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Tizimga kirishda xatolik yuz berdi' });
+    }
 });
 
 app.post('/api/waiter/login', async (req, res) => {
@@ -735,6 +824,78 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
     } catch (error) {
         console.error('Buyurtmalarni olishda xatolik:', error);
         res.status(500).json({ success: false, message: 'Buyurtmalarni olishda xatolik' });
+    }
+});
+
+app.post('/api/orders/:id/return-item', authenticateToken, requireRole(['WAITER']), async (req: express.Request<{ id: string }>, res) => {
+    const orderId = typeof req.params.id === 'string' ? req.params.id : '';
+    const orderItemId = typeof req.body?.orderItemId === 'string' ? req.body.orderItemId : '';
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) : '';
+    const idempotencyKey = typeof req.body?.idempotencyKey === 'string' &&
+        /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.idempotencyKey) ? req.body.idempotencyKey : '';
+    const quantityText = String(req.body?.quantity ?? '');
+    if (!orderId || !orderItemId || !reason || !idempotencyKey ||
+        !/^\d{1,10}(?:\.\d{1,6})?$/.test(quantityText) || Number(quantityText) <= 0) {
+        res.status(400).json({ success: false, message: 'Qaytarish so‘rovi ma’lumotlari noto‘g‘ri' });
+        return;
+    }
+    try {
+        const order = await prisma.order.findFirst({
+            where: { id: orderId, waiterId: req.user!.id },
+            select: {
+                id: true,
+                status: true,
+                items: { where: { id: orderItemId }, select: { id: true, quantity: true } }
+            }
+        });
+        const item = order?.items[0];
+        if (!order || !item) {
+            res.status(404).json({ success: false, message: 'O‘zingizning buyurtmangizdagi taom topilmadi' });
+            return;
+        }
+        const requestedQuantity = new Prisma.Decimal(quantityText);
+        if (!requestedQuantity.equals(item.quantity)) {
+            res.status(400).json({ success: false, message: 'Qisman qaytarish hozircha qo‘llab-quvvatlanmaydi; to‘liq taomni tanlang' });
+            return;
+        }
+        const result = await prisma.$transaction(async tx => {
+            const requestAuditId = `waiter-return:${idempotencyKey}`;
+            const existing = await tx.auditLog.findUnique({
+                where: { id: requestAuditId },
+                select: { id: true, newValue: true }
+            });
+            if (existing?.newValue) {
+                try {
+                    const request = JSON.parse(existing.newValue) as { idempotencyKey?: unknown };
+                    if (request.idempotencyKey === idempotencyKey) return { duplicate: true as const };
+                } catch { /* Treat malformed historical audit data as a separate request. */ }
+            }
+            const created = await tx.auditLog.create({
+                data: {
+                    userId: req.user!.id,
+                    action: 'WAITER_RETURN_REQUESTED',
+                    entity: 'Order',
+                    entityId: order.id,
+                    newValue: JSON.stringify({ orderItemId: item.id, quantity: quantityText, reason, idempotencyKey, status: order.status }),
+                    id: requestAuditId
+                },
+                select: { id: true, createdAt: true }
+            });
+            return { duplicate: false as const, request: created };
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        res.status(result.duplicate ? 200 : 202).json({
+            success: true,
+            duplicate: result.duplicate,
+            message: 'Qaytarish so‘rovi kassir/Admin ko‘rib chiqishiga yuborildi',
+            ...(result.duplicate ? {} : { data: result.request })
+        });
+    } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            res.status(409).json({ success: false, message: 'Qaytarish so‘rovi allaqachon yuborilgan' });
+            return;
+        }
+        console.error('Ofitsiant qaytarish so‘rovini yuborishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Qaytarish so‘rovini yuborib bo‘lmadi' });
     }
 });
 

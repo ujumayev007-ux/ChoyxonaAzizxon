@@ -15,15 +15,25 @@
             <span class="text-2xl">🍳</span>
             <h1 class="text-lg font-bold tracking-wide">Oshxona Boshqaruv Paneli</h1>
         </div>
-        <div class="flex items-center gap-4">
-            <a href="/kitchen/tv" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-900/40">📺 TV Ekranni ochish</a>
-            <div id="connection-status" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Ulangan</div>
+        <div class="flex flex-wrap items-center gap-4">
+            <span id="kitchen-user-name" class="hidden text-sm text-slate-200"></span>
+            <form id="kitchen-login-form" class="hidden items-center gap-2" onsubmit="handleKitchenLogin(event)">
+                <input id="kitchen-username" name="username" type="text" autocomplete="username" placeholder="Login" required class="rounded-lg border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder:text-slate-400">
+                <input id="kitchen-password" name="password" type="password" autocomplete="current-password" placeholder="Parol" required class="rounded-lg border-slate-600 bg-slate-700 px-3 py-2 text-sm text-white placeholder:text-slate-400">
+                <button type="submit" class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white hover:bg-amber-700">Kirish</button>
+            </form>
+            <button id="kitchen-logout" type="button" onclick="logoutKitchen()" class="hidden rounded-lg border-slate-600 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700">Chiqish</button>
+            <div class="flex items-center gap-4">
+                <a href="/kitchen/tv" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-900/40">📺 TV Ekranni ochish</a>
+                <div id="connection-status" class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Ulangan</div>
+            </div>
         </div>
     </header>
 
     <!-- Main Content Area -->
     <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
-        
+        <div id="kitchen-auth-message" class="hidden rounded-xl border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"></div>
+
         <!-- Summary Cards Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
             <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
@@ -59,11 +69,14 @@
 
     <script>
         const socket = io();
+        let kitchenAuthenticated = false;
+
+        document.addEventListener('DOMContentLoaded', checkKitchenAuth);
 
         socket.on('connect', () => {
             document.getElementById('connection-status').className = 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold';
             document.getElementById('connection-status').innerText = 'Ulangan';
-            loadKitchenOrders();
+            if (kitchenAuthenticated) loadKitchenOrders();
         });
 
         socket.on('disconnect', () => {
@@ -71,16 +84,98 @@
             document.getElementById('connection-status').innerText = 'Qayta ulanilmoqda...';
         });
 
-        socket.on('kitchen_new_order', () => loadKitchenOrders());
-        socket.on('order_status_updated', () => loadKitchenOrders());
+        socket.on('kitchen_new_order', () => { if (kitchenAuthenticated) loadKitchenOrders(); });
+        socket.on('order_status_updated', () => { if (kitchenAuthenticated) loadKitchenOrders(); });
+
+        function setKitchenAuthenticated(user) {
+            kitchenAuthenticated = Boolean(user);
+            window.kitchenUser = user || null;
+            document.getElementById('kitchen-login-form').classList.toggle('hidden', kitchenAuthenticated);
+            document.getElementById('kitchen-login-form').classList.toggle('flex', !kitchenAuthenticated);
+            document.getElementById('kitchen-logout').classList.toggle('hidden', !kitchenAuthenticated);
+            const userName = document.getElementById('kitchen-user-name');
+            userName.classList.toggle('hidden', !kitchenAuthenticated);
+            userName.textContent = user?.fullName || '';
+            document.getElementById('kitchen-auth-message').classList.add('hidden');
+            if (kitchenAuthenticated) loadKitchenOrders();
+        }
+
+        async function checkKitchenAuth() {
+            try {
+                const sessionResponse = await fetch('/api/kitchen/session');
+                const sessionResult = await sessionResponse.json();
+                if (sessionResponse.ok && sessionResult.success && sessionResult.user?.role === 'ADMIN') {
+                    setKitchenAuthenticated(sessionResult.user);
+                    return;
+                }
+                const response = await fetch('/api/kitchen/me');
+                if (response.ok) {
+                    const result = await response.json();
+                    setKitchenAuthenticated(result.user);
+                    return;
+                }
+            } catch (error) {
+                console.error('Kitchen session check failed', error);
+            }
+            setKitchenAuthenticated(null);
+            document.getElementById('kitchen-auth-message').textContent = 'Oshxona buyurtmalarini ko‘rish uchun tizimga kiring.';
+            document.getElementById('kitchen-auth-message').classList.remove('hidden');
+        }
+
+        async function handleKitchenLogin(event) {
+            event.preventDefault();
+            const message = document.getElementById('kitchen-auth-message');
+            try {
+                const response = await fetch('/api/kitchen/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('kitchen-username').value,
+                        password: document.getElementById('kitchen-password').value
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.message || 'Kirish amalga oshmadi');
+                document.getElementById('kitchen-login-form').reset();
+                setKitchenAuthenticated(result.user);
+            } catch (error) {
+                message.textContent = error instanceof Error ? error.message : 'Tizimga kirishda xatolik yuz berdi';
+                message.classList.remove('hidden');
+            }
+        }
+
+        async function logoutKitchen() {
+            try {
+                if (window.kitchenUser?.role === 'ADMIN') {
+                    const response = await fetch('/api/auth/logout', { method: 'POST' });
+                    if (!response.ok) throw new Error('Sessiyadan chiqib bo‘lmadi');
+                } else {
+                    const response = await fetch('/api/kitchen/logout', { method: 'POST' });
+                    if (!response.ok) throw new Error('Sessiyadan chiqib bo‘lmadi');
+                }
+                setKitchenAuthenticated(null);
+                document.getElementById('kitchen-auth-message').textContent = 'Sessiyadan chiqdingiz. Davom etish uchun qayta kiring.';
+                document.getElementById('kitchen-auth-message').classList.remove('hidden');
+                renderKitchenOrders([]);
+            } catch (error) {
+                document.getElementById('kitchen-auth-message').textContent = error instanceof Error ? error.message : 'Sessiyadan chiqib bo‘lmadi';
+                document.getElementById('kitchen-auth-message').classList.remove('hidden');
+            }
+        }
 
         async function loadKitchenOrders() {
+            if (!kitchenAuthenticated) return;
             try {
                 const res = await fetch('/api/kitchen/orders');
-                const json = await res.json();
-                if (json.success) {
-                    renderKitchenOrders(json.data);
+                if (res.status === 401 || res.status === 403) {
+                    setKitchenAuthenticated(null);
+                    document.getElementById('kitchen-auth-message').textContent = 'Sessiya tugagan yoki Kitchen ruxsati yo‘q. Qayta kiring.';
+                    document.getElementById('kitchen-auth-message').classList.remove('hidden');
+                    renderKitchenOrders([]);
+                    return;
                 }
+                const json = await res.json();
+                if (json.success) renderKitchenOrders(json.data);
             } catch (e) {
                 console.error('Failed to load kitchen orders', e);
             }
@@ -88,7 +183,7 @@
 
         function renderKitchenOrders(orders) {
             let approved = 0, preparing = 0, ready = 0, oshCount = 0;
-            
+
             orders.forEach(o => {
                 if (o.status === 'TASDIQLANDI' || o.status === 'OSHXONAGA_YUBORILDI') approved++;
                 if (o.status === 'TAYYORLANMOQDA') preparing++;
@@ -156,6 +251,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status })
                 });
+                if (res.status === 401 || res.status === 403) {
+                    setKitchenAuthenticated(null);
+                    document.getElementById('kitchen-auth-message').textContent = 'Sessiya tugagan yoki Kitchen ruxsati yo‘q. Qayta kiring.';
+                    document.getElementById('kitchen-auth-message').classList.remove('hidden');
+                    return;
+                }
                 const json = await res.json();
                 if (json.success) {
                     loadKitchenOrders();

@@ -1,7 +1,27 @@
 {
-    "CodeGPT.apiKey": "Antigravity",
+    "CodeGPT.apiKey": "CodeGPT Plus Beta",
     "chat.tools.terminal.autoApprove": {
         "git fetch": true,
-        "git rev-parse": true
+        "git rev-parse": true,
+        "/^node -e \"const \\{requireCashierAccess\\}=require\\('\\./dist/middleware/auth'\\);for\\(const \\[role,terminal,expected\\] of \\[\\['CASHIER',undefined,200\\],\\['ADMIN',undefined,403\\],\\['ADMIN','terminal-session',200\\],\\['WAITER',undefined,403\\]\\]\\)\\{let status=200,next=false;requireCashierAccess\\(\\{user:role\\?\\{role,terminalAccessId:terminal\\}:undefined\\},\\{status\\(code\\)\\{status=code;return this\\},json\\(\\)\\{return this\\}\\},\\(\\)=>\\{next=true\\}\\);if\\(status!==expected\\|\\|next!==\\(expected===200\\)\\)throw Error\\(role\\+': access expectation failed'\\);console\\.log\\(role\\+\\(terminal\\?' terminal':''\\)\\+' => '\\+status\\)\\}\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git log -1 --oneline; git show --stat --oneline --summary HEAD; git check-ignore -v \\.env \\.vscode/settings\\.json node_modules/\\.prisma/client/index\\.js dist/server\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node node_modules/prisma/build/index\\.js validate$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^@'\nconst fs = require\\('fs'\\);\nconst vm = require\\('vm'\\);\nconst html = fs\\.readFileSync\\('public/admin/index\\.html', 'utf8'\\);\nconst scripts = \\[\\.\\.\\.html\\.matchAll\\(/<script\\\\b\\[\\^>\\]\\*>\\(\\[\\\\s\\\\S\\]\\*\\?\\)<\\\\/script>/gi\\)\\]\\.map\\(match => match\\[1\\]\\)\\.filter\\(text => text\\.trim\\(\\)\\);\nfor \\(const script of scripts\\) new vm\\.Script\\(script, \\{ filename: 'public/admin/index\\.html:inline-script' \\}\\);\nconsole\\.log\\(`Parsed \\$\\{scripts\\.length\\} inline script\\(s\\) successfully\\.`\\);\n'@ \\| node$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npx tsc --noEmit$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

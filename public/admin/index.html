@@ -8,6 +8,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Socket.io client -->
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style>
+        @media print {
+            body, #admin-app, #admin-app > div, main { height: auto !important; overflow: visible !important; background: #fff !important; }
+            #admin-auth-overlay, aside, header, .print\:hidden, .tab-content:not(#section-hisobotlar) { display: none !important; }
+            #section-hisobotlar { display: block !important; }
+            main { padding: 0 !important; }
+            #reports-panel { color: #111827 !important; }
+            canvas { max-height: 280px !important; }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans h-full flex flex-col overflow-hidden">
 
@@ -554,9 +565,72 @@
 
                 <!-- 8. HISOBOTLAR -->
                 <div id="section-hisobotlar" class="tab-content hidden space-y-6">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 class="text-lg font-bold text-gray-800 mb-4">Hisobotlar</h2>
-                        <p class="text-gray-500 text-sm">Kunlik, haftalik va oylik hisobotlarni ko‘rish va chop etish.</p>
+                    <div class="space-y-5">
+                        <div class="flex flex-wrap items-end justify-between gap-4">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Tahlil markazi</p>
+                                <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-900">Hisobotlar</h2>
+                                <p class="mt-1 text-sm text-slate-500">Restoran ko‘rsatkichlarini tanlangan davr bo‘yicha tahlil qiling.</p>
+                            </div>
+                            <button type="button" onclick="window.print()" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-amber-300 hover:text-amber-800 print:hidden">Chop etish / PDF</button>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9">
+                                <label class="text-xs font-bold text-slate-600">Davr
+                                    <select id="report-preset" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-800">
+                                        <option value="today">Bugun</option><option value="yesterday">Kecha</option><option value="7days">Oxirgi 7 kun</option><option value="30days">Oxirgi 30 kun</option><option value="thismonth">Shu oy</option><option value="lastmonth">O‘tgan oy</option><option value="custom">Sana oralig‘i</option>
+                                    </select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Boshlanish
+                                    <input id="report-from" type="date" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Tugash
+                                    <input id="report-to" type="date" required class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Ofitsiant
+                                    <select id="report-waiter" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha ofitsiantlar</option></select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Kassir
+                                    <select id="report-cashier" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha kassirlar</option></select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Kategoriya
+                                    <select id="report-category" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha kategoriyalar</option></select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Taom
+                                    <select id="report-dish" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha taomlar</option></select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">To‘lov turi
+                                    <select id="report-payment" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha to‘lovlar</option><option value="NAQD">Naqd</option><option value="PLASTIK">Plastik</option><option value="ELEKTRON">Elektron</option><option value="QARZ">Qarz</option></select>
+                                </label>
+                                <label class="text-xs font-bold text-slate-600">Buyurtma turi
+                                    <select id="report-order-type" class="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800"><option value="">Barcha buyurtmalar</option><option value="DINE_IN">Zalda</option><option value="TAKEAWAY">Olib ketish</option></select>
+                                </label>
+                            </div>
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <p class="text-xs text-slate-500">Hisobotlar real ma’lumotlar asosida serverda hisoblanadi.</p>
+                                <button type="button" id="report-apply" class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700">Hisobotni yangilash</button>
+                            </div>
+                            <p id="report-filter-error" class="mt-2 hidden text-sm font-semibold text-rose-700"></p>
+                        </div>
+
+                        <nav id="reports-nav" class="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm print:hidden" aria-label="Hisobot bo‘limlari">
+                            <button data-report-section="summary" class="report-nav-btn rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">📊 Umumiy</button>
+                            <button data-report-section="foods" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">🍽 Taomlar</button>
+                            <button data-report-section="waiters" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">👨‍🍳 Ofitsiantlar</button>
+                            <button data-report-section="cashiers" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">💵 Kassirlar</button>
+                            <button data-report-section="inventory" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">📦 Ombor</button>
+                            <button data-report-section="expenses" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">💸 Xarajatlar</button>
+                            <button data-report-section="refunds" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">↩️ Qaytarishlar</button>
+                            <button data-report-section="orders" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">🧾 Buyurtmalar</button>
+                            <button data-report-section="customers" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">👥 Mijozlar</button>
+                            <button data-report-section="loyal-customers" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">⭐ Sodiq mijozlar</button>
+                            <button data-report-section="takeaway" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">🥡 Olib ketish</button>
+                            <button data-report-section="audit" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">🔐 Audit</button>
+                            <button data-report-section="telegram" class="report-nav-btn rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100">📱 Telegram</button>
+                        </nav>
+                        <p id="report-print-caption" class="hidden text-xs text-slate-500 print:block"></p>
+                        <div id="reports-panel" aria-live="polite"></div>
                     </div>
                 </div>
 
@@ -645,6 +719,7 @@
             };
             const pageTitle = document.getElementById('page-title');
             if (pageTitle) pageTitle.innerText = titles[tabId] || 'Boshqaruv paneli';
+            if (tabId === 'hisobotlar' && adminCurrentUser) initializeReports();
         }
 
         const adminData = { menu: [], inventory: [], employees: [], orders: [], rooms: [], purchases: [] };
@@ -668,7 +743,14 @@
         }
 
         function formatMoney(value) {
-            return `${Number(value || 0).toLocaleString('uz-UZ')} so'm`;
+            const text = String(value ?? '0');
+            const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
+            if (match) {
+                const fraction = (match[3] || '').slice(0, 2).replace(/0+$/, '');
+                const amount = `${match[1]}${BigInt(match[2]).toLocaleString('uz-UZ')}${fraction ? `,${fraction}` : ''}`;
+                return `${amount} so‘m`;
+            }
+            return `${Number(value || 0).toLocaleString('uz-UZ')} so‘m`;
         }
 
         function formatSomAmount(value) {
@@ -692,6 +774,14 @@
 
         function lockAdminPanel(message) {
             adminCurrentUser = null;
+            if (reportState) {
+                reportState.requestId++;
+                reportState.customerSearch = '';
+                reportState.initialized = false;
+                reportState.filters = null;
+                clearReportCharts();
+                document.getElementById('reports-panel').replaceChildren();
+            }
             adminData.menu = [];
             adminData.inventory = [];
             adminData.employees = [];
@@ -2181,6 +2271,443 @@
             }
         }
 
+        const reportState = { section: 'summary', initialized: false, filters: null, charts: [], requestId: 0, customerSearch: '' };
+        const reportLabels = {
+            summary: 'Umumiy', foods: 'Taomlar', waiters: 'Ofitsiantlar', cashiers: 'Kassirlar',
+            inventory: 'Ombor', expenses: 'Xarajatlar', refunds: 'Qaytarishlar', orders: 'Buyurtmalar',
+            customers: 'Mijozlar', 'loyal-customers': 'Sodiq mijozlar', takeaway: 'Olib ketish',
+            audit: 'Audit', telegram: 'Telegram'
+        };
+        const reportPaymentLabels = { NAQD: 'Naqd', PLASTIK: 'Plastik', ELEKTRON: 'Elektron', QARZ: 'Qarz' };
+        const reportOrderLabels = { DINE_IN: 'Zalda', TAKEAWAY: 'Olib ketish' };
+
+        function reportDateKey(date) {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit'
+            }).formatToParts(date);
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
+        function reportDateRange(preset) {
+            const todayKey = reportDateKey(new Date());
+            const day = new Date(`${todayKey}T12:00:00.000Z`);
+            const shift = amount => new Date(day.getTime() + amount * 86400000);
+            const key = value => value.toISOString().slice(0, 10);
+            if (preset === 'custom') return null;
+            if (preset === 'today') return [todayKey, todayKey];
+            if (preset === 'yesterday') return [key(shift(-1)), key(shift(-1))];
+            if (preset === '7days') return [key(shift(-6)), todayKey];
+            if (preset === '30days') return [key(shift(-29)), todayKey];
+            if (preset === 'thismonth') return [`${todayKey.slice(0, 7)}-01`, todayKey];
+            const previousMonth = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() - 1, 1));
+            const previousMonthEnd = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), 0));
+            return [key(previousMonth), key(previousMonthEnd)];
+        }
+
+        function reportQuery() {
+            const params = new URLSearchParams();
+            const from = document.getElementById('report-from').value;
+            const to = document.getElementById('report-to').value;
+            if (from) params.set('from', new Date(`${from}T00:00:00+05:00`).toISOString());
+            if (to) params.set('to', new Date(`${to}T23:59:59.999+05:00`).toISOString());
+            const fields = {
+                waiterId: 'report-waiter', cashierId: 'report-cashier', categoryId: 'report-category',
+                dishId: 'report-dish', paymentMethod: 'report-payment', orderType: 'report-order-type'
+            };
+            Object.entries(fields).forEach(([key, id]) => {
+                const value = document.getElementById(id)?.value;
+                if (value) params.set(key, value);
+            });
+            const search = document.getElementById('report-customer-search')?.value.trim() || reportState.customerSearch;
+            if (search) params.set('search', search);
+            return params.toString();
+        }
+
+        function applyReportFilters() {
+            const from = document.getElementById('report-from').value;
+            const to = document.getElementById('report-to').value;
+            const error = document.getElementById('report-filter-error');
+            if (!from || !to || from > to) {
+                error.textContent = 'Boshlanish va tugash sanalarini to‘g‘ri tanlang.';
+                error.classList.remove('hidden');
+                return;
+            }
+            error.classList.add('hidden');
+            loadReportSection();
+        }
+
+        async function initializeReports() {
+            if (!reportState.initialized) {
+                const range = reportDateRange('today');
+                document.getElementById('report-from').value = range[0];
+                document.getElementById('report-to').value = range[1];
+                try {
+                    const response = await apiFetch('/api/admin/reports/filters');
+                    reportState.filters = response.data;
+                    const fill = (id, rows, label) => {
+                        const select = document.getElementById(id);
+                        select.innerHTML = `<option value="">${label}</option>` +
+                            rows.map(row => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.fullName || row.name)}</option>`).join('');
+                    };
+                    fill('report-waiter', reportState.filters.waiters, 'Barcha ofitsiantlar');
+                    fill('report-cashier', reportState.filters.cashiers, 'Barcha kassirlar');
+                    fill('report-category', reportState.filters.categories, 'Barcha kategoriyalar');
+                    fill('report-dish', reportState.filters.dishes, 'Barcha taomlar');
+                    reportState.initialized = true;
+                } catch (error) {
+                    console.error('Hisobot filtrlarini yuklashda xatolik:', error);
+                    renderReportError();
+                    return;
+                }
+            }
+            loadReportSection(reportState.section);
+        }
+
+        function reportCard(label, value, icon, help) {
+            return `<article class="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold uppercase tracking-wide text-slate-500">${escapeHtml(label)}</p><p class="mt-3 text-2xl font-black tracking-tight text-slate-900">${value}</p><p class="mt-1 text-xs text-slate-500">${escapeHtml(help || '')}</p></div><span class="rounded-xl bg-amber-50 p-3 text-xl">${icon}</span></div>
+            </article>`;
+        }
+
+        function reportPanel(title, subtitle, body, extraClass = '') {
+            return `<section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${extraClass}"><div class="mb-4"><h3 class="font-black text-slate-900">${escapeHtml(title)}</h3>${subtitle ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(subtitle)}</p>` : ''}</div>${body}</section>`;
+        }
+
+        function reportTable(headers, rows, emptyMessage = 'Tanlangan davr uchun ma’lumot topilmadi.') {
+            return `<div class="overflow-x-auto"><table class="min-w-full text-left text-sm"><thead class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500"><tr>${headers.map(header => `<th class="whitespace-nowrap px-3 py-3 font-bold">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody class="divide-y divide-slate-100">${rows || `<tr><td colspan="${headers.length}" class="px-3 py-9 text-center text-sm text-slate-500">${escapeHtml(emptyMessage)}</td></tr>`}</tbody></table></div>`;
+        }
+
+        function reportSkeleton() {
+            return `<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${Array.from({ length: 4 }, () => '<div class="h-32 animate-pulse rounded-2xl bg-white shadow-sm"></div>').join('')}</div><div class="mt-4 h-72 animate-pulse rounded-2xl bg-white shadow-sm"></div>`;
+        }
+
+        function reportDateLabel(value) {
+            return new Date(value).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' });
+        }
+
+        function reportDuration(minutes) {
+            const hours = Math.floor(Number(minutes || 0) / 60);
+            const remainder = Number(minutes || 0) % 60;
+            return `${hours} soat ${remainder} daqiqa`;
+        }
+
+        function clearReportCharts() {
+            reportState.charts.forEach(chart => chart.destroy());
+            reportState.charts = [];
+        }
+
+        function drawReportChart(id, type, labels, datasets, options = {}) {
+            const canvas = document.getElementById(id);
+            if (!canvas) return;
+            if (!window.Chart) {
+                canvas.parentElement.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500">Diagrammani yuklab bo‘lmadi. Jadval ma’lumotlari mavjud.</p>';
+                return;
+            }
+            const monetary = options.money !== false;
+            const centerText = options.centerText || '';
+            const detailLines = options.details || [];
+            const chartOptions = { ...options };
+            delete chartOptions.money;
+            delete chartOptions.centerText;
+            delete chartOptions.details;
+            const values = datasets.flatMap(dataset => dataset.data.map(Number));
+            if (!labels.length || values.every(value => value === 0)) {
+                canvas.parentElement.innerHTML = '<p class="flex h-full items-center justify-center text-sm text-slate-500">Tanlangan davr uchun ma’lumot topilmadi.</p>';
+                return;
+            }
+            const chart = new Chart(canvas, {
+                type,
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 350 },
+                    plugins: {
+                        legend: { display: type === 'doughnut' || Boolean(options.legend), position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 18 } },
+                        tooltip: { callbacks: { label: context => {
+                            const value = monetary ? formatMoney(context.raw) : Number(context.raw).toLocaleString('uz-UZ');
+                            if (type !== 'doughnut') return `${context.dataset.label || context.label}: ${value}${detailLines[context.dataIndex] ? ` · ${detailLines[context.dataIndex]}` : ''}`;
+                            const total = context.dataset.data.reduce((sum, amount) => sum + Number(amount), 0);
+                            const percent = total ? (Number(context.raw) / total * 100).toFixed(1) : '0.0';
+                            return `${context.label}: ${value} · ${percent}%`;
+                        } } }
+                    },
+                    scales: type === 'doughnut' ? {} : {
+                        x: { beginAtZero: true, grid: { display: false }, ticks: { color: '#64748b' } },
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', callback: value => Number(value).toLocaleString('uz-UZ') } }
+                    },
+                    ...chartOptions
+                },
+                plugins: centerText ? [{
+                    id: 'reports-center-label',
+                    afterDraw(instance) {
+                        const { ctx, chartArea } = instance;
+                        if (!chartArea) return;
+                        ctx.save();
+                        ctx.font = '700 13px system-ui';
+                        ctx.fillStyle = '#475569';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(centerText, (chartArea.left + chartArea.right) / 2, (chartArea.top + chartArea.bottom) / 2);
+                        ctx.restore();
+                    }
+                }] : []
+            });
+            reportState.charts.push(chart);
+        }
+
+        function reportChartBox(id, height = 'h-80') {
+            return `<div class="${height}"><canvas id="${escapeHtml(id)}" role="img" aria-label="${escapeHtml(id)}"></canvas></div>`;
+        }
+
+        function renderReportError() {
+            clearReportCharts();
+            document.getElementById('reports-panel').innerHTML = `<div class="rounded-2xl border border-rose-200 bg-white p-10 text-center shadow-sm"><div class="text-3xl">⚠️</div><h3 class="mt-3 font-black text-slate-900">Hisobotni yuklashda xatolik yuz berdi</h3><p class="mt-1 text-sm text-slate-500">Aloqani tekshirib, qayta urinib ko‘ring.</p><button type="button" onclick="loadReportSection(reportState.section)" class="mt-5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700">Qayta urinish</button></div>`;
+        }
+
+        function renderSummaryReport(data) {
+            const kpi = data.kpis;
+            const orderTypes = Object.fromEntries(data.orderTypes.map(item => [item.type, item]));
+            const owner = data.ownerSummary;
+            const cards = [
+                reportCard('Savdo', formatMoney(kpi.grossSales), '💰', 'Bekor/qaytarilgan buyurtmalarsiz buyurtma summasi'),
+                reportCard('Sof tushum', formatMoney(kpi.netReceipts), '📈', 'Savdo minus qaytarishlar; xarajatlar alohida'),
+                reportCard('Buyurtmalar', `${Number(kpi.orders).toLocaleString('uz-UZ')} ta`, '🧾', 'Tanlangan davrdagi buyurtmalar'),
+                reportCard('O‘rtacha chek', formatMoney(kpi.averageCheck), '🧮', 'Qisman/to‘liq to‘langan buyurtmalarning o‘rtachasi'),
+                reportCard('Naqd', formatMoney(kpi.payments.NAQD), '💵', 'Yozilgan naqd to‘lovlar'),
+                reportCard('Plastik', formatMoney(kpi.payments.PLASTIK), '💳', 'Yozilgan karta to‘lovlari'),
+                reportCard('Elektron', formatMoney(kpi.payments.ELEKTRON), '📲', 'Yozilgan elektron to‘lovlar'),
+                reportCard('Qarz', formatMoney(kpi.debt), '📒', 'Davrda yaratilgan mijoz qarzi'),
+                reportCard('Qarz undirildi', formatMoney(kpi.debtCollected), '✅', 'Davrda qabul qilingan qarz to‘lovlari'),
+                reportCard('Xarajatlar', formatMoney(kpi.expenses), '💸', 'Tasdiqlangan xarajat yozuvlari'),
+                reportCard('Qaytarishlar', formatMoney(kpi.refunds), '↩️', `${Number(kpi.refundCount).toLocaleString('uz-UZ')} ta qaytarish`),
+                reportCard('Zalda', formatMoney(orderTypes.DINE_IN?.amount), '🍽', `${orderTypes.DINE_IN?.count || 0} ta buyurtma`),
+                reportCard('Olib ketish', formatMoney(orderTypes.TAKEAWAY?.amount), '🥡', `${orderTypes.TAKEAWAY?.count || 0} ta buyurtma`)
+            ].join('');
+            const topDish = owner.topDish ? `${escapeHtml(owner.topDish.name)} · ${escapeHtml(owner.topDish.quantity)} ${escapeHtml(owner.topDish.unit)}` : 'Ma’lumot yo‘q';
+            const topWaiter = owner.topWaiter ? `${escapeHtml(owner.topWaiter.name)} · ${formatMoney(owner.topWaiter.sales)}` : 'Ma’lumot yo‘q';
+            const topPayment = owner.topPayment ? `${reportPaymentLabels[owner.topPayment[0]] || escapeHtml(owner.topPayment[0])} · ${formatMoney(owner.topPayment[1])}` : 'Ma’lumot yo‘q';
+            return `<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${cards}</div>
+                <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                    ${reportPanel('Savdo dinamikasi', 'To‘lovlar yozilgan vaqt bo‘yicha; summa backendda aniq Decimal hisoblanadi.', reportChartBox('report-sales-chart'))}
+                    ${reportPanel('To‘lovlar taqsimoti', 'Markazdagi jami — qayd qilingan barcha to‘lovlar.', reportChartBox('report-payment-chart'))}
+                </div>
+                <div class="mt-4">${reportPanel('To‘lovlar tarixi', 'So‘nggi 200 ta buyurtma to‘lovi va qarz undiruvi.', reportTable(['Sana/vaqt', 'Harakat', 'Buyurtma', 'Turi', 'Kassir', 'To‘lov turi', 'Summa'], data.paymentHistory.map(payment => `<tr><td class="px-3 py-3">${reportDateLabel(payment.createdAt)}</td><td class="px-3 py-3">${escapeHtml(payment.kind)}</td><td class="px-3 py-3 font-bold">${escapeHtml(payment.orderNumber)}</td><td class="px-3 py-3">${reportOrderLabels[payment.orderType] || escapeHtml(payment.orderType)}</td><td class="px-3 py-3">${escapeHtml(payment.cashier)}</td><td class="px-3 py-3">${reportPaymentLabels[payment.method] || escapeHtml(payment.method)}</td><td class="px-3 py-3 font-bold">${formatMoney(payment.amount)}</td></tr>`).join('')))}</div>
+                <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
+                    <h3 class="font-black text-slate-900">Restoran egasi uchun qisqa xulosa</h3>
+                    <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                        <p><span class="text-slate-500">Eng ko‘p sotilgan taom:</span><br><b>${topDish}</b></p>
+                        <p><span class="text-slate-500">Eng yaxshi savdo qilgan ofitsiant:</span><br><b>${topWaiter}</b></p>
+                        <p><span class="text-slate-500">Yetakchi to‘lov turi:</span><br><b>${topPayment}</b></p>
+                        <p><span class="text-slate-500">Kam qoldi:</span><br><b>${Number(owner.lowStockCount).toLocaleString('uz-UZ')} ta mahsulot</b></p>
+                        <p><span class="text-slate-500">Qaytarishlar:</span><br><b>${formatMoney(owner.refunds)}</b></p>
+                        <p><span class="text-slate-500">Xarajatlar:</span><br><b>${formatMoney(owner.expenses)}</b></p>
+                        <p><span class="text-slate-500">Sodiq mijozlar:</span><br><b>${Number(owner.loyalCustomers).toLocaleString('uz-UZ')} ta</b></p>
+                    </div>
+                    <p class="mt-4 border-t border-amber-200 pt-3 text-xs text-slate-600">Sof tushum = savdo − qaytarishlar. Xarajatlar alohida ko‘rsatiladi; tannarx va foyda ushbu ko‘rsatkichga kiritilmagan.</p>
+                </div>`;
+        }
+
+        function renderFoodsReport(data) {
+            const rows = data.items.map(item => `<tr class="hover:bg-slate-50"><td class="whitespace-nowrap px-3 py-3 font-semibold">${escapeHtml(item.name)}${!item.isActive || !item.categoryActive ? '<span class="ml-2 rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-500">Yashirin/faol emas</span>' : ''}</td><td class="px-3 py-3">${escapeHtml(item.category)}</td><td class="whitespace-nowrap px-3 py-3">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</td><td class="whitespace-nowrap px-3 py-3 font-bold">${formatMoney(item.revenue)}</td><td class="px-3 py-3">${formatMoney(Number(item.revenue) / Number(item.quantity) || 0)}</td></tr>`).join('');
+            return `<div class="grid gap-4 xl:grid-cols-2">
+                ${reportPanel('Top 10 — miqdor bo‘yicha', '', reportChartBox('report-food-quantity'))}
+                ${reportPanel('Top 10 — tushum bo‘yicha', '', reportChartBox('report-food-revenue'))}
+                ${reportPanel('Kategoriya bo‘yicha tushum', 'Kategoriya nomlari bazadan olinadi.', reportChartBox('report-food-category', 'h-72'))}
+                ${reportPanel('Kategoriya ko‘rsatkichlari', '', reportTable(['Kategoriya', 'Miqdor', 'Tushum', 'Ulush'], data.categories.map(item => `<tr><td class="px-3 py-3 font-semibold">${escapeHtml(item.category)}</td><td class="px-3 py-3">${escapeHtml(item.quantity)}</td><td class="px-3 py-3">${formatMoney(item.revenue)}</td><td class="px-3 py-3">${escapeHtml(item.share)}%</td></tr>`).join('')))}
+                ${reportPanel('Taomlar tafsiloti', 'Savdo yozuvlari tanlangan davr bo‘yicha. Yashirin taomlar ham tarixiy sotuvda qoladi.', reportTable(['Taom', 'Kategoriya', 'Soni', 'Tushum', 'O‘rtacha narx'], rows))}
+            </div>`;
+        }
+
+        function renderWaitersReport(data) {
+            const rows = data.map(item => `<tr><td class="px-3 py-3 font-bold">${escapeHtml(item.name)}</td><td class="px-3 py-3">${escapeHtml(item.login)}</td><td class="px-3 py-3 text-xs text-slate-500">Davomat qayd etilmaydi</td><td class="px-3 py-3">${Number(item.orders).toLocaleString('uz-UZ')}</td><td class="px-3 py-3 font-bold">${formatMoney(item.sales)}</td><td class="px-3 py-3">${formatMoney(item.refunds)}</td><td class="px-3 py-3">${Number(item.commissionPercent).toLocaleString('uz-UZ')}% · ${formatMoney(item.commission)}</td><td class="px-3 py-3">${Number(item.cancellations).toLocaleString('uz-UZ')}</td></tr>`).join('');
+            const chartData = (field, label) => reportPanel(label, '', reportChartBox(`report-waiter-${field}`, 'h-72'));
+            return `<div class="mb-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Ish boshlash/tugash va ish soati tizimda saqlanmaydi. Komissiya profil foiziga ko‘ra tanlangan davrdagi buyurtma summasidan hisoblangan ma’lumotnoma bo‘lib, haqiqiy ish haqi yozuvi emas.</div>
+                <div class="grid gap-4 xl:grid-cols-3">${chartData('sales', 'Ofitsiantlar bo‘yicha savdo')}${chartData('orders', 'Ofitsiantlar bo‘yicha buyurtmalar')}${chartData('commission', 'Hisoblangan komissiya')}</div>
+                <div class="mt-4">${reportPanel('Ofitsiantlar natijalari', '', reportTable(['Ofitsiant', 'Login', 'Davomat', 'Buyurtma', 'Savdo', 'Qaytarish', 'Komissiya', 'Bekor'], rows))}</div>`;
+        }
+
+        function renderCashiersReport(data) {
+            const rows = data.map(item => {
+                const payments = item.payments || {};
+                const sessions = Array.isArray(item.sessions) ? item.sessions : [];
+                return `<tr><td class="px-3 py-3 font-bold">${escapeHtml(item.name)}</td><td class="px-3 py-3">${escapeHtml(item.login)}</td><td class="px-3 py-3 font-bold">${formatMoney(item.sales)}</td><td class="px-3 py-3 font-bold">${formatMoney(item.receipts)}</td><td class="px-3 py-3">${formatMoney(item.debtIssued)}</td><td class="px-3 py-3">${formatMoney(item.debtCollected)}</td><td class="px-3 py-3">${formatMoney(payments.NAQD)}</td><td class="px-3 py-3">${formatMoney(payments.PLASTIK)}</td><td class="px-3 py-3">${formatMoney(payments.ELEKTRON)}</td><td class="px-3 py-3">${formatMoney(item.refunds)}</td><td class="px-3 py-3">${formatMoney(item.expenses)}</td><td class="px-3 py-3">${sessions.length ? sessions.map(session => `<div class="mb-2 min-w-56 rounded-lg bg-slate-50 p-2 text-xs"><b>${reportDateLabel(session.openedAt)} – ${session.closedAt ? reportDateLabel(session.closedAt) : 'Faol smena'}</b><p>${reportDuration(session.durationMinutes)} · Ochilish ${formatMoney(session.openingCash)}</p><p>Kutilgan ${formatMoney(session.expectedCash)} · Amalda ${formatMoney(session.actualCash)} · Farq ${formatMoney(session.difference)}</p></div>`).join('') : 'Smena yo‘q'}</td></tr>`;
+            }).join('');
+            return `<div class="mb-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Kassa ochilish/yopilish ma’lumotlari smena yozuvlaridan olinadi. Kassir login/logout vaqtlari alohida qayd qilinmaydi. «Savdo» — qayd etilgan buyurtma summasi; «Haqiqiy tushum» — olingan to‘lovlar va qarz undirishlari; «Qarz berildi» — davrda yaratilgan qarz; naqd/plastik/elektron — haqiqatan undirilgan summalar.</div>
+                <div class="grid gap-4 xl:grid-cols-2">${reportPanel('Kassirlar bo‘yicha savdo', '', reportChartBox('report-cashier-sales', 'h-72'))}${reportPanel('Smenalar davomiyligi', '', reportChartBox('report-cashier-hours', 'h-72'))}</div>
+                <div class="mt-4">${reportPanel('Kassirlar va smenalar', '', reportTable(['Kassir', 'Login', 'Savdo', 'Haqiqiy tushum', 'Qarz berildi', 'Qarz undirildi', 'Naqd', 'Plastik', 'Elektron', 'Qaytarish', 'Xarajat', 'Smenalar / kassa farqi'], rows))}</div>`;
+        }
+
+        function renderInventoryReport(data) {
+            const rows = data.products.map(item => `<tr><td class="px-3 py-3 font-bold">${escapeHtml(item.name)}</td><td class="px-3 py-3">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</td><td class="px-3 py-3">${escapeHtml(item.minQuantity)} ${escapeHtml(item.unit)}</td><td class="px-3 py-3">${escapeHtml(item.incoming)} ${escapeHtml(item.unit)}</td><td class="px-3 py-3">${formatMoney(item.purchaseCost)}</td><td class="px-3 py-3">${escapeHtml(item.used)} ${escapeHtml(item.unit)}</td><td class="px-3 py-3">${item.low ? '<span class="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">Kam qoldi</span>' : 'Me’yorida'}</td></tr>`).join('');
+            const moveRows = data.movements.map(item => `<tr><td class="px-3 py-3">${reportDateLabel(item.createdAt)}</td><td class="px-3 py-3 font-semibold">${escapeHtml(item.product)}</td><td class="px-3 py-3">${escapeHtml(item.type)}</td><td class="px-3 py-3">${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</td></tr>`).join('');
+            return `<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${reportCard('Mahsulotlar', `${data.products.length} xil`, '📦', 'Faol ombor mahsulotlari')}${reportCard('Kam qoldi', `${data.products.filter(item => item.low).length} ta`, '⚠️', 'Qoldiq minimal darajadan oshmagan')}${reportCard('Davr xaridlari', formatMoney(data.purchaseSpend), '🚚', `${Number(data.purchasedProductCount).toLocaleString('uz-UZ')} mahsulot xarid qilingan`) }${reportCard('Zaxira qiymati', 'Mavjud emas', '🧮', 'Joriy qoldiq tannarxi hisoblanmaydi')}</div>
+                <div class="mt-4 grid gap-4 xl:grid-cols-2">${reportPanel('Eng ko‘p sarflangan mahsulotlar', 'Retsept bo‘yicha va ombor harakatidagi sotuv yechimlari.', reportChartBox('report-inventory-usage'))}${reportPanel('Joriy qoldiq va harakatlar', '', reportTable(['Mahsulot', 'Qoldiq', 'Min.', 'Xarid', 'Xarid summasi', 'Sarflandi', 'Holat'], rows))}</div>
+                <div class="mt-4">${reportPanel('So‘nggi ombor harakatlari', 'Oxirgi 200 yozuv.', reportTable(['Sana', 'Mahsulot', 'Harakat', 'Miqdor'], moveRows))}</div>`;
+        }
+
+        function renderExpensesReport(data) {
+            const rows = data.records.map(item => `<tr><td class="px-3 py-3">${reportDateLabel(item.createdAt)}</td><td class="px-3 py-3 font-semibold">${escapeHtml(item.category)}</td><td class="px-3 py-3">${escapeHtml(item.description)}</td><td class="px-3 py-3">${escapeHtml(item.cashier.fullName)} (${escapeHtml(item.cashier.role)})</td><td class="px-3 py-3">${reportPaymentLabels[item.method] || escapeHtml(item.method)}</td><td class="px-3 py-3 font-bold">${formatMoney(item.amount)}</td></tr>`).join('');
+            return `<div class="mb-4 grid gap-4 sm:grid-cols-2">${reportCard('Xarajatlar jami', formatMoney(data.total), '💸', 'Tanlangan sana oralig‘i')}${reportCard('Xarajat yozuvlari', `${Number(data.count).toLocaleString('uz-UZ')} ta`, '🧾', 'Yozuvlar bazadan sanalgan')}</div><div class="grid gap-4 xl:grid-cols-2">${reportPanel('Xarajatlar taqsimoti', '', reportChartBox('report-expense-chart', 'h-72'))}${reportPanel('Xarajatlar dinamikasi', '', reportChartBox('report-expense-trend', 'h-72'))}</div><div class="mt-4">${reportPanel('Kategoriya bo‘yicha jami', '', reportTable(['Kategoriya', 'Summa', 'Soni'], data.categories.map(item => `<tr><td class="px-3 py-3 font-semibold">${escapeHtml(item.category)}</td><td class="px-3 py-3">${formatMoney(item.amount)}</td><td class="px-3 py-3">${Number(item.count).toLocaleString('uz-UZ')}</td></tr>`).join('')))}</div><div class="mt-4">${reportPanel('Xarajatlar tafsiloti', 'So‘nggi 200 ta yozuv.', reportTable(['Sana/vaqt', 'Kategoriya', 'Izoh', 'Xodim', 'To‘lov', 'Summa'], rows))}</div>`;
+        }
+
+        function renderRefundsReport(data) {
+            const rows = data.records.map(record => `<tr><td class="px-3 py-3">${reportDateLabel(record.createdAt)}</td><td class="px-3 py-3 font-bold">${escapeHtml(record.order.orderNumber)}</td><td class="px-3 py-3">${record.items.map(item => `${escapeHtml(item.name)} · ${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}`).join('<br>') || '—'}</td><td class="px-3 py-3 font-bold">${formatMoney(record.amount)}</td><td class="px-3 py-3">${escapeHtml(record.reason)}</td><td class="px-3 py-3">${escapeHtml(record.cashier.fullName)}</td></tr>`).join('');
+            return `<div class="mb-4 grid gap-4 sm:grid-cols-2">${reportCard('Qaytarilgan summa', formatMoney(data.total), '↩️', 'Haqiqiy Refund yozuvlari')}${reportCard('Qaytarishlar soni', `${Number(data.count).toLocaleString('uz-UZ')} ta`, '🧾', 'Tanlangan davr bo‘yicha')}</div><div class="grid gap-4 xl:grid-cols-2">${reportPanel('Qaytarishlar dinamikasi', '', reportChartBox('report-refund-trend', 'h-72'))}${reportPanel('Qaytarish sabablari', '', reportChartBox('report-refund-chart', 'h-72'))}</div><div class="mt-4">${reportPanel('Sabablar bo‘yicha tafsilot', '', reportTable(['Sabab', 'Summa', 'Soni'], data.reasons.map(item => `<tr><td class="px-3 py-3">${escapeHtml(item.reason)}</td><td class="px-3 py-3">${formatMoney(item.amount)}</td><td class="px-3 py-3">${Number(item.count).toLocaleString('uz-UZ')}</td></tr>`).join('')))}</div><div class="mt-4">${reportPanel('Qaytarishlar tarixi', '', reportTable(['Sana/vaqt', 'Buyurtma', 'Taom', 'Summa', 'Sabab', 'Kassir'], rows))}</div>`;
+        }
+
+        function renderOrdersReport(data) {
+            const rows = data.records.map(item => `<tr><td class="px-3 py-3 font-bold">${escapeHtml(item.orderNumber)}</td><td class="px-3 py-3">${reportDateLabel(item.createdAt)}</td><td class="px-3 py-3">${reportOrderLabels[item.orderType] || escapeHtml(item.orderType)}</td><td class="px-3 py-3">${escapeHtml(item.status)}</td><td class="px-3 py-3">${escapeHtml(item.waiter?.fullName || '—')}</td><td class="px-3 py-3">${formatMoney(item.totalAmount)}</td><td class="px-3 py-3">${item.payments.map(payment => `${reportPaymentLabels[payment.method] || escapeHtml(payment.method)} ${formatMoney(payment.amount)}`).join('<br>') || 'To‘lov yo‘q'}</td><td class="px-3 py-3">${item.debt ? formatMoney(item.debt.remaining) : '—'}</td></tr>`).join('');
+            return `<div class="mb-4">${reportCard('Buyurtmalar jami', `${Number(data.total).toLocaleString('uz-UZ')} ta`, '🧾', 'Barcha statuslar hisobga olingan')}</div><div class="grid gap-4 xl:grid-cols-2">${reportPanel('Statuslar kesimida', '', reportChartBox('report-order-status', 'h-72'))}${reportPanel('Statuslar jadvali', '', reportTable(['Holat', 'Turi', 'Soni', 'Summa'], data.statuses.map(item => `<tr><td class="px-3 py-3">${escapeHtml(item.status)}</td><td class="px-3 py-3">${reportOrderLabels[item.type] || escapeHtml(item.type)}</td><td class="px-3 py-3">${Number(item.count).toLocaleString('uz-UZ')}</td><td class="px-3 py-3">${formatMoney(item.amount)}</td></tr>`).join('')))}</div><div class="mt-4">${reportPanel('Buyurtmalar', 'So‘nggi 200 ta buyurtma.', reportTable(['Raqam', 'Sana', 'Turi', 'Holati', 'Ofitsiant', 'Jami', 'To‘lovlar', 'Qarz qoldig‘i'], rows))}</div>`;
+        }
+
+        function renderCustomersReport(data) {
+            const rows = data.records.map(item => `<tr><td class="px-3 py-3 font-semibold">${escapeHtml(item.name)}</td><td class="px-3 py-3">${escapeHtml(item.phone || '—')}</td><td class="px-3 py-3">#${Number(item.customerNumber)}</td><td class="px-3 py-3">${Number(item.visits).toLocaleString('uz-UZ')}</td><td class="px-3 py-3">${Number(item.orders).toLocaleString('uz-UZ')}</td><td class="px-3 py-3 font-bold">${formatMoney(item.purchases)}</td><td class="px-3 py-3">${item.lastVisit ? reportDateLabel(item.lastVisit) : '—'}</td><td class="px-3 py-3">${formatMoney(item.debt)}</td></tr>`).join('');
+            return `<div class="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${reportCard('Mijozlar', `${Number(data.total).toLocaleString('uz-UZ')} ta`, '👥', 'Ro‘yxatdagi barcha mijozlar')}${reportCard('Yangi mijozlar', `${Number(data.newCustomers).toLocaleString('uz-UZ')} ta`, '✨', 'Tanlangan davrda ro‘yxatdan o‘tgan')}${reportCard('Qaytgan mijozlar', `${Number(data.returningCustomers).toLocaleString('uz-UZ')} ta`, '🔁', 'Davrda 2+ buyurtma qilgan')}${reportCard('Mijozlar xaridi', formatMoney(data.purchases), '🛍️', `O‘rtacha buyurtma ${formatMoney(data.averageSpend)}`)}</div><div class="mb-4 flex flex-wrap gap-2"><input id="report-customer-search" type="search" value="${escapeHtml(reportState.customerSearch)}" placeholder="Ism, telefon yoki mijoz ID" class="min-w-64 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"><button type="button" data-report-search class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold hover:bg-slate-50">Qidirish</button></div>${reportPanel('Mijozlar ro‘yxati', 'Eng yuqori xarid summasiga ega 200 mijoz; telefon faqat Admin hisobotida.', reportTable(['Mijoz', 'Telefon', 'ID', 'Tashrif', 'Buyurtma', 'Xaridlar', 'Oxirgi tashrif', 'Qarz'], rows))}`;
+        }
+
+        function renderLoyalCustomersReport(data) {
+            const makeRows = rows => rows.map(item => `<tr><td class="px-3 py-3 font-semibold">${escapeHtml(item.name)}</td><td class="px-3 py-3">${Number(item.visits).toLocaleString('uz-UZ')}</td><td class="px-3 py-3">${Number(item.orders).toLocaleString('uz-UZ')}</td><td class="px-3 py-3 font-bold">${formatMoney(item.purchases)}</td><td class="px-3 py-3">${item.lastVisit ? reportDateLabel(item.lastVisit) : '—'}</td><td class="px-3 py-3">${escapeHtml(item.level || '')}</td></tr>`).join('');
+            const levels = data.levels.map(item => `<tr><td class="px-3 py-3 font-bold">${escapeHtml(item.level)}</td><td class="px-3 py-3">${Number(item.count).toLocaleString('uz-UZ')}</td></tr>`).join('');
+            return `<div class="mb-4 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">Darajalar butun buyurtma tarixidan aniqlanadi. Silver: 5+ buyurtma, 2 mln so‘m+, o‘rtacha chek 200 ming so‘m+, 90 kun ichida; Gold: 15+, 10 mln so‘m+, o‘rtacha chek 500 ming so‘m+, 60 kun; VIP: 30+, 20 mln so‘m+, o‘rtacha chek 750 ming so‘m+, 45 kun. Qayta jalb qilish ro‘yxati: 5+ buyurtma qilgan va 90 kundan beri kelmagan mijozlar.</div><div class="grid gap-4 xl:grid-cols-2">${reportPanel('Sodiqlik darajalari', '', reportChartBox('report-loyalty-chart', 'h-72'))}${reportPanel('Darajalar taqsimoti', '', reportTable(['Daraja', 'Mijozlar'], levels))}</div><div class="mt-4">${reportPanel('Eng sodiq mijozlar', '', reportTable(['Mijoz', 'Tashrif', 'Buyurtma', 'Xaridlar', 'Oxirgi tashrif', 'Daraja'], makeRows(data.topCustomers)))}</div><div class="mt-4">${reportPanel('Qayta jalb qilish imkoniyati', 'Oxirgi tashrifiga 90 kundan oshgan, kamida 5 marta buyurtma bergan mijozlar.', reportTable(['Mijoz', 'Tashrif', 'Buyurtma', 'Xaridlar', 'Oxirgi tashrif', 'Daraja'], makeRows(data.reengagement)))}</div>`;
+        }
+
+        function renderTakeawayReport(data) {
+            const rows = data.orders.map(order => `<tr><td class="px-3 py-3 font-bold">${escapeHtml(order.orderNumber)}</td><td class="px-3 py-3">${reportDateLabel(order.createdAt)}</td><td class="px-3 py-3">${escapeHtml(order.status)}</td><td class="px-3 py-3">${formatMoney(order.amount)}</td><td class="px-3 py-3">${formatMoney(order.payments)}</td><td class="px-3 py-3">${order.verifiedAt ? reportDateLabel(order.verifiedAt) : 'Tekshirilmagan'}</td><td class="px-3 py-3">${order.packaging.map(item => `${escapeHtml(item.name)} · ${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}`).join('<br>') || '—'}</td></tr>`).join('');
+            return `<div class="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${reportCard('Olib ketish', `${Number(data.count).toLocaleString('uz-UZ')} ta`, '🥡', 'Davrdagi takeaway buyurtmalari')}${reportCard('Buyurtma summasi', formatMoney(data.revenue), '💰', 'To‘lov bosqichiga o‘tgan buyurtmalar; bekor/qaytarilganlar chiqarilgan')}${reportCard('Pickup tasdiqlangan', `${Number(data.completedPickups).toLocaleString('uz-UZ')} ta`, '✅', 'Verification.usedAt mavjud')}${reportCard('Pickup / to‘lov holati', `${Number(data.uncollected).toLocaleString('uz-UZ')} pickup`, '⏳', `${Number(data.paidCount).toLocaleString('uz-UZ')} to‘liq to‘langan · ${Number(data.partiallyPaidCount).toLocaleString('uz-UZ')} qisman · ${Number(data.unpaidCount).toLocaleString('uz-UZ')} to‘lanmagan`)}</div><div class="mb-4 grid gap-4 xl:grid-cols-2">${reportPanel('Zalda va olib ketish', '', reportChartBox('report-takeaway-chart', 'h-72'))}${reportPanel('Qadoqlash', `Sarflangan ${Number(data.packagingQuantity).toLocaleString('uz-UZ')} birlik`, `<p class="text-2xl font-black">${formatMoney(data.packagingCost)}</p><p class="mt-1 text-xs text-slate-500">OrderPackaging yozuvidagi summa</p>`)}</div>${reportPanel('Olib ketish buyurtmalari', 'So‘nggi 200 ta yozuv. To‘lovlar va pickup tekshiruvi ko‘rsatiladi.', reportTable(['Buyurtma', 'Sana', 'Holati', 'Buyurtma summasi', 'To‘langan', 'Pickup', 'Qadoqlash'], rows))}`;
+        }
+
+        function renderAuditReport(data) {
+            const rows = data.map(item => `<tr><td class="px-3 py-3">${reportDateLabel(item.createdAt)}</td><td class="px-3 py-3 font-semibold">${escapeHtml(item.user?.fullName || 'Tizim')}</td><td class="px-3 py-3">${escapeHtml(item.user?.role || '—')}</td><td class="px-3 py-3 font-mono text-xs">${escapeHtml(item.action)}</td><td class="px-3 py-3">${escapeHtml(item.entity)} ${escapeHtml(item.entityId || '')}</td><td class="px-3 py-3 text-xs">${escapeHtml(item.newValue || item.oldValue || '—')}</td></tr>`).join('');
+            return reportPanel('Muhim amallar tarixi', 'AuditLog yozuvlari. Parol, token va maxfiy kalitlar qaytarilmaydi.', reportTable(['Sana/vaqt', 'Xodim', 'Rol', 'Amal', 'Obyekt', 'Tafsilot'], rows));
+        }
+
+        function renderTelegramReport(data) {
+            return `<div class="rounded-2xl border border-amber-200 bg-white p-8 shadow-sm"><div class="text-3xl">📱</div><h3 class="mt-3 text-lg font-black text-slate-900">Telegram hisobotlari sozlanmagan</h3><p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">${escapeHtml(data.message)} Botdagi buyurtma/verifikatsiya xabarlari hisobot jo‘natish funksiyasi hisoblanmaydi. Avtomatik vaqtli xabar yoki smena yopilish hisobotlari mavjud emas.</p></div>`;
+        }
+
+        function renderReport(section, data) {
+            clearReportCharts();
+            let html = '';
+            if (section === 'summary') html = renderSummaryReport(data);
+            else if (section === 'foods') html = renderFoodsReport(data);
+            else if (section === 'waiters') html = renderWaitersReport(data);
+            else if (section === 'cashiers') html = renderCashiersReport(data);
+            else if (section === 'inventory') html = renderInventoryReport(data);
+            else if (section === 'expenses') html = renderExpensesReport(data);
+            else if (section === 'refunds') html = renderRefundsReport(data);
+            else if (section === 'orders') html = renderOrdersReport(data);
+            else if (section === 'customers') html = renderCustomersReport(data);
+            else if (section === 'loyal-customers') html = renderLoyalCustomersReport(data);
+            else if (section === 'takeaway') html = renderTakeawayReport(data);
+            else if (section === 'audit') html = renderAuditReport(data);
+            else if (section === 'telegram') html = renderTelegramReport(data);
+            document.getElementById('reports-panel').innerHTML = html || '<p class="rounded-xl bg-white p-8 text-center text-slate-500">Tanlangan davr uchun ma’lumot topilmadi.</p>';
+
+            if (section === 'summary') {
+                drawReportChart('report-sales-chart', 'line', data.trend.map(row => reportDateLabel(row.date)), [{
+                    label: 'Tushum', data: data.trend.map(row => Number(row.amount)),
+                    borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,.12)', fill: true, tension: .35, pointRadius: 2
+                }], { details: data.trend.map(row => `${Number(row.orders).toLocaleString('uz-UZ')} ta buyurtma`) });
+                const paymentTotal = Object.values(data.kpis.payments).reduce((sum, amount) => sum + Number(amount), 0);
+                drawReportChart('report-payment-chart', 'doughnut', paymentLabelsFrom(data.kpis.payments), [{
+                    label: 'To‘lovlar', data: Object.values(data.kpis.payments).map(Number),
+                    backgroundColor: ['#d97706', '#2563eb', '#0f766e', '#64748b'], borderWidth: 0, hoverOffset: 7
+                }], { centerText: formatMoney(paymentTotal) });
+            } else if (section === 'foods') {
+                drawReportChart('report-food-quantity', 'bar', data.topQuantity.map(item => item.name), [{ label: 'Soni', data: data.topQuantity.map(item => Number(item.quantity)), backgroundColor: '#d97706', borderRadius: 6 }], { indexAxis: 'y' });
+                drawReportChart('report-food-revenue', 'bar', data.topRevenue.map(item => item.name), [{ label: 'Tushum', data: data.topRevenue.map(item => Number(item.revenue)), backgroundColor: '#2563eb', borderRadius: 6 }], { indexAxis: 'y' });
+                drawReportChart('report-food-category', 'bar', data.categories.map(item => item.category), [{ label: 'Tushum', data: data.categories.map(item => Number(item.revenue)), backgroundColor: '#0f766e', borderRadius: 6 }], { indexAxis: 'y' });
+            } else if (section === 'waiters') {
+                ['sales', 'orders', 'commission'].forEach(field => drawReportChart(`report-waiter-${field}`, 'bar', data.map(item => item.name), [{ label: field === 'sales' ? 'Savdo' : field === 'orders' ? 'Buyurtmalar' : 'Komissiya', data: data.map(item => Number(item[field === 'sales' ? 'sales' : field === 'orders' ? 'orders' : 'commission'])), backgroundColor: '#d97706', borderRadius: 6 }], { indexAxis: 'y', ...(field === 'orders' ? { money: false } : {}) }));
+            } else if (section === 'cashiers') {
+                drawReportChart('report-cashier-sales', 'bar', data.map(item => item.name), [{ label: 'Tushum', data: data.map(item => Number(item.sales)), backgroundColor: '#2563eb', borderRadius: 6 }]);
+                drawReportChart('report-cashier-hours', 'bar', data.map(item => item.name), [{ label: 'Smena soati', data: data.map(item => item.sessions.reduce((sum, session) => sum + session.durationMinutes, 0) / 60), backgroundColor: '#0f766e', borderRadius: 6 }], { money: false });
+            } else if (section === 'inventory') {
+                const used = data.products.filter(item => Number(item.used) > 0);
+                drawReportChart('report-inventory-usage', 'bar', used.slice(0, 12).map(item => `${item.name} (${item.unit})`), [{ label: 'Sarflandi', data: used.slice(0, 12).map(item => Number(item.used)), backgroundColor: '#0f766e', borderRadius: 6 }], { indexAxis: 'y', money: false });
+            } else if (section === 'expenses') {
+                drawReportChart('report-expense-chart', 'doughnut', data.categories.map(item => item.category), [{ label: 'Xarajat', data: data.categories.map(item => Number(item.amount)), backgroundColor: ['#d97706', '#2563eb', '#0f766e', '#7c3aed', '#e11d48', '#64748b'], borderWidth: 0 }]);
+                drawReportChart('report-expense-trend', 'line', data.trend.map(item => reportDateLabel(item.date)), [{ label: 'Xarajatlar', data: data.trend.map(item => Number(item.amount)), borderColor: '#e11d48', backgroundColor: 'rgba(225,29,72,.1)', fill: true, tension: .3 }]);
+            } else if (section === 'refunds') {
+                drawReportChart('report-refund-chart', 'bar', data.reasons.map(item => item.reason), [{ label: 'Qaytarish', data: data.reasons.map(item => Number(item.amount)), backgroundColor: '#e11d48', borderRadius: 6 }]);
+                drawReportChart('report-refund-trend', 'line', data.trend.map(item => reportDateLabel(item.date)), [{ label: 'Qaytarishlar', data: data.trend.map(item => Number(item.amount)), borderColor: '#e11d48', backgroundColor: 'rgba(225,29,72,.1)', fill: true, tension: .3 }]);
+            } else if (section === 'orders') {
+                drawReportChart('report-order-status', 'doughnut', data.statuses.map(item => `${item.status} · ${reportOrderLabels[item.type] || item.type}`), [{ label: 'Buyurtmalar', data: data.statuses.map(item => Number(item.count)), backgroundColor: ['#d97706', '#2563eb', '#0f766e', '#7c3aed', '#e11d48', '#64748b'], borderWidth: 0 }], { money: false });
+            } else if (section === 'loyal-customers') {
+                drawReportChart('report-loyalty-chart', 'doughnut', data.levels.map(item => item.level), [{ label: 'Mijozlar', data: data.levels.map(item => Number(item.count)), backgroundColor: ['#a16207', '#94a3b8', '#d97706', '#7c3aed'], borderWidth: 0 }], { money: false });
+            } else if (section === 'takeaway') {
+                const types = Object.fromEntries(data.orderTypes.map(item => [item.type, item]));
+                drawReportChart('report-takeaway-chart', 'doughnut', ['Zalda', 'Olib ketish'], [{
+                    label: 'Buyurtma summasi',
+                    data: [Number(types.DINE_IN?.amount || 0), Number(types.TAKEAWAY?.amount || 0)],
+                    backgroundColor: ['#2563eb', '#d97706'], borderWidth: 0
+                }], { centerText: formatMoney(Number(types.DINE_IN?.amount || 0) + Number(types.TAKEAWAY?.amount || 0)) });
+            }
+        }
+
+        function paymentLabelsFrom(payments) {
+            return Object.keys(payments).map(key => reportPaymentLabels[key] || key);
+        }
+
+        async function loadReportSection(section = reportState.section) {
+            reportState.section = section;
+            document.querySelectorAll('.report-nav-btn').forEach(button => {
+                const active = button.dataset.reportSection === section;
+                button.className = `report-nav-btn whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold transition ${active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
+                button.setAttribute('aria-current', active ? 'page' : 'false');
+            });
+            const panel = document.getElementById('reports-panel');
+            if (!panel) return;
+            const requestId = ++reportState.requestId;
+            clearReportCharts();
+            panel.innerHTML = reportSkeleton();
+            try {
+                const query = reportQuery();
+                const response = await apiFetch(`/api/admin/reports/${encodeURIComponent(section)}${query ? `?${query}` : ''}`);
+                if (requestId !== reportState.requestId) return;
+                document.getElementById('report-print-caption').textContent =
+                    `${reportLabels[section]} · ${document.getElementById('report-from').value} – ${document.getElementById('report-to').value} · Hisobot tuzildi: ${new Date().toLocaleString('uz-UZ')}`;
+                renderReport(section, response.data);
+            } catch (error) {
+                if (requestId !== reportState.requestId) return;
+                console.error(`Hisobot bo‘limini yuklashda xatolik (${section}):`, error);
+                renderReportError();
+            }
+        }
+
+        function chooseReportPreset() {
+            const preset = document.getElementById('report-preset').value;
+            const range = reportDateRange(preset);
+            if (!range) return;
+            document.getElementById('report-from').value = range[0];
+            document.getElementById('report-to').value = range[1];
+        }
+
+        document.getElementById('report-preset').addEventListener('change', chooseReportPreset);
+        ['report-from', 'report-to'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+            document.getElementById('report-preset').value = 'custom';
+        }));
+        document.getElementById('report-apply').addEventListener('click', applyReportFilters);
+        document.getElementById('reports-nav').addEventListener('click', event => {
+            const button = event.target.closest('[data-report-section]');
+            if (button) loadReportSection(button.dataset.reportSection);
+        });
+        document.getElementById('reports-panel').addEventListener('click', event => {
+            if (event.target.closest('[data-report-search]')) {
+                reportState.customerSearch = document.getElementById('report-customer-search')?.value.trim() || '';
+                loadReportSection('customers');
+            }
+        });
+        document.getElementById('reports-panel').addEventListener('keydown', event => {
+            if (event.key === 'Enter' && event.target.id === 'report-customer-search') {
+                event.preventDefault();
+                reportState.customerSearch = event.target.value.trim();
+                loadReportSection('customers');
+            }
+        });
+
         // Real-time updates via Socket.io
         const socket = io();
         socket.on('orderUpdate', (data) => {
@@ -2191,6 +2718,15 @@
         socket.on('restaurant_structure_updated', () => loadRooms());
         socket.on('menu_updated', () => { if (adminCurrentUser) loadMenu(); });
         socket.on('inventory_updated', () => { if (adminCurrentUser) loadInventory(); });
+        let reportRefreshTimer = null;
+        function refreshVisibleReport() {
+            if (!adminCurrentUser || document.getElementById('section-hisobotlar').classList.contains('hidden')) return;
+            clearTimeout(reportRefreshTimer);
+            reportRefreshTimer = setTimeout(() => loadReportSection(), 300);
+        }
+        ['paymentReceived', 'cashMovement', 'cashRegisterUpdated', 'inventory_updated', 'orderUpdate', 'menu_updated'].forEach(eventName => {
+            socket.on(eventName, refreshVisibleReport);
+        });
 
         document.getElementById('admin-search').addEventListener('input', event => {
             adminSearchTerm = event.target.value.trim();

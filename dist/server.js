@@ -15,39 +15,18 @@ const kitchen_routes_1 = __importDefault(require("./routes/kitchen.routes"));
 const socket_1 = require("./socket");
 const crypto_1 = require("crypto");
 const auth_1 = require("./middleware/auth");
+const password_1 = require("./utils/password");
+const cashier_routes_1 = __importDefault(require("./routes/cashier.routes"));
+const menu_routes_1 = __importDefault(require("./routes/menu.routes"));
+const admin_reports_routes_1 = __importDefault(require("./routes/admin-reports.routes"));
+const order_packaging_1 = require("./utils/order-packaging");
+const order_recipes_1 = require("./utils/order-recipes");
+const telegram_routes_1 = __importDefault(require("./routes/telegram.routes"));
 // 1. Muhit o'zgaruvchilarini eng boshida yuklash
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
 const prisma = new client_1.PrismaClient();
-function hashPassword(password) {
-    const salt = (0, crypto_1.randomBytes)(16).toString('hex');
-    return new Promise((resolve, reject) => {
-        (0, crypto_1.scrypt)(password, salt, 64, (error, derivedKey) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-            resolve(`${salt}:${derivedKey.toString('hex')}`);
-        });
-    });
-}
-function verifyPassword(password, passwordHash) {
-    const [salt, storedHash, ...extra] = passwordHash.split(':');
-    if (!salt || !storedHash || extra.length || !/^[\da-f]+$/i.test(salt) || !/^[\da-f]{128}$/i.test(storedHash)) {
-        return Promise.resolve(false);
-    }
-    return new Promise((resolve, reject) => {
-        (0, crypto_1.scrypt)(password, salt, 64, (error, derivedKey) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-            const expected = Buffer.from(storedHash, 'hex');
-            resolve(expected.length === derivedKey.length && (0, crypto_1.timingSafeEqual)(expected, derivedKey));
-        });
-    });
-}
 async function ensureInitialAdmin() {
     const adminCount = await prisma.user.count({ where: { role: client_1.RoleType.ADMIN } });
     if (adminCount > 0)
@@ -73,7 +52,7 @@ async function ensureInitialAdmin() {
     await prisma.user.create({
         data: {
             username,
-            passwordHash: await hashPassword(password),
+            passwordHash: await (0, password_1.hashPassword)(password),
             fullName: process.env.INITIAL_ADMIN_FULL_NAME?.trim() || 'Administrator',
             role: client_1.RoleType.ADMIN
         }
@@ -86,6 +65,9 @@ app.use((0, cors_1.default)({
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.static(path_1.default.join(__dirname, '..', 'public')));
+app.get('/kitchen/tv', (_req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '..', 'public', 'kitchen-tv.html'));
+});
 // Public papkani statik qilish (sahifalar ochilishi uchun)
 app.use(express_1.default.static(path_1.default.join(process.cwd(), 'public')));
 app.get('/favicon.ico', (_req, res) => {
@@ -99,16 +81,18 @@ const io = new socket_io_1.Server(server, {
 });
 (0, socket_1.initSocket)(io);
 app.use('/api/kitchen', kitchen_routes_1.default);
+app.use('/api/admin/reports', admin_reports_routes_1.default);
+app.use('/api', telegram_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
-    if (!user || !user.isActive || !allowedRoles.includes(user.role) || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user || !user.isActive || !allowedRoles.includes(user.role) || !(await (0, password_1.verifyPassword)(password, user.passwordHash))) {
         return null;
     }
     return user;
 }
-app.get('/api/auth/me', auth_1.authenticateToken, (req, res) => {
+app.get('/api/auth/me', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), (req, res) => {
     res.json({ success: true, user: req.user });
 });
 app.post('/api/auth/login', async (req, res) => {
@@ -126,7 +110,39 @@ app.post('/api/auth/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'Tizimga kirishda xatolik yuz berdi' });
     }
 });
-app.post('/api/auth/logout', (_req, res) => {
+app.post('/api/auth/logout', auth_1.optionalAuthenticateToken, async (req, res) => {
+    if (req.user) {
+        try {
+            await prisma.$transaction(async (tx) => {
+                if (req.user.terminalAccessId) {
+                    const access = await tx.adminTerminalAccess.update({
+                        where: { id: req.user.terminalAccessId },
+                        data: { endedAt: new Date() }
+                    });
+                    await tx.auditLog.create({
+                        data: {
+                            userId: access.adminId,
+                            action: 'ADMIN_TERMINAL_ACCESS_ENDED',
+                            entity: 'AdminTerminalAccess',
+                            entityId: access.id,
+                            newValue: JSON.stringify({ cashierId: access.cashierId, endedBy: 'AUTH_LOGOUT' })
+                        }
+                    });
+                }
+                await tx.user.update({
+                    where: { id: req.user.id },
+                    data: { updatedAt: new Date(Math.max(Date.now(), (req.user.sessionIssuedAt || 0) + 1)) },
+                    select: { id: true }
+                });
+            });
+        }
+        catch (error) {
+            console.error('Sessiyani bekor qilishda xatolik:', error);
+            res.status(500).json({ success: false, message: 'Sessiyani bekor qilib bo‘lmadi' });
+            return;
+        }
+    }
+    (0, auth_1.clearTerminalAdminCookie)(res);
     (0, auth_1.clearAuthCookie)(res);
     res.json({ success: true });
 });
@@ -135,6 +151,88 @@ app.get('/api/waiter/me', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
         success: true,
         waiter: { id: req.user.id, name: req.user.fullName, login: req.user.username }
     });
+});
+app.get('/api/waiter/stats', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER']), async (req, res) => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(now);
+    const date = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    const start = new Date(Date.UTC(Number(date.year), Number(date.month) - 1, Number(date.day)) - 5 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    try {
+        const [orders, waiterProfile] = await Promise.all([
+            prisma.order.findMany({
+                where: { waiterId: req.user.id, createdAt: { gte: start, lt: end } },
+                select: {
+                    status: true,
+                    payments: { select: { amount: true } },
+                    refunds: { select: { amount: true } }
+                }
+            }),
+            prisma.waiterProfile.findUnique({
+                where: { userId: req.user.id },
+                select: { commissionPercent: true }
+            })
+        ]);
+        const commissionRate = waiterProfile?.commissionPercent || new client_1.Prisma.Decimal(0);
+        const completedStatuses = [client_1.OrderStatus.TOLANDI, client_1.OrderStatus.YAKUNLANDI];
+        const completedOrders = orders.filter(order => completedStatuses.includes(order.status));
+        const cancelledCount = orders.filter(order => order.status === client_1.OrderStatus.BEKOR_QILINDI).length;
+        const completedSales = completedOrders.reduce((sum, order) => {
+            const paid = order.payments.reduce((total, payment) => total.plus(payment.amount), new client_1.Prisma.Decimal(0));
+            const refunded = order.refunds.reduce((total, refund) => total.plus(refund.amount), new client_1.Prisma.Decimal(0));
+            return sum.plus(client_1.Prisma.Decimal.max(paid.minus(refunded), new client_1.Prisma.Decimal(0)));
+        }, new client_1.Prisma.Decimal(0));
+        res.json({
+            todayOrdersCount: orders.length,
+            todaySales: completedSales.toString(),
+            todayCommission: completedSales.mul(commissionRate).dividedBy(100).toString(),
+            commissionRate: commissionRate.toString(),
+            completedCount: completedOrders.length,
+            cancelledCount
+        });
+    }
+    catch (error) {
+        console.error('Ofitsiant statistikasini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Statistikani yuklab bo‘lmadi' });
+    }
+});
+app.get('/api/kitchen/session', auth_1.authenticateToken, (0, auth_1.requireRole)(['KITCHEN', 'ADMIN']), (req, res) => {
+    res.json({ success: true, user: { id: req.user.id, fullName: req.user.fullName, role: req.user.role } });
+});
+app.get('/api/kitchen/me', auth_1.authenticateToken, (0, auth_1.requireRole)(['KITCHEN']), (req, res) => {
+    res.json({ success: true, user: { id: req.user.id, fullName: req.user.fullName, role: req.user.role } });
+});
+app.post('/api/kitchen/logout', auth_1.authenticateToken, (0, auth_1.requireRole)(['KITCHEN']), async (req, res) => {
+    try {
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { updatedAt: new Date(Math.max(Date.now(), (req.user.sessionIssuedAt || 0) + 1)) },
+            select: { id: true }
+        });
+        (0, auth_1.clearAuthCookie)(res);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Oshxona sessiyasidan chiqishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Sessiyadan chiqib bo‘lmadi' });
+    }
+});
+app.post('/api/kitchen/login', async (req, res) => {
+    try {
+        const user = await loginUser(req.body?.username ?? req.body?.login, req.body?.password, [client_1.RoleType.KITCHEN]);
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
+            return;
+        }
+        (0, auth_1.setAuthCookie)(res, user);
+        res.json({ success: true, user: { id: user.id, fullName: user.fullName, role: user.role } });
+    }
+    catch (error) {
+        console.error('Oshxona tizimiga kirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Tizimga kirishda xatolik yuz berdi' });
+    }
 });
 app.post('/api/waiter/login', async (req, res) => {
     try {
@@ -154,6 +252,46 @@ app.post('/api/waiter/login', async (req, res) => {
         res.status(500).json({ success: false, error: 'Tizimga kirishda xatolik yuz berdi' });
     }
 });
+app.get('/api/cashier/me', auth_1.authenticateToken, auth_1.requireCashierAccess, (req, res) => {
+    res.json({ success: true, user: req.user });
+});
+app.post('/api/cashier/login', async (req, res) => {
+    try {
+        const user = await loginUser(req.body?.username, req.body?.password, [client_1.RoleType.CASHIER]);
+        if (!user) {
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
+            return;
+        }
+        const activeTerminalSessions = await prisma.adminTerminalAccess.findMany({
+            where: { cashierId: user.id, endedAt: null },
+            select: { id: true, adminId: true }
+        });
+        if (activeTerminalSessions.length) {
+            await prisma.$transaction(async (tx) => {
+                await tx.adminTerminalAccess.updateMany({
+                    where: { id: { in: activeTerminalSessions.map(access => access.id) }, endedAt: null },
+                    data: { endedAt: new Date() }
+                });
+                await tx.auditLog.createMany({
+                    data: activeTerminalSessions.map(access => ({
+                        userId: access.adminId,
+                        action: 'ADMIN_TERMINAL_ACCESS_ENDED',
+                        entity: 'AdminTerminalAccess',
+                        entityId: access.id,
+                        newValue: JSON.stringify({ cashierId: user.id, endedBy: 'CASHIER_LOGIN' })
+                    }))
+                });
+            });
+        }
+        (0, auth_1.setAuthCookie)(res, user);
+        res.json({ success: true, user: { id: user.id, fullName: user.fullName, role: user.role } });
+    }
+    catch (error) {
+        console.error('Kassir tizimiga kirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Tizimga kirishda xatolik yuz berdi' });
+    }
+});
+app.use('/api/cashier', cashier_routes_1.default);
 app.post('/api/waiter/logout', (_req, res) => {
     (0, auth_1.clearAuthCookie)(res);
     res.json({ success: true });
@@ -193,7 +331,7 @@ else {
 // 3. ADMIN PANEL VA API ROUTELARI
 // ==========================================
 // Xonalar va stollar
-app.get('/api/rooms', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN', 'WAITER']), async (req, res) => {
+app.get('/api/rooms', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN', 'WAITER', 'CASHIER']), async (req, res) => {
     try {
         const rooms = await prisma.room.findMany({
             where: { isActive: true },
@@ -396,67 +534,7 @@ app.post('/api/tables/:id/free', auth_1.authenticateToken, (0, auth_1.requireRol
     }
 });
 // Menyu va tannarx
-app.get('/api/menu/categories', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (_req, res) => {
-    try {
-        const categories = await prisma.menuCategory.findMany({
-            where: { isActive: true },
-            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-            select: { id: true, name: true }
-        });
-        res.json(categories);
-    }
-    catch (error) {
-        console.error('Menyu kategoriyalarini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Menyu kategoriyalarini olishda xatolik' });
-    }
-});
-app.get('/api/menu', async (req, res) => {
-    try {
-        const menuItems = await prisma.menuItem.findMany({
-            include: { category: true, recipes: { include: { inventory: true } } }
-        });
-        res.json(menuItems);
-    }
-    catch (error) {
-        console.error('Menyuni olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Menyuni olib kelishda xatolik' });
-    }
-});
-app.post('/api/menu', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (req, res) => {
-    const { name, categoryId, description, sellingPrice, internalCostPrice, unit, preparationTime, kitchenSection } = req.body || {};
-    if (typeof name !== 'string' || !name.trim() || typeof categoryId !== 'string' || !categoryId ||
-        !Number.isFinite(Number(sellingPrice)) || Number(sellingPrice) < 0 ||
-        (internalCostPrice !== undefined && (!Number.isFinite(Number(internalCostPrice)) || Number(internalCostPrice) < 0)) ||
-        (preparationTime !== undefined && (!Number.isInteger(Number(preparationTime)) || Number(preparationTime) < 0))) {
-        res.status(400).json({ success: false, message: 'Menyu ma’lumotlari noto‘g‘ri' });
-        return;
-    }
-    try {
-        const category = await prisma.menuCategory.findUnique({ where: { id: categoryId }, select: { id: true } });
-        if (!category) {
-            res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
-            return;
-        }
-        const menuItem = await prisma.menuItem.create({
-            data: {
-                name: name.trim(),
-                categoryId,
-                description: typeof description === 'string' && description.trim() ? description.trim() : null,
-                sellingPrice: Number(sellingPrice),
-                ...(internalCostPrice !== undefined ? { internalCostPrice: Number(internalCostPrice) } : {}),
-                ...(typeof unit === 'string' && unit.trim() ? { unit: unit.trim() } : {}),
-                ...(preparationTime !== undefined ? { preparationTime: Number(preparationTime) } : {}),
-                ...(typeof kitchenSection === 'string' && kitchenSection.trim() ? { kitchenSection: kitchenSection.trim() } : {})
-            },
-            include: { category: true, recipes: { include: { inventory: true } } }
-        });
-        res.status(201).json({ success: true, data: menuItem });
-    }
-    catch (error) {
-        console.error('Menyu taomini qo‘shishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Taom qo‘shilmadi' });
-    }
-});
+app.use('/api/menu', menu_routes_1.default);
 // Omborxona
 app.get('/api/inventory', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (req, res) => {
     try {
@@ -657,7 +735,7 @@ app.post('/api/employees', auth_1.authenticateToken, (0, auth_1.requireRole)(['A
     }
     try {
         const prismaRole = roles[role];
-        const passwordHash = await hashPassword(password);
+        const passwordHash = await (0, password_1.hashPassword)(password);
         const user = await prisma.user.create({
             data: {
                 username: username.trim(),
@@ -707,8 +785,9 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
             include: {
                 table: { include: { room: true } },
                 waiter: { select: { id: true, username: true, fullName: true } },
+                processingBy: { select: { id: true, fullName: true, role: true } },
                 payments: req.user.role === client_1.RoleType.ADMIN,
-                items: { include: { menuItem: true } }
+                items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -728,6 +807,80 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
         res.status(500).json({ success: false, message: 'Buyurtmalarni olishda xatolik' });
     }
 });
+app.post('/api/orders/:id/return-item', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER']), async (req, res) => {
+    const orderId = typeof req.params.id === 'string' ? req.params.id : '';
+    const orderItemId = typeof req.body?.orderItemId === 'string' ? req.body.orderItemId : '';
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) : '';
+    const idempotencyKey = typeof req.body?.idempotencyKey === 'string' &&
+        /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.idempotencyKey) ? req.body.idempotencyKey : '';
+    const quantityText = String(req.body?.quantity ?? '');
+    if (!orderId || !orderItemId || !reason || !idempotencyKey ||
+        !/^\d{1,10}(?:\.\d{1,6})?$/.test(quantityText) || Number(quantityText) <= 0) {
+        res.status(400).json({ success: false, message: 'Qaytarish so‘rovi ma’lumotlari noto‘g‘ri' });
+        return;
+    }
+    try {
+        const order = await prisma.order.findFirst({
+            where: { id: orderId, waiterId: req.user.id },
+            select: {
+                id: true,
+                status: true,
+                items: { where: { id: orderItemId }, select: { id: true, quantity: true } }
+            }
+        });
+        const item = order?.items[0];
+        if (!order || !item) {
+            res.status(404).json({ success: false, message: 'O‘zingizning buyurtmangizdagi taom topilmadi' });
+            return;
+        }
+        const requestedQuantity = new client_1.Prisma.Decimal(quantityText);
+        if (!requestedQuantity.equals(item.quantity)) {
+            res.status(400).json({ success: false, message: 'Qisman qaytarish hozircha qo‘llab-quvvatlanmaydi; to‘liq taomni tanlang' });
+            return;
+        }
+        const result = await prisma.$transaction(async (tx) => {
+            const requestAuditId = `waiter-return:${idempotencyKey}`;
+            const existing = await tx.auditLog.findUnique({
+                where: { id: requestAuditId },
+                select: { id: true, newValue: true }
+            });
+            if (existing?.newValue) {
+                try {
+                    const request = JSON.parse(existing.newValue);
+                    if (request.idempotencyKey === idempotencyKey)
+                        return { duplicate: true };
+                }
+                catch { /* Treat malformed historical audit data as a separate request. */ }
+            }
+            const created = await tx.auditLog.create({
+                data: {
+                    userId: req.user.id,
+                    action: 'WAITER_RETURN_REQUESTED',
+                    entity: 'Order',
+                    entityId: order.id,
+                    newValue: JSON.stringify({ orderItemId: item.id, quantity: quantityText, reason, idempotencyKey, status: order.status }),
+                    id: requestAuditId
+                },
+                select: { id: true, createdAt: true }
+            });
+            return { duplicate: false, request: created };
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
+        res.status(result.duplicate ? 200 : 202).json({
+            success: true,
+            duplicate: result.duplicate,
+            message: 'Qaytarish so‘rovi kassir/Admin ko‘rib chiqishiga yuborildi',
+            ...(result.duplicate ? {} : { data: result.request })
+        });
+    }
+    catch (error) {
+        if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            res.status(409).json({ success: false, message: 'Qaytarish so‘rovi allaqachon yuborilgan' });
+            return;
+        }
+        console.error('Ofitsiant qaytarish so‘rovini yuborishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Qaytarish so‘rovini yuborib bo‘lmadi' });
+    }
+});
 app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (req, res) => {
     const { tableId, items, note, guestCount } = req.body || {};
     if (typeof tableId !== 'string' || !tableId.trim() || !Array.isArray(items) || items.length === 0) {
@@ -735,7 +888,7 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
         return;
     }
     if (items.some(item => !item || typeof (item.productId || item.menuItemId) !== 'string' ||
-        !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0 ||
+        !/^\d{1,10}(?:\.\d{1,6})?$/.test(String(item.quantity)) || Number(item.quantity) <= 0 ||
         (item.note !== undefined && typeof item.note !== 'string'))) {
         res.status(400).json({ success: false, error: 'Buyurtma tarkibidagi taomlar yoki miqdor noto‘g‘ri' });
         return;
@@ -755,7 +908,7 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
         }
         const requestedIds = items.map(item => String(item.productId || item.menuItemId));
         const menuItems = await prisma.menuItem.findMany({
-            where: { id: { in: requestedIds }, isActive: true },
+            where: { id: { in: requestedIds }, isActive: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         const menuById = new Map(menuItems.map(item => [item.id, item]));
@@ -765,17 +918,17 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
         }
         const orderItems = items.map(item => {
             const menuItem = menuById.get(String(item.productId || item.menuItemId));
-            const quantity = Number(item.quantity);
-            const unitPrice = Number(menuItem.sellingPrice);
+            const quantity = new client_1.Prisma.Decimal(String(item.quantity));
+            const unitPrice = new client_1.Prisma.Decimal(menuItem.sellingPrice);
             return {
                 menuItemId: menuItem.id,
                 quantity,
                 unitPrice,
-                totalPrice: unitPrice * quantity,
+                totalPrice: unitPrice.mul(quantity),
                 notes: typeof item.note === 'string' && item.note.trim() ? item.note.trim() : null
             };
         });
-        const totalAmount = orderItems.reduce((total, item) => total + item.totalPrice, 0);
+        const totalAmount = orderItems.reduce((total, item) => total.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const orderNumber = `${date}-${(0, crypto_1.randomBytes)(4).toString('hex').toUpperCase()}`;
         const order = await prisma.order.create({
@@ -785,17 +938,21 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
                 waiterId: req.user.id,
                 guestCount: guestCount === undefined ? 1 : Number(guestCount),
                 status: client_1.OrderStatus.YANGI,
+                source: 'WAITER',
+                createdById: req.user.id,
                 subtotal: totalAmount,
                 totalAmount,
                 items: { create: orderItems },
-                ...(typeof note === 'string' && note.trim()
-                    ? { statusHistory: { create: { status: client_1.OrderStatus.YANGI, comment: note.trim(), userId: req.user.id } } }
-                    : {})
+                statusHistory: { create: {
+                        status: client_1.OrderStatus.YANGI,
+                        userId: req.user.id,
+                        ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
+                    } }
             },
             include: {
                 table: { include: { room: true } },
                 waiter: { select: { id: true, username: true, fullName: true } },
-                items: { include: { menuItem: true } }
+                items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
             }
         });
         (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: order.id, tableId: table.id, roomId: table.roomId, status: order.status });
@@ -816,6 +973,10 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
         const order = await prisma.order.findUnique({ where: { id: req.params.id } });
         if (!order) {
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
+            return;
+        }
+        if (order.processingById && order.processingById !== req.user.id) {
+            res.status(409).json({ success: false, error: 'Buyurtma kassir tomonidan qayta ishlanmoqda' });
             return;
         }
         if (!['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(order.status)) {
@@ -847,6 +1008,10 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
             return;
         }
+        if (order.processingById && order.processingById !== req.user.id) {
+            res.status(409).json({ success: false, error: 'Buyurtma kassir tomonidan qayta ishlanmoqda' });
+            return;
+        }
         if (!['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(order.status)) {
             res.status(409).json({ success: false, error: 'Bu buyurtmani rad etib bo‘lmaydi' });
             return;
@@ -871,6 +1036,275 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
     catch (error) {
         console.error('Buyurtmani rad etishda xatolik:', error);
         res.status(500).json({ success: false, error: 'Buyurtmani rad etishda xatolik yuz berdi' });
+    }
+});
+app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'CASHIER', 'ADMIN']), async (req, res) => {
+    const paymentMethods = {
+        NAQD: client_1.PaymentMethod.NAQD, Naqd: client_1.PaymentMethod.NAQD,
+        PLASTIK: client_1.PaymentMethod.PLASTIK, 'Plastik karta': client_1.PaymentMethod.PLASTIK,
+        ELEKTRON: client_1.PaymentMethod.ELEKTRON, 'Elektron to‘lov': client_1.PaymentMethod.ELEKTRON
+    };
+    const method = typeof req.body?.paymentMethod === 'string' ? paymentMethods[req.body.paymentMethod] : null;
+    const key = typeof req.body?.idempotencyKey === 'string' &&
+        /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.idempotencyKey) ? req.body.idempotencyKey : '';
+    if (!method || !key) {
+        res.status(400).json({ success: false, message: 'To‘lov turi yoki takrorlanishni himoyalovchi identifikator noto‘g‘ri' });
+        return;
+    }
+    const hash = (0, crypto_1.createHash)('sha256').update(JSON.stringify({
+        tableId: req.params.tableId,
+        method
+    })).digest('hex');
+    try {
+        const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
+        if (previous) {
+            if (previous.userId !== req.user.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
+                res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
+                return;
+            }
+            res.json({ success: true, duplicate: true, data: JSON.parse(previous.responseJson) });
+            return;
+        }
+        const result = await prisma.$transaction(async (tx) => {
+            const orders = await tx.order.findMany({
+                where: {
+                    tableId: req.params.tableId,
+                    status: { notIn: [client_1.OrderStatus.TOLANDI, client_1.OrderStatus.YAKUNLANDI, client_1.OrderStatus.BEKOR_QILINDI, client_1.OrderStatus.QAYTARILDI] }
+                },
+                select: {
+                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, debt: { select: { amount: true, remaining: true } },
+                    payments: { select: { amount: true } },
+                    items: { select: { quantity: true, totalPrice: true, menuItem: { select: { name: true } } } }
+                }
+            });
+            if (!orders.length)
+                throw new Error('TABLE_NO_ORDERS');
+            const paidOrderIds = [];
+            const updatedInventoryIds = new Set();
+            for (const order of orders) {
+                await tx.$queryRaw `SELECT "id" FROM "Order" WHERE "id" = ${order.id} FOR UPDATE`;
+                if (order.processingById && order.processingById !== req.user.id)
+                    throw new Error('ORDER_LOCKED');
+                const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
+                const due = new client_1.Prisma.Decimal(order.totalAmount).minus(paid).minus(order.debt?.amount || 0);
+                if (!due.greaterThan(0))
+                    continue;
+                const payment = await tx.payment.create({
+                    data: {
+                        orderId: order.id,
+                        cashierId: req.user.id,
+                        method,
+                        amount: due,
+                        idempotencyKey: `${key}_${order.id}`
+                    },
+                    select: { id: true }
+                });
+                const status = order.debt?.remaining.greaterThan(0) ? client_1.OrderStatus.QISMAN_TOLANDI : client_1.OrderStatus.TOLANDI;
+                await tx.order.update({
+                    where: { id: order.id },
+                    data: {
+                        status,
+                        paidAt: status === client_1.OrderStatus.TOLANDI ? new Date() : null,
+                        processingById: null,
+                        processingAt: null,
+                        statusHistory: { create: { status, userId: req.user.id, comment: 'Stol hisob-kitobi' } }
+                    }
+                });
+                if (status === client_1.OrderStatus.TOLANDI) {
+                    await (0, order_packaging_1.deductPackaging)(tx, order.id, req.user.id);
+                    for (const id of await (0, order_recipes_1.deductOrderRecipes)(tx, order.id, req.user.id))
+                        updatedInventoryIds.add(id);
+                }
+                const receiptNumber = `${order.orderNumber}-${Date.now()}-${(0, crypto_1.randomBytes)(2).toString('hex').toUpperCase()}`;
+                await tx.receipt.create({
+                    data: {
+                        orderId: order.id,
+                        receiptNumber,
+                        qrHash: (0, crypto_1.createHash)('sha256').update((0, crypto_1.randomBytes)(32)).digest('hex')
+                    }
+                });
+                await tx.printJob.create({
+                    data: {
+                        orderId: order.id,
+                        jobType: 'RECEIPT',
+                        payload: JSON.stringify({
+                            restaurantName: 'ChoyxonaAzizxon',
+                            receiptNumber,
+                            orderNumber: order.orderNumber,
+                            cashier: req.user.fullName,
+                            total: due.toString(),
+                            method,
+                            items: order.items.map(item => ({
+                                name: item.menuItem.name,
+                                quantity: item.quantity.toString(),
+                                amount: item.totalPrice.toString()
+                            }))
+                        })
+                    }
+                });
+                await tx.auditLog.create({
+                    data: { userId: req.user.id, action: 'PAYMENT_RECEIVED', entity: 'Order', entityId: order.id, newValue: JSON.stringify({ paymentId: payment.id, amount: due.toString(), method }) }
+                });
+                if (method === client_1.PaymentMethod.NAQD) {
+                    const session = await tx.cashSession.findFirst({ where: { activeCashierId: req.user.id }, select: { id: true } });
+                    await tx.cashMovement.create({
+                        data: {
+                            userId: req.user.id,
+                            type: 'SALE',
+                            amount: due,
+                            referenceId: order.id,
+                            ...(session ? { sessionId: session.id } : {})
+                        }
+                    });
+                }
+                paidOrderIds.push(order.id);
+            }
+            if (!paidOrderIds.length)
+                throw new Error('TABLE_ALREADY_PAID');
+            const response = { paidOrderIds };
+            await tx.idempotencyRecord.create({
+                data: {
+                    key, userId: req.user.id, operation: 'TABLE_PAYMENT',
+                    requestHash: hash, responseJson: JSON.stringify(response)
+                }
+            });
+            return { response, updatedInventoryIds: [...updatedInventoryIds] };
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
+        for (const orderId of result.response.paidOrderIds)
+            (0, socket_1.emitSocketEvent)('paymentReceived', { orderId, status: 'TOLANDI' });
+        (0, socket_1.emitSocketEvent)('table_status_updated', { tableId: req.params.tableId });
+        if (result.updatedInventoryIds.length)
+            (0, socket_1.emitSocketEvent)('inventory_updated', { inventoryIds: result.updatedInventoryIds });
+        res.json({ success: true, data: result.response });
+    }
+    catch (error) {
+        if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
+            return;
+        }
+        if (error instanceof Error && error.message === 'TABLE_NO_ORDERS') {
+            res.status(409).json({ success: false, message: 'Stolda to‘lanmagan buyurtmalar yo‘q' });
+            return;
+        }
+        if (error instanceof Error && error.message === 'TABLE_ALREADY_PAID') {
+            res.status(409).json({ success: false, message: 'Buyurtmalar allaqachon to‘langan' });
+            return;
+        }
+        if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
+            return;
+        }
+        if (error instanceof Error && error.message === 'ORDER_LOCKED') {
+            res.status(409).json({ success: false, message: 'Buyurtma kassir tomonidan qayta ishlanmoqda' });
+            return;
+        }
+        if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
+            res.status(409).json({ success: false, message: 'To‘lov allaqachon yuborilgan. Sahifani yangilang.' });
+            return;
+        }
+        console.error('Stol uchun to‘lovni saqlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Stol to‘lovini saqlab bo‘lmadi' });
+    }
+});
+app.get('/api/waiter/calls', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (_req, res) => {
+    try {
+        const calls = await prisma.waiterCall.findMany({
+            where: { status: { not: 'YAKUNLANDI' } },
+            include: {
+                table: { select: { number: true, room: { select: { name: true } } } },
+                calledBy: { select: { fullName: true, role: true } }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+        res.json(calls.map(call => ({ ...call, tableNumber: call.table.number })));
+    }
+    catch (error) {
+        console.error('Ofitsiant chaqiruvlarini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Chaqiruvlarni olib bo‘lmadi' });
+    }
+});
+app.post('/api/waiter/cashier-call', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER']), async (req, res) => {
+    const tableId = typeof req.body?.tableId === 'string' ? req.body.tableId : '';
+    if (!tableId) {
+        res.status(400).json({ success: false, message: 'Stolni tanlang' });
+        return;
+    }
+    try {
+        const table = await prisma.table.findFirst({
+            where: { id: tableId, isActive: true, room: { isActive: true } },
+            select: { id: true, number: true, room: { select: { name: true } } }
+        });
+        if (!table) {
+            res.status(404).json({ success: false, message: 'Faol stol topilmadi' });
+            return;
+        }
+        const existing = await prisma.waiterCall.findFirst({
+            where: { tableId: table.id, kind: 'CASHIER_ASSIST', status: { not: 'YAKUNLANDI' } }
+        });
+        if (existing) {
+            res.status(409).json({ success: false, message: 'Bu stol uchun kassir chaqiruvi allaqachon faol' });
+            return;
+        }
+        const call = await prisma.waiterCall.create({
+            data: { tableId: table.id, calledById: req.user.id, kind: 'CASHIER_ASSIST' }
+        });
+        (0, socket_1.emitSocketEvent)('waiter_call', {
+            callId: call.id,
+            tableId: table.id,
+            tableNumber: table.number,
+            roomName: table.room.name,
+            waiterName: req.user.fullName,
+            createdAt: call.createdAt
+        });
+        res.status(201).json({ success: true, data: call });
+    }
+    catch (error) {
+        console.error('Kassirni chaqirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Kassirni chaqirib bo‘lmadi' });
+    }
+});
+app.post('/api/waiter/calls/:id/accept', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (req, res) => {
+    try {
+        const call = await prisma.waiterCall.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+        if (!call || call.status === 'YAKUNLANDI') {
+            res.status(404).json({ success: false, message: 'Faol chaqiruv topilmadi' });
+            return;
+        }
+        const updated = await prisma.waiterCall.update({
+            where: { id: call.id },
+            data: { status: 'QABUL_QILINDI', acceptedById: req.user.id }
+        });
+        await prisma.auditLog.create({
+            data: { userId: req.user.id, action: 'WAITER_CALL_ACCEPTED', entity: 'WaiterCall', entityId: call.id }
+        });
+        (0, socket_1.emitSocketEvent)('waiter_call_updated', { callId: updated.id, status: updated.status });
+        res.json({ success: true, data: updated });
+    }
+    catch (error) {
+        console.error('Chaqiruvni qabul qilishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Chaqiruvni qabul qilib bo‘lmadi' });
+    }
+});
+app.post('/api/waiter/calls/:id/complete', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (req, res) => {
+    try {
+        const call = await prisma.waiterCall.findUnique({ where: { id: req.params.id }, select: { id: true, status: true } });
+        if (!call || call.status === 'YAKUNLANDI') {
+            res.status(404).json({ success: false, message: 'Faol chaqiruv topilmadi' });
+            return;
+        }
+        const updated = await prisma.waiterCall.update({
+            where: { id: call.id },
+            data: { status: 'YAKUNLANDI', completedById: req.user.id }
+        });
+        await prisma.auditLog.create({
+            data: { userId: req.user.id, action: 'WAITER_CALL_COMPLETED', entity: 'WaiterCall', entityId: call.id }
+        });
+        (0, socket_1.emitSocketEvent)('waiter_call_updated', { callId: updated.id, status: updated.status });
+        res.json({ success: true, data: updated });
+    }
+    catch (error) {
+        console.error('Chaqiruvni yakunlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Chaqiruvni yakunlab bo‘lmadi' });
     }
 });
 // Ofitsiantni chaqirish Socket.io orqali

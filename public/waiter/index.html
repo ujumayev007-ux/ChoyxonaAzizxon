@@ -532,10 +532,12 @@
         let cartItems = [];
         let activeTablesList = [];
         let activeOrdersList = [];
+        let tableOrdersCache = [];
         let pendingOrdersList = [];
         let activeCallsList = [];
         let selectedTableForModal = null;
         let selectedPaymentMethod = 'Naqd';
+        let returnRequestKey = null;
 
         // Initialize App
         document.addEventListener('DOMContentLoaded', () => {
@@ -615,7 +617,7 @@
             document.getElementById('profile-name').innerText = currentWaiter.name;
             document.getElementById('profile-val-name').innerText = currentWaiter.name;
             document.getElementById('profile-val-login').innerText = currentWaiter.login || '-';
-            
+
             // Load initial data
             loadRoomsAndTables();
             loadMenuCatalog();
@@ -905,7 +907,7 @@
             document.getElementById('modal-table-status').innerText = getTableStatusUzText(status);
             document.getElementById('modal-table-guests').innerText = '2-4 kishi';
             document.getElementById('modal-table-waiter').innerText = currentWaiter ? currentWaiter.name : '-';
-            
+
             const ordersContainer = document.getElementById('modal-table-active-orders');
             ordersContainer.innerHTML = '<p class="text-xs text-slate-400">Buyurtmalar yuklanmoqda...</p>';
             document.getElementById('modal-table-details').classList.remove('hidden');
@@ -915,6 +917,7 @@
                 const result = await res.json();
                 if (res.ok) {
                     const orders = result;
+                    tableOrdersCache = Array.isArray(orders) ? orders : [];
                     if (!orders || orders.length === 0) {
                         ordersContainer.innerHTML = '<p class="text-xs text-slate-400">Bu stolda faol buyurtmalar yo‘q.</p>';
                         return;
@@ -932,7 +935,7 @@
                                         <span>${it.menuItem?.name || it.name || it.productName} (x${it.quantity})</span>
                                         <div class="flex items-center gap-2">
                                             <span>${it.totalPrice ?? (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 0))} so'm</span>
-                                            <button onclick="openReturnModal('${ord.id}', ${idx})" class="text-red-500 hover:text-red-700 text-[10px] font-bold">Qaytarish</button>
+                                            ${ord.waiterId === currentWaiter?.id ? `<button onclick="openReturnModal('${ord.id}', ${idx})" class="text-red-500 hover:text-red-700 text-[10px] font-bold">Qaytarish so‘rovi</button>` : ''}
                                         </div>
                                     </div>
                                 `).join('')}
@@ -1015,11 +1018,11 @@
                 if (!res.ok) throw new Error(result.error || result.message || 'Kutilayotgan buyurtmalarni yuklashda xatolik');
                 pendingOrdersList = result;
                 renderPendingOrders(pendingOrdersList);
-                
+
                 const countBadge = document.getElementById('badge-pending-orders');
                 const mobBadge = document.getElementById('mob-badge-orders');
                 const headerCount = document.getElementById('pending-orders-count');
-                
+
                 if (pendingOrdersList.length > 0) {
                     countBadge.innerText = pendingOrdersList.length;
                     countBadge.classList.remove('hidden');
@@ -1430,11 +1433,11 @@
                 if (!res.ok) return;
                 activeCallsList = await res.json();
                 renderActiveCalls(activeCallsList);
-                
+
                 const countBadge = document.getElementById('badge-active-calls');
                 const mobBadge = document.getElementById('mob-badge-calls');
                 const statCalls = document.getElementById('stat-pending-calls');
-                
+
                 if (activeCallsList.length > 0) {
                     countBadge.innerText = activeCallsList.length;
                     countBadge.classList.remove('hidden');
@@ -1592,6 +1595,7 @@
             document.getElementById('return-order-id').value = orderId;
             document.getElementById('return-item-index').value = itemIndex;
             document.getElementById('return-reason-input').value = '';
+            returnRequestKey = null;
             document.getElementById('modal-return-item').classList.remove('hidden');
         }
 
@@ -1602,21 +1606,33 @@
         async function confirmReturnItem() {
             const orderId = document.getElementById('return-order-id').value;
             const itemIndex = document.getElementById('return-item-index').value;
-            const reason = document.getElementById('return-reason-input').value;
+            const reason = document.getElementById('return-reason-input').value.trim();
+            const order = tableOrdersCache.find(item => item.id === orderId);
+            const orderItem = order?.items?.[Number(itemIndex)];
+            if (!orderItem?.id) {
+                alert('Buyurtma taomi topilmadi. Ma’lumotni yangilang.');
+                return;
+            }
+            if (!reason) {
+                alert('Qaytarish sababini kiriting');
+                return;
+            }
+            if (!returnRequestKey) {
+                returnRequestKey = `waiter-return-${crypto.randomUUID()}`;
+            }
 
             try {
                 const res = await fetch(`/api/orders/${orderId}/return-item`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ itemIndex: Number(itemIndex), reason })
+                    body: JSON.stringify({ orderItemId: orderItem.id, quantity: orderItem.quantity, reason, idempotencyKey: returnRequestKey })
                 });
-                if (res.ok) {
-                    showNotification('Taom muvaffaqiyatli qaytarildi');
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    showNotification('Qaytarish so‘rovi kassir/Admin ko‘rib chiqishiga yuborildi');
                     closeReturnModal();
-                    closeTableModal();
-                    loadRoomsAndTables();
                 } else {
-                    alert('Ruxsat yo‘q yoki xatolik yuz berdi');
+                    alert(result.message || 'Qaytarish so‘rovini yuborib bo‘lmadi');
                 }
             } catch(e) {
                 alert('Internet aloqasi xatoligi');
