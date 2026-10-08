@@ -86,13 +86,20 @@ function readSession(req) {
     if (!cookieHeader)
         return null;
     const cookies = cookieHeader.split(';').map(part => part.trim());
-    const terminalCookie = cookies.find(part => part.startsWith(`${TERMINAL_COOKIE_NAME}=`));
-    const standardCookie = cookies.find(part => part.startsWith(`${COOKIE_NAME}=`));
-    const cookie = terminalCookie || standardCookie;
+    // A cleared cookie (for example `restaurant_admin_terminal=`) may still be sent by the
+    // browser alongside the active one. Only non-empty values count, otherwise the cleared
+    // cookie would shadow the valid session and every request would fail authentication.
+    const readCookie = (name) => {
+        const prefix = `${name}=`;
+        const match = cookies.find(part => part.startsWith(prefix) && part.length > prefix.length);
+        return match?.slice(prefix.length);
+    };
+    const terminalValue = readCookie(TERMINAL_COOKIE_NAME);
+    const standardValue = readCookie(COOKIE_NAME);
+    const cookie = terminalValue ?? standardValue;
     if (!cookie)
         return null;
-    const cookieName = terminalCookie ? TERMINAL_COOKIE_NAME : COOKIE_NAME;
-    const [payload, signature, ...extra] = cookie.slice(cookieName.length + 1).split('.');
+    const [payload, signature, ...extra] = cookie.split('.');
     if (!payload || !signature || extra.length)
         return null;
     const expected = Buffer.from(sign(payload));
@@ -107,7 +114,7 @@ function readSession(req) {
             typeof session.issuedAt !== 'number' || !Number.isSafeInteger(session.issuedAt)) {
             return null;
         }
-        if (terminalCookie && (session.role !== client_1.RoleType.ADMIN || typeof session.terminalAccessId !== 'string')) {
+        if (terminalValue && (session.role !== client_1.RoleType.ADMIN || typeof session.terminalAccessId !== 'string')) {
             return null;
         }
         return {

@@ -1,0 +1,20 @@
+TELEGRAM_BOT_TOKEN is not set; Telegram bot is disabled.
+Sessiyani tekshirishda xatolik: PrismaClientInitializationError: 
+Invalid `db_1.prisma.user.findUnique()` invocation in
+C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\dist\middleware\auth.js:138:45
+
+  135     return;
+  136 }
+  137 try {
+→ 138     const user = await db_1.prisma.user.findUnique(
+Can't reach database server at `ep-lively-fog-b547vf4r-pooler.c-7.us-east-2.aws.neon.tech:5432`
+
+Please make sure your database server is running at `ep-lively-fog-b547vf4r-pooler.c-7.us-east-2.aws.neon.tech:5432`.
+    at $n.handleRequestError (C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\node_modules\@prisma\client\runtime\library.js:121:7615)
+    at $n.handleAndLogRequestError (C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at async l (C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\node_modules\@prisma\client\runtime\library.js:130:9633)
+    at async authenticateToken (C:\Users\PRESTIGE\Downloads\ChoyxonaAzizxon\dist\middleware\auth.js:138:22) {
+  clientVersion: '5.22.0',
+  errorCode: undefined
+}

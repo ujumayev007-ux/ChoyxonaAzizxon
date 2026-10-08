@@ -639,12 +639,10 @@
                 const update = () => {
                     const values = Object.fromEntries(new FormData(form).entries());
                     const amount = ['cash', 'card', 'electronic', 'debt'].reduce((sum, key) => sum + Number(values[key] || 0), 0);
-                    const change = Math.max(0, amount - due);
-                    const remaining = Math.max(0, due - amount);
-                    form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amount)} · Qoldiq: ${money(remaining)} · Qaytim: ${money(change)}`;
+                    form.querySelector('#payment-sum').textContent = `Kiritilgan:  · Qoldiq (qoldiq):  · Qaytim: `;
                 };
                 form.addEventListener('input', event => {
-                    if (event.target.name === 'cash') form.elements.given.value = event.target.value;
+                    if (event.target.name === 'cash') if(event.target.name==='cash'){form.elements.given.value=event.target.value;};
                     update();
                 });
                 update();
@@ -689,7 +687,7 @@
         }
 
         function openDebtPayment(id, remaining) {
-            openModal('Qarz to‘lovi', `<form id="debt-payment-form" class="space-y-3"><label class="block text-sm font-semibold">Qoldiq: ${money(remaining)}<input name="amount" class="field mt-1" type="number" min="1" max="${esc(remaining)}" step="0.01" required></label><label class="block text-sm font-semibold">To‘lov usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="debt-payment-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-emerald-600 px-4 py-3 text-white">To‘lovni saqlash</button></form>`);
+            openModal('Qarz to‘lovi', `<form id="debt-payment-form" class="space-y-3"><label class="block text-sm font-semibold">Qoldiq (jami yetmaydi): ${money(remaining)}<input name="amount" class="field mt-1" type="number" min="1" max="${esc(remaining)}" step="0.01" required></label><label class="block text-sm font-semibold">To‘lov usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="debt-payment-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-emerald-600 px-4 py-3 text-white">To‘lovni saqlash</button></form>`);
             document.getElementById('debt-payment-form').addEventListener('submit', async event => {
                 event.preventDefault();
                 const form = event.currentTarget;

@@ -26,13 +26,16 @@ const server = http.createServer(app);
 const prisma = new PrismaClient();
 
 async function ensureInitialAdmin(): Promise<void> {
-    const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
-    if (adminCount > 0) return;
-
     const username = process.env.INITIAL_ADMIN_USERNAME?.trim();
     const password = process.env.INITIAL_ADMIN_PASSWORD;
+
+    // Without provisioning configuration there is nothing to reconcile; just report
+    // whether the system currently has any usable administrator at all.
     if (!username && !password) {
-        console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
+        const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
+        if (adminCount === 0) {
+            console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
+        }
         return;
     }
     if (!username || !password || password.length < 12) {
@@ -45,9 +48,35 @@ async function ensureInitialAdmin(): Promise<void> {
     }
 
     const existingUser = await prisma.user.findUnique({ where: { username } });
-    if (existingUser) {
+
+    // Never take over a username that belongs to a non-administrator account.
+    if (existingUser && existingUser.role !== RoleType.ADMIN) {
         throw new Error('INITIAL_ADMIN_USERNAME already belongs to a non-admin account.');
     }
+
+    if (existingUser) {
+        // The administrator already exists. Only reconcile when the configured password
+        // is still valid for it, so a known-good deployment stays untouched. If the
+        // configured password no longer matches, reset the stored hash so operators can
+        // recover access without deleting the production database.
+        if (await verifyPassword(password, existingUser.passwordHash)) {
+            return;
+        }
+        await prisma.user.update({
+            where: { id: existingUser.id },
+            data: {
+                passwordHash: await hashPassword(password),
+                isActive: true,
+                role: RoleType.ADMIN,
+                ...(process.env.INITIAL_ADMIN_FULL_NAME?.trim()
+                    ? { fullName: process.env.INITIAL_ADMIN_FULL_NAME.trim() }
+                    : {})
+            }
+        });
+        console.log('Initial administrator password reconciled with INITIAL_ADMIN_PASSWORD.');
+        return;
+    }
+
     await prisma.user.create({
         data: {
             username,

@@ -53,9 +53,24 @@ model User {
   auditLogs               AuditLog[]
   purchases               Purchase[]
   inventoryTxns           InventoryTransaction[]
+  waiterShifts            WaiterShift[] @relation("WaiterShifts")
 
   @@index([username])
 }
+model WaiterShift {
+  id            String   @id @default(uuid())
+  waiterId      String
+  waiter        User     @relation("WaiterShifts", fields: [waiterId], references: [id], onDelete: Cascade)
+  checkInTime   DateTime
+  checkOutTime  DateTime?
+  totalHours    Float?
+  date          DateTime
+
+  @@index([waiterId, date])
+  @@index([waiterId, checkInTime])
+}
+
+
 
 model WaiterProfile {
   id                String   @id @default(uuid())
