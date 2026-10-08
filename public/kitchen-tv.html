@@ -6,6 +6,47 @@
     <title>Oshxona TV Ekrani - ChoyxonaAzizxon</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(24px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fadeOutDown {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(24px) scale(0.96); }
+        }
+        @keyframes pulseHighlight {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+        }
+        @keyframes progressPulse {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+        }
+        .tv-order-card {
+            animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .tv-order-card.removing {
+            animation: fadeOutDown 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
+        }
+        .tv-order-card.new {
+            animation: pulseHighlight 1.2s ease-out 0.5s forwards;
+        }
+        .tv-grid-container {
+            transition: grid-template-columns 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                        gap 0.4s ease;
+        }
+        .progress-bar-fill {
+            animation: progressPulse 2s ease-in-out infinite;
+        }
+        @keyframes slideInFromRight {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .stage-indicator {
+            animation: slideInFromRight 0.5s ease-out forwards;
+        }
+    </style>
 </head>
 <body class="bg-slate-950 text-white font-sans antialiased h-screen overflow-hidden flex flex-col">
 
@@ -14,7 +55,7 @@
         <div class="flex items-center gap-4">
             <span class="text-3xl">📺</span>
             <div>
-                <h1 class="text-xl font-black tracking-wider uppercase text-emerald-400">ChoyxonaAzizxon Oshxona Ekrani</h1>
+                <h1 class="text-xl font-black tracking-wider uppercase text-emerald-400">Oshxona TV Ekrani</h1>
                 <p class="text-xs text-slate-400 font-medium">Kilolik osh va issiq taomlar real vaqt monitoringi</p>
             </div>
         </div>
@@ -25,7 +66,7 @@
     </header>
 
     <!-- Dynamic Auto-Layout Grid Container -->
-    <main id="tv-grid-container" class="flex-1 p-6 grid gap-6 overflow-hidden items-center justify-center">
+    <main id="tv-grid-container" class="tv-grid-container flex-1 p-6 grid gap-6 overflow-hidden items-start justify-center">
         <div class="text-center text-slate-600 text-3xl font-bold col-span-full">
             Oshxonada faol buyurtmalar yo‘q
         </div>
@@ -45,7 +86,7 @@
                 const res = await fetch('/api/kitchen/orders');
                 const json = await res.json();
                 if (json.success) {
-                    activeOrdersCache = json.data.filter(o => o.status !== 'completed');
+                    activeOrdersCache = json.data.filter(o => o.status !== 'completed' && o.status !== 'STOLGA_YETKAZILDI' && o.status !== 'YAKUNLANDI');
                     renderTvGrid();
                 }
             } catch (e) {
@@ -61,27 +102,28 @@
             }
         }
 
+        function getGridColumns(count) {
+            if (count <= 1) return 'grid-cols-1';
+            if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+            if (count <= 4) return 'grid-cols-1 md:grid-cols-2';
+            if (count <= 9) return 'grid-cols-1 md:grid-cols-3';
+            if (count <= 16) return 'grid-cols-1 md:grid-cols-4';
+            return 'grid-cols-1 md:grid-cols-5';
+        }
+
         function renderTvGrid() {
             const container = document.getElementById('tv-grid-container');
             const count = activeOrdersCache.length;
 
             if (count === 0) {
-                container.className = "flex-1 p-6 flex items-center justify-center";
+                container.className = "tv-grid-container flex-1 p-6 flex items-center justify-center";
                 container.innerHTML = `<div class="text-center text-slate-600 text-3xl font-bold">Oshxonada faol buyurtmalar yo‘q</div>`;
                 return;
             }
 
-            // Automatic Responsive Grid Layout Rules based on active order count
-            let gridCols = "grid-cols-1";
-            if (count === 2) gridCols = "grid-cols-1 md:grid-cols-2";
-            else if (count >= 3 && count <= 4) gridCols = "grid-cols-1 md:grid-cols-2";
-            else if (count >= 5 && count <= 9) gridCols = "grid-cols-1 md:grid-cols-3";
-            else if (count >= 10 && count <= 16) gridCols = "grid-cols-1 md:grid-cols-4";
-            else gridCols = "grid-cols-1 md:grid-cols-5"; // For >16 orders
+            container.className = `tv-grid-container flex-1 p-6 grid ${getGridColumns(count)} gap-6 overflow-y-auto`;
 
-            container.className = `flex-1 p-6 grid ${gridCols} gap-6 overflow-y-auto`;
-
-            container.innerHTML = activeOrdersCache.map(order => {
+            container.innerHTML = activeOrdersCache.map((order, index) => {
                 const isOsh = (order.OrderItems || []).some(i => i.isKilogramOsh);
                 const oshItem = (order.OrderItems || []).find(i => i.isKilogramOsh);
                 
@@ -114,10 +156,10 @@
                         <div class="bg-emerald-950/50 border border-emerald-500/40 p-4 rounded-2xl space-y-3 mt-4">
                             <div class="flex justify-between items-center text-xs font-bold text-emerald-400">
                                 <span>OSHQOZON • ${oshItem.quantityGrams >= 1000 ? `${oshItem.quantityGrams / 1000} kg` : `${oshItem.quantityGrams} g`}</span>
-                                <span>${stageNum}-bosqich: ${stageName}</span>
+                                <span class="stage-indicator">${stageNum}-bosqich: ${stageName}</span>
                             </div>
                             <div class="w-full bg-slate-900 rounded-full h-3.5 overflow-hidden border border-emerald-500/30">
-                                <div class="bg-emerald-500 h-full transition-all duration-1000" style="width: ${progressPercent}%"></div>
+                                <div class="progress-bar-fill bg-emerald-500 h-full transition-all duration-1000" style="width: ${progressPercent}%"></div>
                             </div>
                             <div class="flex justify-between items-center text-sm font-bold">
                                 <span class="text-slate-400">Qolgan vaqt:</span>
@@ -128,28 +170,30 @@
                 }
 
                 return `
-                    <div class="bg-slate-900 border ${order.status === 'ready' ? 'border-emerald-500 shadow-emerald-500/20' : 'border-slate-800'} rounded-3xl p-6 flex flex-col justify-between shadow-2xl h-full space-y-4">
-                        <div class="flex justify-between items-start border-b border-slate-800 pb-4">
-                            <div>
-                                <h2 class="text-2xl font-black text-white">Buyurtma №${order.id}</h2>
-                                <p class="text-base font-bold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.name : 'Nomaʼlum'}</p>
+                    <div class="tv-order-card new" style="animation-delay: ${index * 0.07}s">
+                        <div class="bg-slate-900 border ${order.status === 'ready' ? 'border-emerald-500 shadow-emerald-500/20' : 'border-slate-800'} rounded-3xl p-6 flex flex-col justify-between shadow-2xl h-full space-y-4">
+                            <div class="flex justify-between items-start border-b border-slate-800 pb-4">
+                                <div>
+                                    <h2 class="text-2xl font-black text-white">Buyurtma №${order.id}</h2>
+                                    <p class="text-base font-bold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.name : 'Nomaʼlum'}</p>
+                                </div>
+                                <span class="text-xs font-bold px-4 py-1.5 rounded-full ${order.status === 'ready' ? 'bg-emerald-500 text-slate-950' : 'bg-blue-600 text-white'} uppercase tracking-wider">
+                                    ${order.status === 'ready' ? 'Tayyor' : 'Tayyorlanmoqda'}
+                                </span>
                             </div>
-                            <span class="text-xs font-bold px-4 py-1.5 rounded-full ${order.status === 'ready' ? 'bg-emerald-500 text-slate-950' : 'bg-blue-600 text-white'} uppercase tracking-wider">
-                                ${order.status === 'ready' ? 'Tayyor' : 'Tayyorlanmoqda'}
-                            </span>
-                        </div>
 
-                        <div class="space-y-3 flex-1">
-                            <ul class="space-y-2">
-                                ${(order.OrderItems || []).map(item => `
-                                    <li class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-base">
-                                        <span class="font-bold text-slate-100">${item.Dish ? item.Dish.name : 'Taom'}</span>
-                                        <span class="text-emerald-400 font-extrabold">${item.isKilogramOsh ? (item.quantityGrams >= 1000 ? `${item.quantityGrams / 1000} kg` : `${item.quantityGrams} g`) : `${item.quantity} dona`}</span>
-                                    </li>
-                                `).join('')}
-                            </ul>
-                            ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
-                            ${simHtml}
+                            <div class="space-y-3 flex-1">
+                                <ul class="space-y-2">
+                                    ${(order.OrderItems || []).map(item => `
+                                        <li class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-base">
+                                            <span class="font-bold text-slate-100">${item.Dish ? item.Dish.name : 'Taom'}</span>
+                                            <span class="text-emerald-400 font-extrabold">${item.isKilogramOsh ? (item.quantityGrams >= 1000 ? `${item.quantityGrams / 1000} kg` : `${item.quantityGrams} g`) : `${item.quantity} dona`}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                                ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
+                                ${simHtml}
+                            </div>
                         </div>
                     </div>
                 `;

@@ -661,7 +661,7 @@ router.post('/payments', async (req, res) => {
                     });
             }
             const totalPaid = paid.plus(paidNow);
-            const fullySettled = totalPaid.plus(existingDebt).plus(debtAmount).equals(order.totalAmount);
+            const fullySettled = totalPaid.plus(existingDebt).plus(debtAmount).greaterThanOrEqualTo(order.totalAmount);
             const status = fullySettled && existingDebt.isZero() && debtAmount.isZero()
                 ? OrderStatus.TOLANDI : OrderStatus.QISMAN_TOLANDI;
             const updated = await tx.order.update({

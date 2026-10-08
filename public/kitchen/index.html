@@ -6,6 +6,40 @@
     <title>Oshxona Boshqaruv Paneli - ChoyxonaAzizxon</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fadeOutDown {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(20px) scale(0.98); }
+        }
+        @keyframes pulseHighlight {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+        }
+        .order-card {
+            animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .order-card.removing {
+            animation: fadeOutDown 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+        }
+        .order-card.new {
+            animation: pulseHighlight 1s ease-out 0.4s forwards;
+        }
+        .grid-container {
+            transition: grid-template-columns 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                        gap 0.3s ease;
+        }
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col">
 
@@ -36,30 +70,30 @@
 
         <!-- Summary Cards Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
-            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+            <div id="stat-new" class="stat-card bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Yangi buyurtmalar</p>
                 <h3 id="count-approved" class="text-3xl font-bold text-amber-400 mt-1">0</h3>
             </div>
-            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+            <div id="stat-preparing" class="stat-card bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tayyorlanmoqda</p>
                 <h3 id="count-preparing" class="text-3xl font-bold text-blue-400 mt-1">0</h3>
             </div>
-            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+            <div id="stat-ready" class="stat-card bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tayyor</p>
                 <h3 id="count-ready" class="text-3xl font-bold text-emerald-400 mt-1">0</h3>
             </div>
-            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+            <div id="stat-osh" class="stat-card bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Kilolik osh</p>
                 <h3 id="count-osh" class="text-3xl font-bold text-orange-400 mt-1">0</h3>
             </div>
-            <div class="bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
+            <div id="stat-total" class="stat-card bg-slate-800/80 border border-slate-700 p-5 rounded-2xl">
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Faol buyurtmalar</p>
                 <h3 id="count-total" class="text-3xl font-bold text-purple-400 mt-1">0</h3>
             </div>
         </div>
 
-        <!-- Orders Grid Container -->
-        <div id="kitchen-orders-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Dynamic Orders Grid Container -->
+        <div id="kitchen-orders-grid" class="grid-container grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div class="col-span-full py-16 text-center text-slate-500">
                 Hozircha faol buyurtmalar mavjud emas.
             </div>
@@ -70,6 +104,7 @@
     <script>
         const socket = io();
         let kitchenAuthenticated = false;
+        let currentOrders = [];
 
         document.addEventListener('DOMContentLoaded', checkKitchenAuth);
 
@@ -181,6 +216,15 @@
             }
         }
 
+        function getGridColumns(count) {
+            if (count <= 1) return 'grid-cols-1';
+            if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+            if (count <= 4) return 'grid-cols-1 md:grid-cols-2';
+            if (count <= 9) return 'grid-cols-1 md:grid-cols-3';
+            if (count <= 16) return 'grid-cols-1 md:grid-cols-4';
+            return 'grid-cols-1 md:grid-cols-5';
+        }
+
         function renderKitchenOrders(orders) {
             let approved = 0, preparing = 0, ready = 0, oshCount = 0;
 
@@ -198,50 +242,155 @@
             document.getElementById('count-total').innerText = orders.length;
 
             const grid = document.getElementById('kitchen-orders-grid');
-            if (orders.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
+            const newCount = orders.length;
+            const oldCount = currentOrders.length;
+
+            // Update grid columns with smooth transition
+            grid.style.gridTemplateColumns = getGridColumns(newCount);
+
+            if (newCount === 0) {
+                // Animate out existing cards
+                const existingCards = grid.querySelectorAll('.order-card');
+                existingCards.forEach((card, index) => {
+                    setTimeout(() => {
+                        card.classList.add('removing');
+                        card.addEventListener('animationend', () => card.remove(), { once: true });
+                    }, index * 50);
+                });
+                setTimeout(() => {
+                    grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
+                    currentOrders = [];
+                }, oldCount * 50 + 300);
                 return;
             }
 
-            grid.innerHTML = orders.map(order => {
-                const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const dateStr = new Date(order.createdAt).toLocaleDateString();
-                return `
-                    <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
-                        <div class="flex justify-between items-start border-b border-slate-700 pb-4">
-                            <div>
-                                <h3 class="text-xl font-bold text-white">Buyurtma №${order.orderNumber}</h3>
-                                <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.fullName : 'Nomaʼlum'}</p>
-                            </div>
-                            <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'approved' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'preparing' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                                ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? 'Tayyorlash kutilmoqda' : order.status === 'TAYYORLANMOQDA' ? 'Tayyorlanmoqda' : 'Tayyor'}
-                            </span>
-                        </div>
+            // Determine which orders are new, removed, or kept
+            const oldIds = new Set(currentOrders.map(o => o.id));
+            const newIds = new Set(orders.map(o => o.id));
 
-                        <div class="space-y-3 flex-1">
-                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
-                            <ul class="space-y-2">
-                                ${order.items.map(item => `
-                                    <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                                        <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
-                                        <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
-                                    </li>
-                                `).join('')}
-                            </ul>
-                            ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
-                        </div>
+            // Remove cards for orders that no longer exist
+            const removedOrders = currentOrders.filter(o => !newIds.has(o.id));
+            removedOrders.forEach((order, index) => {
+                const card = grid.querySelector(`[data-order-id="${order.id}"]`);
+                if (card) {
+                    setTimeout(() => {
+                        card.classList.add('removing');
+                        card.addEventListener('animationend', () => card.remove(), { once: true });
+                    }, index * 50);
+                }
+            });
 
-                        <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
-                            <span>Sana: ${dateStr} | Vaqt: ${timeStr}</span>
-                            <div class="flex gap-2">
-                                ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
-                                ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
-                                ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+            // Keep existing cards, add new ones
+            const existingOrders = currentOrders.filter(o => newIds.has(o.id));
+            const newOrders = orders.filter(o => !oldIds.has(o.id));
+
+            setTimeout(() => {
+                // Build new grid content
+                let html = '';
+                
+                // First, existing orders (preserve their DOM if possible, or re-render)
+                const allOrdersToRender = [...existingOrders, ...newOrders].sort((a, b) => 
+                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                );
+
+                html = allOrdersToRender.map((order, index) => {
+                    const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = new Date(order.createdAt).toLocaleDateString();
+                    const isNew = newIds.has(order.id) && !oldIds.has(order.id);
+                    return `
+                        <div class="order-card ${isNew ? 'new' : ''}" data-order-id="${order.id}" style="animation-delay: ${index * 0.08}s">
+                            <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
+                                <div class="flex justify-between items-start border-b border-slate-700 pb-4">
+                                    <div>
+                                        <h3 class="text-xl font-bold text-white">Buyurtma №${order.orderNumber}</h3>
+                                        <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.fullName : 'Nomaʼlum'}</p>
+                                    </div>
+                                    <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'TAYYORLANMOQDA' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+                                        ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? 'Tayyorlash kutilmoqda' : order.status === 'TAYYORLANMOQDA' ? 'Tayyorlanmoqda' : 'Tayyor'}
+                                    </span>
+                                </div>
+
+                                <div class="space-y-3 flex-1">
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
+                                    <ul class="space-y-2">
+                                        ${order.items.map(item => `
+                                            <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
+                                                <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
+                                                <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                    ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
+                                </div>
+
+                                <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
+                                    <span>Sana: ${new Date(order.createdAt).toLocaleDateString()} | Vaqt: ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <div class="flex gap-2">
+                                        ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
+                                        ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
+                                        ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }).join('');
+
+                // If there were removed orders, we need to rebuild the grid
+                if (removedOrders.length > 0 || newOrders.length > 0) {
+                    if (newCount === 0) {
+                        grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
+                    } else {
+                        grid.innerHTML = html;
+                    }
+                } else {
+                    // Just append new cards
+                    newOrders.forEach((order, index) => {
+                        const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const dateStr = new Date(order.createdAt).toLocaleDateString();
+                        const cardHtml = `
+                            <div class="order-card new" data-order-id="${order.id}" style="animation-delay: ${(existingOrders.length + index) * 0.08}s">
+                                <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
+                                    <div class="flex justify-between items-start border-b border-slate-700 pb-4">
+                                        <div>
+                                            <h3 class="text-xl font-bold text-white">Buyurtma №${order.orderNumber}</h3>
+                                            <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.fullName : 'Nomaʼlum'}</p>
+                                        </div>
+                                        <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'TAYYORLANMOQDA' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+                                            ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? 'Tayyorlash kutilmoqda' : order.status === 'TAYYORLANMOQDA' ? 'Tayyorlanmoqda' : 'Tayyor'}
+                                        </span>
+                                    </div>
+
+                                    <div class="space-y-3 flex-1">
+                                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
+                                        <ul class="space-y-2">
+                                            ${order.items.map(item => `
+                                                <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
+                                                    <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
+                                                    <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
+                                                </li>
+                                            `).join('')}
+                                        </ul>
+                                        ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
+                                    </div>
+
+                                    <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
+                                        <span>Sana: ${new Date(order.createdAt).toLocaleDateString()} | Vaqt: ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        <div class="flex gap-2">
+                                            ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
+                                            ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
+                                            ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        grid.insertAdjacentHTML('beforeend', cardHtml);
+                    });
+                }
+
+                currentOrders = orders;
+            }, removedOrders.length * 50 + 100);
         }
 
         async function updateOrderStatus(orderId, status) {

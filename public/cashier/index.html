@@ -670,10 +670,20 @@
                 return;
             }
             if (debt > 0 && !values.customerId) { error.textContent = 'Qarz uchun mijoz IDsi kerak'; error.classList.remove('hidden'); return; }
+            
+            // Compute applied amounts (what goes toward the order). 
+            // Non-cash methods are applied exactly. Cash covers the remainder.
+            // Any cash overpayment is returned as change via customerGiven.
+            let remainingDue = due;
+            const appliedCard = Math.min(card, remainingDue); remainingDue -= appliedCard;
+            const appliedElectronic = Math.min(electronic, remainingDue); remainingDue -= appliedElectronic;
+            const appliedDebt = Math.min(debt, remainingDue); remainingDue -= appliedDebt;
+            const appliedCash = Math.min(cash, remainingDue); remainingDue -= appliedCash;
+            
             const payments = [
-                ...(cash > 0 ? [{ method: 'NAQD', amount: cash, customerGiven: Number(values.given || cash) }] : []),
-                ...(card > 0 ? [{ method: 'PLASTIK', amount: card }] : []),
-                ...(electronic > 0 ? [{ method: 'ELEKTRON', amount: electronic }] : [])
+                ...(appliedCash > 0 ? [{ method: 'NAQD', amount: appliedCash, customerGiven: cash }] : []),
+                ...(appliedCard > 0 ? [{ method: 'PLASTIK', amount: appliedCard }] : []),
+                ...(appliedElectronic > 0 ? [{ method: 'ELEKTRON', amount: appliedElectronic }] : [])
             ];
             const button = form.querySelector('button[type="submit"]');
             button.disabled = true;
@@ -681,7 +691,7 @@
                 await api('/api/cashier/payments', {
                     method: 'POST',
                     body: JSON.stringify({
-                        orderId: state.currentOrder.id, payments, debtAmount: debt,
+                        orderId: state.currentOrder.id, payments, debtAmount: appliedDebt,
                         customerId: values.customerId || null, idempotencyKey: newKey()
                     })
                 });

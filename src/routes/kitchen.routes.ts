@@ -14,6 +14,100 @@ const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
     TAYYOR: 'STOLGA_YETKAZILDI'
 };
 
+// Department printer mapping based on menuItem.kitchenSection or category
+const DEPARTMENT_PRINTERS = {
+    'Kaboblar': 'Kabobxona',
+    'Shashlik': 'Kabobxona',
+    'Mangal': 'Kabobxona',
+    'Baliqlar': 'Baliqxona',
+    'Baliq': 'Baliqxona',
+    'Deniz Mahsulotlari': 'Baliqxona',
+    'Fastfood': 'Fastfood',
+    'Burger': 'Fastfood',
+    'Sendvich': 'Fastfood',
+    'Lavash': 'Fastfood',
+    'Osh': 'Umumiy Oshxona',
+    'Palov': 'Umumiy Oshxona',
+    'Sho\'rva': 'Umumiy Oshxona',
+    'Salat': 'Umumiy Oshxona',
+    'Ichimliklar': 'Umumiy Oshxona',
+    'Shirinliklar': 'Umumiy Oshxona',
+    'Umumiy': 'Umumiy Oshxona',
+    'Umumiy Oshxona': 'Umumiy Oshxona',
+};
+
+function getDepartmentForItem(item: { kitchenSection?: string | null; category?: { name: string } | null }): string {
+    // First try kitchenSection
+    if (item.kitchenSection && DEPARTMENT_PRINTERS[item.kitchenSection]) {
+        return DEPARTMENT_PRINTERS[item.kitchenSection];
+    }
+    // Fallback to category name
+    if (item.category?.name && DEPARTMENT_PRINTERS[item.category.name]) {
+        return DEPARTMENT_PRINTERS[item.category.name];
+    }
+    // Default
+    return 'Umumiy Oshxona';
+}
+
+async function dispatchToDepartmentPrinters(order: any) {
+    try {
+        // Group items by department
+        const departmentItems = new Map<string, typeof order.items>();
+        
+        for (const item of order.items) {
+            const dept = getDepartmentForItem(item.menuItem);
+            if (!departmentItems.has(dept)) {
+                departmentItems.set(dept, []);
+            }
+            departmentItems.get(dept)!.push(item);
+        }
+
+        // Create print jobs for each department
+        for (const [department, items] of Array.from(departmentItems.entries())) {
+            // Find active printer for this department
+            const printer = await prisma.printer.findFirst({
+                where: { department, isActive: true },
+                select: { id: true, name: true, department: true, paperWidth: true }
+            });
+
+            if (!printer) {
+                console.warn(`No active printer found for department: ${department}`);
+                continue;
+            }
+
+            // Build print payload without prices
+            const printPayload = {
+                restaurantName: 'ChoyxonaAzizxon',
+                department,
+                orderNumber: order.orderNumber,
+                table: order.table ? `${order.table.room?.name || ''} / Stol ${order.table.number}` : 'Olib ketish',
+                waiter: order.waiter?.fullName || 'Nomaʼlum',
+                createdAt: new Date(order.createdAt).toISOString(),
+                items: items.map(item => ({
+                    name: item.menuItem.name,
+                    quantity: `${item.quantity} ${item.menuItem.unit}`,
+                    notes: item.notes || null
+                })),
+                notes: order.notes || null
+            };
+
+            await prisma.printJob.create({
+                data: {
+                    orderId: order.id,
+                    printerId: printer.id,
+                    payload: JSON.stringify(printPayload),
+                    status: 'KUTILMOQDA',
+                    jobType: 'KITCHEN'
+                }
+            });
+
+            console.log(`Print job dispatched to ${department} printer (${printer.name}) for order ${order.orderNumber}`);
+        }
+    } catch (error) {
+        console.error('Failed to dispatch print jobs:', error);
+    }
+}
+
 router.get('/orders', async (_req, res) => {
     try {
         const orders = await prisma.order.findMany({
@@ -21,7 +115,7 @@ router.get('/orders', async (_req, res) => {
             include: {
                 waiter: { select: { fullName: true } },
                 table: { select: { number: true, room: { select: { name: true } } } },
-                items: { include: { menuItem: { select: { id: true, name: true, unit: true } } } },
+                items: { include: { menuItem: { select: { id: true, name: true, unit: true, kitchenSection: true, category: { select: { name: true } } } } } },
             },
             orderBy: { createdAt: 'asc' }
         });
@@ -58,6 +152,23 @@ router.patch('/orders/:id/status', async (req: Request<{ id: string }>, res) => 
             return tx.order.findUniqueOrThrow({ where: { id: order.id } });
         });
         if (!updated) return res.status(409).json({ success: false, message: 'Buyurtma holati o‘zgargan, qayta yuklang' });
+        
+        // Dispatch to department printers when order starts preparing
+        if (status === 'TAYYORLANMOQDA') {
+            // Fetch full order with items for printing
+            const fullOrder = await prisma.order.findUnique({
+                where: { id: updated.id },
+                include: {
+                    waiter: { select: { fullName: true } },
+                    table: { select: { number: true, room: { select: { name: true } } } },
+                    items: { include: { menuItem: { select: { id: true, name: true, unit: true, kitchenSection: true, category: { select: { name: true } } } } } },
+                }
+            });
+            if (fullOrder) {
+                await dispatchToDepartmentPrinters(fullOrder);
+            }
+        }
+        
         emitSocketEvent('order_status_updated', { orderId: updated.id, status });
         if (status === 'TAYYORLANMOQDA') emitSocketEvent('kitchen_order_started', { orderId: updated.id });
         if (status === 'TAYYOR') emitSocketEvent('kitchen_order_ready', { orderId: updated.id });
