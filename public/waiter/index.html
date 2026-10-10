@@ -235,6 +235,11 @@
                 <div id="tab-menu" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Menu Catalog (2 cols) -->
                     <div class="lg:col-span-2 space-y-4">
+                        <div id="append-order-banner" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+                            <p id="append-order-title" class="font-bold"></p>
+                            <p class="mt-1">Savatga faqat qo‘shimcha taomlarni kiriting. Oldingi taomlar va ularning narxlari saqlanadi.</p>
+                            <button type="button" onclick="cancelAppendOrder()" class="mt-2 font-bold underline">Tahrirlashni bekor qilish</button>
+                        </div>
                         <!-- Table Selection & Search bar -->
                         <div class="rounded-2xl bg-gradient-to-r from-sky-700 to-indigo-700 p-5 text-white shadow-lg shadow-sky-900/10">
                             <p class="text-xs font-bold uppercase tracking-widest text-sky-200">Yangi buyurtma</p>
@@ -502,6 +507,8 @@
         let menuCategories = [];
         let selectedCategory = 'ALL';
         let cartItems = [];
+        let appendOrder = null;
+        let appendRequest = null;
         let activeTablesList = [];
         let activeOrdersList = [];
         let tableOrdersCache = [];
@@ -1163,6 +1170,7 @@
                         <span>Jami:</span>
                         <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
                     </div>
+                    ${ord.waiterId === currentWaiter?.id && !['QISMAN_TOLANDI', 'TOLANDI', 'YAKUNLANDI', 'BEKOR_QILINDI', 'QAYTARILDI'].includes(ord.status) ? `<button type="button" onclick="openAppendOrder('${ord.id}')" class="w-full rounded-xl bg-sky-50 text-sky-700 font-bold text-sm py-3 hover:bg-sky-100"><i class="fa-solid fa-plus mr-2"></i>Tahrirlash — taom qo‘shish</button>` : ''}
                 </div>
             `).join('');
         }
@@ -1372,7 +1380,42 @@
             cartItems[idx].note = val;
         }
 
+        async function openAppendOrder(orderId) {
+            const order = activeOrdersList.find(item => item.id === orderId);
+            if (!order) return;
+            if (cartItems.length && !confirm('Savatdagi taomlarni tozalab, ushbu buyurtmaga qo‘shimcha kiritasizmi?')) return;
+            appendOrder = order;
+            appendRequest = null;
+            cartItems = [];
+            renderCart();
+            switchTab('menu');
+            await loadTableDropdowns();
+            document.getElementById('builder-table-select').value = order.tableId;
+            document.getElementById('builder-table-select').disabled = true;
+            document.getElementById('builder-guest-count').value = order.guestCount || 1;
+            document.getElementById('builder-guest-count').disabled = true;
+            document.getElementById('order-general-note').value = '';
+            document.getElementById('append-order-title').textContent = `Buyurtma №${order.orderNumber || order.id} · Joriy hisob: ${order.totalAmount} so‘m`;
+            document.getElementById('append-order-banner').classList.remove('hidden');
+            document.getElementById('submit-waiter-order').textContent = 'Qo‘shimcha taomlarni saqlash';
+        }
+
+        function cancelAppendOrder() {
+            if (document.getElementById('submit-waiter-order').disabled) return;
+            appendOrder = null;
+            appendRequest = null;
+            cartItems = [];
+            renderCart();
+            document.getElementById('builder-table-select').disabled = false;
+            document.getElementById('builder-guest-count').disabled = false;
+            document.getElementById('builder-guest-count').value = '1';
+            document.getElementById('order-general-note').value = '';
+            document.getElementById('append-order-banner').classList.add('hidden');
+            document.getElementById('submit-waiter-order').textContent = 'Buyurtmani yuborish';
+        }
+
         function changeGuestCount(delta) {
+            if (appendOrder) return;
             const input = document.getElementById('builder-guest-count');
             const value = Number(input.value);
             input.value = Math.max(1, Math.min(999, (Number.isInteger(value) ? value : 1) + delta));
@@ -1400,27 +1443,36 @@
 
             button.disabled = true;
             try {
-                const res = await fetch('/api/orders', {
+                const items = cartItems.map(i => ({ productId: i.id, quantity: i.quantity,
+                    note: appendOrder ? [i.note, generalNote].filter(Boolean).join('; ') : i.note }));
+                if (appendOrder && appendRequest && JSON.stringify(items) !== JSON.stringify(appendRequest.items)) {
+                    alert('Oldingi so‘rov natijasi hali noma’lum. Avvalgi taomlar qayta tekshirish uchun yuboriladi.');
+                }
+                if (appendOrder && !appendRequest) appendRequest = { items, idempotencyKey: crypto.randomUUID() };
+                const res = await fetch(appendOrder ? `/api/waiter/orders/${encodeURIComponent(appendOrder.id)}/items` : '/api/orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    body: JSON.stringify(appendOrder ? appendRequest : {
                         tableId,
                         guestCount,
-                        items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity, note: i.note })),
+                        items,
                         note: generalNote
                     })
                 });
                 const data = await res.json();
                 if (res.ok) {
                     showNotification('Buyurtma muvaffaqiyatli yuborildi!');
+                    button.disabled = false;
+                    if (appendOrder) cancelAppendOrder();
                     cartItems = [];
                     document.getElementById('order-general-note').value = '';
                     document.getElementById('builder-guest-count').value = '1';
                     renderCart();
                     switchTab('orders');
                 } else {
+                    if (res.status < 500) appendRequest = null;
                     console.error('Buyurtma yaratishda xatolik:', data);
-                    alert(data.error || 'Xatolik yuz berdi');
+                    alert(data.error || data.message || 'Xatolik yuz berdi');
                 }
             } catch(e) {
                 console.error('Buyurtma yaratishda tarmoq xatoligi:', e);

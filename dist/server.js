@@ -25,6 +25,7 @@ const telegram_routes_1 = __importDefault(require("./routes/telegram.routes"));
 const admin_telegram_routes_1 = __importDefault(require("./routes/admin-telegram.routes"));
 const admin_role_permissions_routes_1 = __importDefault(require("./routes/admin-role-permissions.routes"));
 const auth_pin_routes_1 = __importDefault(require("./routes/auth-pin.routes"));
+const waiter_orders_routes_1 = __importDefault(require("./routes/waiter-orders.routes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const server = http_1.default.createServer(app);
@@ -88,6 +89,7 @@ app.use('/api', telegram_routes_1.default);
 app.use('/api/admin/telegram', admin_telegram_routes_1.default);
 app.use('/api/admin', admin_role_permissions_routes_1.default);
 app.use('/api/auth', auth_pin_routes_1.default);
+app.use('/api/waiter/orders', waiter_orders_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;

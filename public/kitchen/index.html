@@ -317,7 +317,7 @@
                                     <ul class="space-y-2">
                                         ${order.items.map(item => `
                                             <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                                                <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
+                                                <span class="font-semibold text-slate-200">${item.menuItem.name}${['TAYYOR', 'STOLGA_YETKAZILDI'].includes(item.status) ? '<small class="block text-emerald-400">Avval tayyorlangan</small>' : item.notes?.startsWith('Qo‘shimcha') ? '<small class="block text-amber-400">Qo‘shimcha taom</small>' : ''}</span>
                                                 <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
                                             </li>
                                         `).join('')}

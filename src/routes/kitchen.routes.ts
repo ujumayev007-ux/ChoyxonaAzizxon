@@ -56,6 +56,7 @@ async function dispatchToDepartmentPrinters(order: any) {
         const departmentItems = new Map<string, typeof order.items>();
         
         for (const item of order.items) {
+            if (['TAYYOR', 'STOLGA_YETKAZILDI', 'BEKOR_QILINDI'].includes(item.status)) continue;
             const dept = getDepartmentForItem(item.menuItem);
             if (!departmentItems.has(dept)) {
                 departmentItems.set(dept, []);
@@ -139,7 +140,7 @@ router.patch('/orders/:id/status', async (req: Request<{ id: string }>, res) => 
 
         const updated = await prisma.$transaction(async tx => {
             const changed = await tx.order.updateMany({
-                where: { id: order.id, status: order.status },
+                where: { id: order.id, status: order.status, updatedAt: order.updatedAt },
                 data: {
                     status,
                     ...(status === 'TAYYORLANMOQDA' ? { sentToKitchenAt: new Date() } : {}),
@@ -147,6 +148,10 @@ router.patch('/orders/:id/status', async (req: Request<{ id: string }>, res) => 
                 }
             });
             if (!changed.count) return null;
+            await tx.orderItem.updateMany({
+                where: { orderId: order.id, status: { notIn: ['TAYYOR', 'STOLGA_YETKAZILDI', 'BEKOR_QILINDI'] } },
+                data: { status }
+            });
             await tx.orderStatusHistory.create({
                 data: { orderId: order.id, status, userId: req.user!.id, comment: 'Oshxona paneli' }
             });

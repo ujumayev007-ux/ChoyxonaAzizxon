@@ -20,6 +20,7 @@ import telegramRoutes from './routes/telegram.routes';
 import adminTelegramRoutes from './routes/admin-telegram.routes';
 import adminRolePermissionsRoutes from './routes/admin-role-permissions.routes';
 import authPinRoutes from './routes/auth-pin.routes';
+import waiterOrderRoutes from './routes/waiter-orders.routes';
 
 dotenv.config();
 
@@ -90,6 +91,7 @@ app.use('/api', telegramRoutes);
 app.use('/api/admin/telegram', adminTelegramRoutes);
 app.use('/api/admin', adminRolePermissionsRoutes);
 app.use('/api/auth', authPinRoutes);
+app.use('/api/waiter/orders', waiterOrderRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
