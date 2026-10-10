@@ -534,6 +534,8 @@
         let activeOrdersList = [];
         let tableOrdersCache = [];
         let pendingOrdersList = [];
+        let pendingOrdersRequest = 0;
+        const pendingOrderActions = new Set();
         let activeCallsList = [];
         let selectedTableForModal = null;
         let selectedPaymentMethod = 'Naqd';
@@ -680,6 +682,7 @@
 
             socket.on('orderUpdate', () => {
                 loadRoomsAndTables();
+                loadPendingOrders();
                 loadActiveOrders();
             });
 
@@ -692,6 +695,7 @@
             });
 
             socket.on('order_status_updated', (data) => {
+                loadPendingOrders();
                 loadActiveOrders();
                 loadRoomsAndTables();
                 if (data.status === 'READY') {
@@ -1022,10 +1026,12 @@
 
         // Pending Customer Orders
         async function loadPendingOrders() {
+            const request = ++pendingOrdersRequest;
             try {
                 const res = await fetch('/api/orders?status=PENDING');
                 const result = await res.json();
                 if (!res.ok) throw new Error(result.error || result.message || 'Kutilayotgan buyurtmalarni yuklashda xatolik');
+                if (request !== pendingOrdersRequest) return;
                 pendingOrdersList = result;
                 renderPendingOrders(pendingOrdersList);
 
@@ -1082,6 +1088,8 @@
         }
 
         async function approveOrder(orderId) {
+            if (pendingOrderActions.has(orderId)) return;
+            pendingOrderActions.add(orderId);
             try {
                 const res = await fetch(`/api/orders/${orderId}/approve`, { method: 'POST' });
                 if (res.ok) {
@@ -1091,10 +1099,13 @@
                     loadRoomsAndTables();
                 } else {
                     const data = await res.json();
-                    alert(data.error || 'Xatolik yuz berdi');
+                    alert(data.error || data.message || 'Buyurtmani tasdiqlab bo‘lmadi');
                 }
             } catch(e) {
                 alert('Internet aloqasi xatoligi');
+            } finally {
+                pendingOrderActions.delete(orderId);
+                loadPendingOrders();
             }
         }
 
@@ -1111,6 +1122,8 @@
         async function confirmRejectOrder() {
             const orderId = document.getElementById('reject-order-id').value;
             const reason = document.getElementById('reject-reason-input').value;
+            if (!orderId || pendingOrderActions.has(orderId)) return;
+            pendingOrderActions.add(orderId);
             try {
                 const res = await fetch(`/api/orders/${orderId}/reject`, {
                     method: 'POST',
@@ -1121,11 +1134,17 @@
                     showNotification('Buyurtma rad etildi');
                     closeRejectModal();
                     loadPendingOrders();
+                    loadActiveOrders();
+                    loadRoomsAndTables();
                 } else {
-                    alert('Xatolik yuz berdi');
+                    const data = await res.json();
+                    alert(data.error || data.message || 'Buyurtmani rad etib bo‘lmadi');
                 }
             } catch(e) {
                 alert('Internet aloqasi xatoligi');
+            } finally {
+                pendingOrderActions.delete(orderId);
+                loadPendingOrders();
             }
         }
 

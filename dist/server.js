@@ -980,7 +980,8 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
             return;
         }
-        if (order.processingById && order.processingById !== req.user.id) {
+        const processingExpired = !order.processingAt || Date.now() - order.processingAt.getTime() > 10 * 60 * 1000;
+        if (order.processingById && order.processingById !== req.user.id && !processingExpired) {
             res.status(409).json({ success: false, error: 'Buyurtma kassir tomonidan qayta ishlanmoqda' });
             return;
         }
@@ -990,14 +991,15 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
         }
         const updated = await prisma.$transaction(async (tx) => {
             const changed = await tx.order.updateMany({
-                where: { id: order.id, status: order.status, processingById: order.processingById },
-                data: { status: client_1.OrderStatus.TASDIQLANDI, approvedAt: new Date() }
+                where: { id: order.id, status: order.status, processingById: order.processingById, processingAt: order.processingAt },
+                data: { status: client_1.OrderStatus.TASDIQLANDI, approvedAt: new Date(),
+                    ...(processingExpired ? { processingById: null, processingAt: null } : {}) }
             });
             if (!changed.count)
                 return null;
             await tx.orderStatusHistory.create({ data: { orderId: order.id, status: client_1.OrderStatus.TASDIQLANDI, userId: req.user.id } });
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
-        });
+        }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {
             res.status(409).json({ success: false, error: 'Buyurtma holati o‘zgardi. Qayta yuklang.' });
             return;
@@ -1018,7 +1020,8 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
             return;
         }
-        if (order.processingById && order.processingById !== req.user.id) {
+        const processingExpired = !order.processingAt || Date.now() - order.processingAt.getTime() > 10 * 60 * 1000;
+        if (order.processingById && order.processingById !== req.user.id && !processingExpired) {
             res.status(409).json({ success: false, error: 'Buyurtma kassir tomonidan qayta ishlanmoqda' });
             return;
         }
@@ -1029,8 +1032,9 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
         const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
         const updated = await prisma.$transaction(async (tx) => {
             const changed = await tx.order.updateMany({
-                where: { id: order.id, status: order.status, processingById: order.processingById },
-                data: { status: client_1.OrderStatus.BEKOR_QILINDI }
+                where: { id: order.id, status: order.status, processingById: order.processingById, processingAt: order.processingAt },
+                data: { status: client_1.OrderStatus.BEKOR_QILINDI,
+                    ...(processingExpired ? { processingById: null, processingAt: null } : {}) }
             });
             if (!changed.count)
                 return null;
@@ -1039,7 +1043,7 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
                     ...(reason ? { comment: reason } : {})
                 } });
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
-        });
+        }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {
             res.status(409).json({ success: false, error: 'Buyurtma holati o‘zgardi. Qayta yuklang.' });
             return;

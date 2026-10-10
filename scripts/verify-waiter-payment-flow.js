@@ -39,7 +39,7 @@ function fixture(options = {}) {
             id: 'order-1', orderNumber: 'TEST-1', tableId: table.id, table, waiter,
             waiterId: waiter.id, status: options.status || OrderStatus.YANGI, source: 'WAITER',
             orderType: 'DINE_IN', totalAmount: decimal(options.total || '100'), subtotal: decimal(options.total || '100'),
-            processingById: options.processingById || null, paidAt: null, createdAt: new Date(),
+            processingById: options.processingById || null, processingAt: options.processingAt || null, paidAt: null, createdAt: new Date(),
             payments: (options.paid || []).map((amount, index) => ({ id: `old-${index}`, amount: decimal(amount), method: PaymentMethod.NAQD })),
             debt: options.debt ? { amount: decimal(options.debt.amount), remaining: decimal(options.debt.remaining) } : null,
             items: [{ quantity: decimal(1), unitPrice: decimal(options.total || '100'), totalPrice: decimal(options.total || '100'), menuItem: menu[0] }]
@@ -95,7 +95,9 @@ function makeDatabase(initial) {
                 updateMany: async ({ where, data }) => {
                     let count = 0;
                     for (const order of getState().orders.values()) {
-                        if (Object.entries(where).every(([key, value]) => order[key] === value)) {
+                        if (Object.entries(where).every(([key, value]) => value instanceof Date
+                            ? order[key] instanceof Date && order[key].getTime() === value.getTime()
+                            : order[key] === value)) {
                             Object.assign(order, copy(data));
                             count++;
                         }
@@ -133,7 +135,7 @@ function makeDatabase(initial) {
     }
     const database = models(() => state);
     database.$transaction = (callback, options) => {
-        if (options) assert.equal(options.isolationLevel, Prisma.TransactionIsolationLevel.Serializable);
+        if (options?.isolationLevel) assert.equal(options.isolationLevel, Prisma.TransactionIsolationLevel.Serializable);
         const run = transactionQueue.then(async () => {
             if (beforeTransaction) {
                 const change = beforeTransaction;
@@ -367,6 +369,40 @@ async function main() {
         ['approve', OrderStatus.TASDIQLANDI], ['reject', OrderStatus.BEKOR_QILINDI]
     ]) {
         const actionName = action === 'approve' ? 'tasdiqlashi' : 'rad etishi';
+        for (const processingAt of [null, new Date(Date.now() - 11 * 60 * 1000)]) {
+            await check(`${action}: muddati tugagan yoki vaqtsiz kassir bandligi to‘sqinlik qilmaydi (${processingAt})`, async () => {
+                const harness = setup({ processingById: cashier.id, processingAt });
+                const response = await invoke(harness, `POST /api/orders/:id/${action}`, {}, {
+                    user: waiter, params: { id: 'order-1' }
+                });
+                assert.equal(response.code, 200);
+                assert.equal(harness.state.orders.get('order-1').status, expectedStatus);
+                assert.equal(harness.state.orders.get('order-1').processingById, null);
+                assert.equal(harness.state.orders.get('order-1').processingAt, null);
+                assert.equal(harness.state.history.length, 1);
+            });
+        }
+        await check(`${action}: kassirning faol bandligi saqlanadi`, async () => {
+            const harness = setup({ processingById: cashier.id, processingAt: new Date() });
+            const response = await invoke(harness, `POST /api/orders/:id/${action}`, {}, {
+                user: waiter, params: { id: 'order-1' }
+            });
+            assert.equal(response.code, 409);
+            assert.equal(harness.state.history.length, 0);
+            assert.equal(harness.events.length, 0);
+        });
+        await check(`${action}: ayni kassir bandlik vaqtini yangilasa, eski so‘rov rad etiladi`, async () => {
+            const harness = setup({ processingById: cashier.id, processingAt: new Date(Date.now() - 11 * 60 * 1000) });
+            harness.beforeNextTransaction(state => { state.orders.get('order-1').processingAt = new Date(); });
+            const response = await invoke(harness, `POST /api/orders/:id/${action}`, {}, {
+                user: waiter, params: { id: 'order-1' }
+            });
+            assert.equal(response.code, 409);
+            assert.equal(harness.state.orders.get('order-1').status, OrderStatus.YANGI);
+            assert.equal(harness.state.orders.get('order-1').processingById, cashier.id);
+            assert.equal(harness.state.history.length, 0);
+            assert.equal(harness.events.length, 0);
+        });
         await check(`Ofitsiantning buyurtmani ${actionName} odatdagi holat va tarixni saqlaydi`, async () => {
             const harness = setup();
             const response = await invoke(harness, `POST /api/orders/:id/${action}`, { reason: '  Mijoz bekor qildi  ' }, {
