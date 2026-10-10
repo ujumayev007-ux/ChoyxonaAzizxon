@@ -154,7 +154,7 @@
                         <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
                             <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                                    <i class="fa-solid fa-clock-rotate-left text-amber-500"></i> Kutilayotgan mijoz buyurtmalari (PENDING)
+                                    <i class="fa-solid fa-clock-rotate-left text-amber-500"></i> Tasdiqlash kutilayotgan buyurtmalar
                                 </h3>
                                 <span id="pending-orders-count" class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">0 ta</span>
                             </div>
@@ -1069,7 +1069,9 @@
                             <span class="font-black text-slate-900">Buyurtma №${ord.id}</span>
                             <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded">Stol #${ord.tableNumber || ord.tableId || '-'}</span>
                         </div>
-                        <p class="text-xs text-slate-600">Mijoz: <span class="font-bold text-slate-800">${ord.customerName || 'Telegram foydalanuvchisi'}</span></p>
+                        <p class="text-xs text-slate-600">Manba: <span class="font-bold text-slate-800">${escapeWaiterHtml(({ WAITER: 'Ofitsant', CASHIER: 'Kassir', CUSTOMER_WEB: 'Mijoz sahifasi', TELEGRAM_BOT: 'Telegram bot' })[ord.source] || 'Buyurtma')}</span></p>
+                        ${ord.source === 'WAITER' ? `<p class="text-xs text-slate-600">Ofitsant: <span class="font-bold text-slate-800">${escapeWaiterHtml(ord.waiter?.fullName || ord.waiter?.username || 'Ko‘rsatilmagan')}</span></p>` : ''}
+                        ${ord.customerName ? `<p class="text-xs text-slate-600">Mijoz: <span class="font-bold text-slate-800">${escapeWaiterHtml(ord.customerName)}</span></p>` : ''}
                         <div class="text-xs text-slate-500 space-y-0.5">
                             ${ord.items && ord.items.map(it => `<div>• ${it.name || it.productName} (x${it.quantity}) -${(it.price || 0) * it.quantity} so'm</div>`).join('')}
                         </div>
