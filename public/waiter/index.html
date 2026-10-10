@@ -303,59 +303,17 @@
                     </div>
                 </div>
 
-                <!-- 7. BILLS & PAYMENT VIEW -->
-                <div id="tab-bills" class="hidden space-y-6">
-                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-                        <h2 class="font-bold text-slate-800 text-lg mb-4">Hisob-kitob va to'lovlar</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stolni tanlang (Hisob chiqarish)</label>
-                                <select id="bill-table-select" onchange="loadTableBillDetails()" class="w-full px-4 py-3 rounded-xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
-                                    <option value="">-- Stolni tanlang --</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bill Details Card -->
-                    <div id="bill-details-wrapper" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-                        <div class="flex justify-between items-center pb-4 border-b border-slate-100">
-                            <div>
-                                <h3 id="bill-table-title" class="text-xl font-black text-slate-800">Stol №</h3>
-                                <p class="text-xs text-slate-500">Ofitsiant: <span id="bill-waiter-name">-</span></p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-xs text-slate-400">Jami hisob</p>
-                                <h3 id="bill-total-sum" class="text-2xl font-black text-sky-600">0 so'm</h3>
-                            </div>
-                        </div>
-
-                        <!-- Orders inside this table for billing -->
-                        <div id="bill-orders-container" class="space-y-4">
-                            <!-- Populated dynamically -->
-                        </div>
-
-                        <!-- Payment Method selection -->
-                        <div class="pt-4 border-t border-slate-200 space-y-4">
-                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600">To'lov turi</label>
-                            <div class="grid grid-cols-3 gap-3">
-                                <button type="button" onclick="setPaymentMethod('Naqd')" id="pay-btn-Naqd" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-sky-600 bg-sky-50 text-sky-700 font-bold text-sm transition">Naqd</button>
-                                <button type="button" onclick="setPaymentMethod('Plastik karta')" id="pay-btn-Plastik karta" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition">Plastik karta</button>
-                                <button type="button" onclick="setPaymentMethod('Elektron to‘lov')" id="pay-btn-Elektron to‘lov" class="pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition">Elektron to‘lov</button>
-                            </div>
-
-                            <div class="flex flex-col sm:flex-row gap-3 pt-2">
-                                <button id="process-payment-button" onclick="processPayment()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
-                                    <i class="fa-solid fa-check"></i> To'lovni qabul qilish
-                                </button>
-                                <button onclick="printReceipt()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3.5 rounded-xl transition text-sm flex items-center justify-center gap-2">
-                                    <i class="fa-solid fa-print"></i> Chek chiqarish
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                <div id="tab-bills" class="hidden grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+                    <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+                        <h2 class="font-bold text-slate-800 text-lg mb-4">Yakunlangan buyurtmalar tarixi</h2>
+                        <div id="completed-orders-list" class="space-y-4" aria-live="polite"></div>
+                    </section>
+                    <section class="rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 p-5 shadow-lg">
+                        <h2 class="text-white font-bold text-lg mb-4">Kalkulyator</h2>
+                        <output id="calculator-display" aria-live="polite" class="block overflow-x-auto rounded-xl bg-white p-4 text-right text-3xl font-bold text-slate-800 mb-4">0</output>
+                        <div id="calculator-keys" class="grid grid-cols-4 gap-2"></div>
+                    </section>
                 </div>
-
                 <!-- 8. PROFILE VIEW -->
                 <div id="tab-profile" class="hidden space-y-6">
                     <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-xs max-w-2xl mx-auto">
@@ -476,7 +434,7 @@
                     <i class="fa-solid fa-bell"></i> Kassirni chaqirish
                 </button>
                 <button onclick="goToBillForCurrentTable()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-file-invoice-dollar"></i> Hisob chiqarish
+                    <i class="fa-solid fa-clock-rotate-left"></i> Buyurtmalar tarixi
                 </button>
                 <button onclick="freeCurrentTable()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-3 rounded-xl transition text-sm flex items-center justify-center gap-1">
                     <i class="fa-solid fa-check"></i> Bo'shatish
@@ -538,7 +496,6 @@
         const pendingOrderActions = new Set();
         let activeCallsList = [];
         let selectedTableForModal = null;
-        let selectedPaymentMethod = 'Naqd';
         let returnRequestKey = null;
 
         // Initialize App
@@ -647,7 +604,7 @@
                 loadActiveCalls();
                 loadMenuCatalog();
                 loadWaiterStatistics();
-                if (!document.getElementById('bill-details-wrapper').classList.contains('hidden')) loadTableBillDetails();
+                if (currentTab === 'bills') loadCompletedOrders();
             });
 
             socket.on('disconnect', () => {
@@ -684,6 +641,7 @@
                 loadRoomsAndTables();
                 loadPendingOrders();
                 loadActiveOrders();
+                if (currentTab === 'bills') loadCompletedOrders();
             });
 
             socket.on('paymentReceived', () => {
@@ -691,7 +649,7 @@
                 loadPendingOrders();
                 loadActiveOrders();
                 loadWaiterStatistics();
-                if (!document.getElementById('bill-details-wrapper').classList.contains('hidden')) loadTableBillDetails();
+                if (currentTab === 'bills') loadCompletedOrders();
             });
 
             socket.on('order_status_updated', (data) => {
@@ -773,7 +731,7 @@
                 'orders': 'Faol Buyurtmalar',
                 'menu': 'Yangi Buyurtma Yaratish',
                 'calls': 'Mijoz Chaqiruvlari',
-                'bills': 'Hisob va To‘lovlar',
+                'bills': 'Tarix va kalkulyator',
                 'profile': 'Ofitsiant Profili'
             };
             document.getElementById('page-title').innerText = titles[tabId] || 'Ofitsiant Paneli';
@@ -783,7 +741,7 @@
             if (tabId === 'orders') loadActiveOrders();
             if (tabId === 'menu') loadMenuCatalog();
             if (tabId === 'calls') loadActiveCalls();
-            if (tabId === 'bills') loadTableDropdowns();
+            if (tabId === 'bills') loadCompletedOrders();
             if (tabId === 'dashboard') loadWaiterStatistics();
         }
 
@@ -981,10 +939,8 @@
 
         function goToBillForCurrentTable() {
             if (!selectedTableForModal) return;
-            document.getElementById('bill-table-select').value = selectedTableForModal;
             closeTableModal();
             switchTab('bills');
-            loadTableBillDetails();
         }
 
         async function freeCurrentTable() {
@@ -1455,8 +1411,6 @@
                     ).join('')}</optgroup>`).join('')}`;
                 const builderSelect = document.getElementById('builder-table-select');
                 if (builderSelect) builderSelect.innerHTML = renderTableOptions('-- Stol tanlanmagan --');
-                const billSelect = document.getElementById('bill-table-select');
-                if (billSelect) billSelect.innerHTML = renderTableOptions('-- Stolni tanlang --');
             } catch(e) {
                 console.error('Stol tanlash ro‘yxatini yuklashda xatolik:', e);
             }
@@ -1536,95 +1490,62 @@
             } catch(e) {}
         }
 
-        // Bills & Payment
-        async function loadTableBillDetails() {
-            const tableId = document.getElementById('bill-table-select').value;
-            const wrapper = document.getElementById('bill-details-wrapper');
-            if (!tableId) {
-                wrapper.classList.add('hidden');
-                return;
-            }
-
+        let completedOrdersRequest = 0;
+        async function loadCompletedOrders() {
+            const request = ++completedOrdersRequest;
+            const container = document.getElementById('completed-orders-list');
+            container.textContent = 'Yuklanmoqda...';
             try {
-                const res = await fetch(`/api/orders?tableId=${tableId}&active=true`);
-                if (!res.ok) return;
-                const orders = await res.json();
-                wrapper.classList.remove('hidden');
-                document.getElementById('bill-table-title').innerText = `Stol №${tableId}`;
-                document.getElementById('bill-waiter-name').innerText = currentWaiter ? currentWaiter.name : '-';
-
-                const container = document.getElementById('bill-orders-container');
-                if (!orders || orders.length === 0) {
-                    container.innerHTML = '<p class="text-xs text-slate-400">Bu stolda faol buyurtmalar yo‘q.</p>';
-                    document.getElementById('bill-total-sum').innerText = "0 so'm";
-                    return;
-                }
-
-                let totalSumInTiyin = 0;
-                container.innerHTML = orders.map(ord => {
-                    totalSumInTiyin += Math.round(Number(ord.totalAmount || 0) * 100);
-                    return `
-                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-sm">
-                            <div class="flex justify-between font-bold text-slate-800">
-                                <span>Buyurtma №${ord.id}</span>
-                                <span class="text-sky-600">${ord.totalAmount || 0} so'm</span>
-                            </div>
-                            <div class="space-y-1 pt-1 border-t border-slate-200 text-xs">
-                                ${ord.items && ord.items.map(it => `
-                                    <div class="flex justify-between">
-                                        <span>${it.menuItem?.name || it.name || it.productName} (x${it.quantity})</span>
-                                        <span class="font-semibold">${it.totalPrice ?? (Number(it.unitPrice || it.price || 0) * Number(it.quantity || 0))} so'm</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                document.getElementById('bill-total-sum').innerText = `${totalSumInTiyin / 100} so'm`;
-            } catch(e) {}
-        }
-
-        function setPaymentMethod(method) {
-            selectedPaymentMethod = method;
-            document.querySelectorAll('.pay-method-btn').forEach(btn => {
-                btn.className = 'pay-method-btn px-4 py-3 rounded-xl border-2 border-slate-200 hover:border-slate-300 bg-white text-slate-700 font-bold text-sm transition';
-            });
-            document.getElementById(`pay-btn-${method}`).className = 'pay-method-btn px-4 py-3 rounded-xl border-2 border-sky-600 bg-sky-50 text-sky-700 font-bold text-sm transition';
-        }
-
-        async function processPayment() {
-            const tableId = document.getElementById('bill-table-select').value;
-            if (!tableId) return;
-            const button = document.getElementById('process-payment-button');
-            if (button.disabled) return;
-            button.disabled = true;
-            try {
-                const res = await fetch(`/api/tables/${tableId}/pay`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentMethod: selectedPaymentMethod, idempotencyKey: crypto.randomUUID() })
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    showNotification('To‘lov muvaffaqiyatli qabul qilindi');
-                    document.getElementById('bill-details-wrapper').classList.add('hidden');
-                    loadTableDropdowns();
-                    loadRoomsAndTables();
-                } else {
-                    showNotification(data.message || 'To‘lovni amalga oshirishda xatolik');
-                }
-            } catch(error) {
-                console.error('Stol to‘lovida xatolik:', error);
-                showNotification('Internet aloqasi xatoligi');
-            } finally {
-                button.disabled = false;
+                const response = await fetch('/api/orders?completed=true');
+                const orders = await response.json();
+                if (!response.ok || !Array.isArray(orders)) throw new Error(orders.message || 'Tarixni yuklab bo‘lmadi');
+                if (request !== completedOrdersRequest) return;
+                container.innerHTML = orders.length ? orders.map(order => `
+                    <article class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                        <div class="flex justify-between gap-3 font-bold"><span>Buyurtma №${escapeWaiterHtml(order.orderNumber || order.id)}</span><span class="text-emerald-700">${escapeWaiterHtml(order.totalAmount)} so‘m</span></div>
+                        <p class="text-xs text-slate-500">Stol #${escapeWaiterHtml(order.tableNumber || '—')} · ${escapeWaiterHtml(new Date(order.paidAt || order.updatedAt || order.createdAt).toLocaleString('uz-UZ'))} · ${order.status === 'TOLANDI' ? 'To‘langan' : 'Yakunlangan'}</p>
+                        <div class="text-sm text-slate-600">${(order.items || []).map(item => `<p>${escapeWaiterHtml(item.name || item.menuItem?.name)} × ${escapeWaiterHtml(item.quantity)} — ${escapeWaiterHtml(item.totalPrice)} so‘m</p>`).join('')}</div>
+                    </article>`).join('') : '<p class="text-sm text-slate-500">Hozircha yakunlangan buyurtmalar yo‘q.</p>';
+            } catch (error) {
+                if (request === completedOrdersRequest) container.textContent = error.message || 'Tarixni yuklab bo‘lmadi';
             }
         }
 
-        function printReceipt() {
-            window.print();
+        const calculator = { value: '0', stored: null, operator: null, replace: false };
+        function calculatorKey(key) {
+            const calculate = () => {
+                const a = calculator.stored, b = Number(calculator.value);
+                const result = calculator.operator === '+' ? a + b : calculator.operator === '−' ? a - b
+                    : calculator.operator === '×' ? a * b : b === 0 ? NaN : a / b;
+                calculator.value = Number.isFinite(result) ? String(Number(result.toPrecision(12))) : 'Xatolik';
+                calculator.operator = null;
+                calculator.stored = null;
+            };
+            if (key === 'C') Object.assign(calculator, { value: '0', stored: null, operator: null, replace: false });
+            else if (/^[0-9.]$/.test(key)) {
+                if (calculator.replace || calculator.value === 'Xatolik') { calculator.value = '0'; calculator.replace = false; }
+                if (key === '.') { if (!calculator.value.includes('.')) calculator.value += '.'; }
+                else if (calculator.value.length < 15) calculator.value = calculator.value === '0' ? key : calculator.value + key;
+            } else if (key === '⌫') {
+                calculator.value = calculator.value === 'Xatolik' ? '0' : calculator.value.slice(0, -1) || '0';
+                calculator.replace = false;
+            } else if (calculator.value !== 'Xatolik') {
+                if (key === '±') calculator.value = String(-Number(calculator.value));
+                else if (key === '%') calculator.value = String(Number(calculator.value) / 100);
+                else if (key === '=') { if (calculator.operator) calculate(); calculator.replace = true; }
+                else if (['+', '−', '×', '÷'].includes(key)) {
+                    if (calculator.operator && !calculator.replace) calculate();
+                    if (calculator.value !== 'Xatolik') { calculator.stored = Number(calculator.value); calculator.operator = key; calculator.replace = true; }
+                }
+            }
+            document.getElementById('calculator-display').textContent = calculator.value;
         }
+        document.getElementById('calculator-keys').innerHTML = ['C', '⌫', '%', '÷', '7', '8', '9', '×', '4', '5', '6', '−', '1', '2', '3', '+', '±', '0', '.', '='].map(key =>
+            `<button type="button" data-calculator-key="${key}" aria-label="${({ C: 'Tozalash', '⌫': 'Oxirgi raqamni o‘chirish', '%': 'Foiz', '±': 'Ishorani almashtirish', '=': 'Natija', '÷': 'Bo‘lish', '×': 'Ko‘paytirish', '−': 'Ayirish', '+': 'Qo‘shish' })[key] || key}" class="rounded-xl py-4 font-bold text-xl ${key === '=' ? 'bg-emerald-400 text-emerald-950' : key === 'C' ? 'bg-rose-300 text-rose-950' : ['+', '−', '×', '÷'].includes(key) ? 'bg-amber-300 text-amber-950' : 'bg-white text-indigo-900'} hover:opacity-80 transition">${key}</button>`).join('');
+        document.getElementById('calculator-keys').addEventListener('click', event => {
+            const button = event.target.closest('[data-calculator-key]');
+            if (button) calculatorKey(button.dataset.calculatorKey);
+        });
 
         // Return / Refund Item
         function openReturnModal(orderId, itemIndex) {

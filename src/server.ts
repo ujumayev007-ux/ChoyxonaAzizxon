@@ -804,6 +804,10 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         if (req.query.active === 'true') {
             where.status = { notIn: ['TOLANDI', 'YAKUNLANDI', 'BEKOR_QILINDI', 'QAYTARILDI'] };
         }
+        if (req.query.completed === 'true') {
+            where.status = { in: [OrderStatus.TOLANDI, OrderStatus.YAKUNLANDI] };
+            if (req.user!.role === RoleType.WAITER) where.waiterId = req.user!.id;
+        }
         const orders = await prisma.order.findMany({
             where,
             include: {
@@ -817,7 +821,7 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         });
         res.json(orders.map(order => ({
             ...order,
-            tableNumber: order.table.number,
+            tableNumber: order.table?.number,
             items: order.items.map(item => ({
                 ...item,
                 name: item.menuItem.name,
