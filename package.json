@@ -5,7 +5,7 @@
   "main": "dist/server.js",
 "scripts": {
     "postinstall": "node node_modules/prisma/build/index.js generate",
-    "build": "tsc",
+    "build": "node node_modules/typescript/bin/tsc",
     "test:payments": "node scripts/verify-cashier-payments.js && node scripts/verify-waiter-payment-flow.js",
     "test:payments:database": "node scripts/verify-cashier-database.js",
     "migrate:deploy": "node node_modules/prisma/build/index.js migrate deploy",
