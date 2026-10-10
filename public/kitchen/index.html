@@ -105,6 +105,7 @@
         const socket = io();
         let kitchenAuthenticated = false;
         let currentOrders = [];
+        let renderTimer;
 
         document.addEventListener('DOMContentLoaded', checkKitchenAuth);
 
@@ -226,6 +227,7 @@
         }
 
         function renderKitchenOrders(orders) {
+            clearTimeout(renderTimer);
             let approved = 0, preparing = 0, ready = 0, oshCount = 0;
 
             orders.forEach(o => {
@@ -246,7 +248,7 @@
             const oldCount = currentOrders.length;
 
             // Update grid columns with smooth transition
-            grid.style.gridTemplateColumns = getGridColumns(newCount);
+            grid.className = `grid-container grid ${getGridColumns(newCount)} gap-6`;
 
             if (newCount === 0) {
                 // Animate out existing cards
@@ -257,7 +259,7 @@
                         card.addEventListener('animationend', () => card.remove(), { once: true });
                     }, index * 50);
                 });
-                setTimeout(() => {
+                renderTimer = setTimeout(() => {
                     grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
                     currentOrders = [];
                 }, oldCount * 50 + 300);
@@ -281,10 +283,10 @@
             });
 
             // Keep existing cards, add new ones
-            const existingOrders = currentOrders.filter(o => newIds.has(o.id));
+            const existingOrders = orders.filter(o => oldIds.has(o.id));
             const newOrders = orders.filter(o => !oldIds.has(o.id));
 
-            setTimeout(() => {
+            renderTimer = setTimeout(() => {
                 // Build new grid content
                 let html = '';
                 
@@ -336,58 +338,7 @@
                     `;
                 }).join('');
 
-                // If there were removed orders, we need to rebuild the grid
-                if (removedOrders.length > 0 || newOrders.length > 0) {
-                    if (newCount === 0) {
-                        grid.innerHTML = `<div class="col-span-full py-16 text-center text-slate-500">Hozircha faol buyurtmalar mavjud emas.</div>`;
-                    } else {
-                        grid.innerHTML = html;
-                    }
-                } else {
-                    // Just append new cards
-                    newOrders.forEach((order, index) => {
-                        const timeStr = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const dateStr = new Date(order.createdAt).toLocaleDateString();
-                        const cardHtml = `
-                            <div class="order-card new" data-order-id="${order.id}" style="animation-delay: ${(existingOrders.length + index) * 0.08}s">
-                                <div class="bg-slate-800 border border-slate-700 rounded-3xl p-6 flex flex-col justify-between shadow-xl space-y-4">
-                                    <div class="flex justify-between items-start border-b border-slate-700 pb-4">
-                                        <div>
-                                            <h3 class="text-xl font-bold text-white">Buyurtma №${order.orderNumber}</h3>
-                                            <p class="text-sm font-semibold text-emerald-400 mt-0.5">Stol №${order.tableId} • Ofitsiant: ${order.waiter ? order.waiter.fullName : 'Nomaʼlum'}</p>
-                                        </div>
-                                        <span class="text-xs font-bold px-3 py-1 rounded-full ${order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : order.status === 'TAYYORLANMOQDA' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-                                            ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? 'Tayyorlash kutilmoqda' : order.status === 'TAYYORLANMOQDA' ? 'Tayyorlanmoqda' : 'Tayyor'}
-                                        </span>
-                                    </div>
-
-                                    <div class="space-y-3 flex-1">
-                                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Taomlar va Miqdor:</p>
-                                        <ul class="space-y-2">
-                                            ${order.items.map(item => `
-                                                <li class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
-                                                    <span class="font-semibold text-slate-200">${item.menuItem.name}</span>
-                                                    <span class="text-emerald-400 font-bold">${item.quantity} ${item.menuItem.unit}</span>
-                                                </li>
-                                            `).join('')}
-                                        </ul>
-                                        ${order.notes ? `<div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 font-medium"><span class="font-bold">Izoh:</span> ${order.notes}</div>` : ''}
-                                    </div>
-
-                                    <div class="flex items-center justify-between pt-4 border-t border-slate-700 text-xs text-slate-400">
-                                        <span>Sana: ${new Date(order.createdAt).toLocaleDateString()} | Vaqt: ${new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                        <div class="flex gap-2">
-                                            ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
-                                            ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
-                                            ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                        grid.insertAdjacentHTML('beforeend', cardHtml);
-                    });
-                }
+                grid.innerHTML = html;
 
                 currentOrders = orders;
             }, removedOrders.length * 50 + 100);

@@ -5,7 +5,7 @@
   "main": "dist/server.js",
 "scripts": {
     "postinstall": "node node_modules/prisma/build/index.js generate",
-    "build": "tsc",
+    "build": "node node_modules/typescript/bin/tsc",
     "migrate:deploy": "node node_modules/prisma/build/index.js migrate deploy",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

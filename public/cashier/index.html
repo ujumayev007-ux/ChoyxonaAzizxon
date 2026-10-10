@@ -634,17 +634,22 @@
                 state.currentOrder = order;
                 const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
                 const due = Number(order.totalAmount) - paid - Number(order.debt?.amount || 0);
-                openModal('To‘lovni qabul qilish', `<form id="payment-form" class="space-y-3"><div class="rounded-xl bg-blue-50 p-4"><p class="text-sm">Buyurtma #${esc(order.orderNumber)}</p><p class="text-2xl font-black">${money(due)}</p><p class="text-xs text-slate-500">Naqd, karta, elektron va qarz aralashtirish mumkin</p></div><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">Naqd<input class="field mt-1" name="cash" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Mijoz bergan naqd<input class="field mt-1" name="given" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Karta<input class="field mt-1" name="card" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Elektron<input class="field mt-1" name="electronic" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Qarz qismi<input class="field mt-1" name="debt" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Mijoz IDsi (qarz uchun)<input class="field mt-1" name="customerId" value="${esc(order.customer?.id || '')}"></label></div><p id="payment-sum" class="rounded-lg bg-slate-50 p-3 text-sm font-bold"></p><p id="payment-error" class="hidden text-sm text-rose-700"></p><button id="confirm-payment-btn" class="btn w-full bg-blue-600 px-4 py-3 text-white">To‘lovni tasdiqlash</button><button type="button" data-action="unlock-order" data-id="${esc(orderId)}" class="w-full py-2 text-sm font-semibold text-slate-500">Bekor qilish</button></form>`);
+                openModal('To‘lovni qabul qilish', `<form id="payment-form" class="space-y-3"><div class="rounded-xl bg-blue-50 p-4"><p class="text-sm">Buyurtma #${esc(order.orderNumber)}</p><p class="text-2xl font-black">${money(due)}</p><p class="text-xs text-slate-500">Naqd, karta, elektron va qarz aralashtirish mumkin</p></div><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">Naqd<input class="field mt-1" name="cash" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Mijoz bergan naqd<input class="field mt-1" name="given" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Karta<input class="field mt-1" name="card" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Elektron<input class="field mt-1" name="electronic" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Qarz qismi<input class="field mt-1" name="debt" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Mijoz IDsi (qarz uchun)<input class="field mt-1" name="customerId" value="${esc(order.customer?.id || '')}"></label></div><p id="payment-sum" class="rounded-lg bg-slate-50 p-3 text-sm font-bold"></p><p id="payment-error" class="hidden text-sm text-rose-700"></p><button type="submit" id="confirm-payment-btn" class="btn w-full bg-blue-600 px-4 py-3 text-white">To‘lovni tasdiqlash</button><button type="button" data-action="unlock-order" data-id="${esc(orderId)}" class="w-full py-2 text-sm font-semibold text-slate-500">Bekor qilish</button></form>`);
                 const form = document.getElementById('payment-form');
                 const update = () => {
                     const values = Object.fromEntries(new FormData(form).entries());
                     const amount = ['cash', 'card', 'electronic', 'debt'].reduce((sum, key) => sum + Number(values[key] || 0), 0);
-                    const change = Math.max(0, amount - due);
-                    form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amount)} · Qaytim: ${money(change)}`;
+                    const cash = Number(values.cash || 0);
+                    const nonCash = amount - cash;
+                    const appliedCash = Math.max(0, due - nonCash);
+                    const given = Number(values.given || values.cash || 0);
+                    const change = Math.max(0, given - appliedCash);
+                    const remaining = Math.max(0, due - amount);
+                    form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amount)} · Qaytim: ${money(change)} · Qoldiq: ${money(remaining)}`;
                     const confirmBtn = form.querySelector('#confirm-payment-btn');
                     if (confirmBtn) {
-                        confirmBtn.disabled = amount < due;
-                        confirmBtn.style.opacity = amount < due ? '0.5' : '1';
+                        confirmBtn.disabled = amount < due || nonCash > due || given < appliedCash;
+                        confirmBtn.style.opacity = confirmBtn.disabled ? '0.5' : '1';
                     }
                 };
                 form.addEventListener('input', event => {
@@ -663,9 +668,10 @@
             const due = Number(state.currentOrder.totalAmount) - state.currentOrder.payments.reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(state.currentOrder.debt?.amount || 0);
             const cash = Number(values.cash || 0), card = Number(values.card || 0), electronic = Number(values.electronic || 0), debt = Number(values.debt || 0);
             const sum = cash + card + electronic + debt;
+            const given = Number(values.given || values.cash || 0);
             const error = form.querySelector('#payment-error');
-            if ([cash, card, electronic, debt].some(value => !Number.isFinite(value) || value < 0) || sum < due - 0.001) {
-                error.textContent = 'To‘lov qoldiqdan kam bo‘lmasligi kerak';
+            if ([cash, card, electronic, debt].some(value => !Number.isFinite(value) || value < 0) || !Number.isFinite(given) || given < 0 || sum < due - 0.001 || card + electronic + debt > due + 0.001 || given < Math.max(0, due - card - electronic - debt)) {
+                error.textContent = 'To‘lov summalari va mijoz bergan naqdni tekshiring. Qaytim faqat naqd puldan beriladi';
                 error.classList.remove('hidden');
                 return;
             }
@@ -681,7 +687,7 @@
             const appliedCash = Math.min(cash, remainingDue); remainingDue -= appliedCash;
             
             const payments = [
-                ...(appliedCash > 0 ? [{ method: 'NAQD', amount: appliedCash, customerGiven: cash }] : []),
+                ...(appliedCash > 0 ? [{ method: 'NAQD', amount: appliedCash, customerGiven: given }] : []),
                 ...(appliedCard > 0 ? [{ method: 'PLASTIK', amount: appliedCard }] : []),
                 ...(appliedElectronic > 0 ? [{ method: 'ELEKTRON', amount: appliedElectronic }] : [])
             ];
