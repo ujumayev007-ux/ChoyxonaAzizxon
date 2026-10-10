@@ -644,6 +644,8 @@
                 loadActiveOrders();
                 loadActiveCalls();
                 loadMenuCatalog();
+                loadWaiterStatistics();
+                if (!document.getElementById('bill-details-wrapper').classList.contains('hidden')) loadTableBillDetails();
             });
 
             socket.on('disconnect', () => {
@@ -679,6 +681,14 @@
             socket.on('orderUpdate', () => {
                 loadRoomsAndTables();
                 loadActiveOrders();
+            });
+
+            socket.on('paymentReceived', () => {
+                loadRoomsAndTables();
+                loadPendingOrders();
+                loadActiveOrders();
+                loadWaiterStatistics();
+                if (!document.getElementById('bill-details-wrapper').classList.contains('hidden')) loadTableBillDetails();
             });
 
             socket.on('order_status_updated', (data) => {
@@ -1524,9 +1534,9 @@
                     return;
                 }
 
-                let totalSum = 0;
+                let totalSumInTiyin = 0;
                 container.innerHTML = orders.map(ord => {
-                    totalSum += (ord.totalAmount || 0);
+                    totalSumInTiyin += Math.round(Number(ord.totalAmount || 0) * 100);
                     return `
                         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-sm">
                             <div class="flex justify-between font-bold text-slate-800">
@@ -1545,7 +1555,7 @@
                     `;
                 }).join('');
 
-                document.getElementById('bill-total-sum').innerText = `${totalSum} so'm`;
+                document.getElementById('bill-total-sum').innerText = `${totalSumInTiyin / 100} so'm`;
             } catch(e) {}
         }
 

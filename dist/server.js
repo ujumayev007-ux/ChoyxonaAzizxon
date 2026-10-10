@@ -944,7 +944,7 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
                 menuItemId: menuItem.id,
                 quantity,
                 unitPrice,
-                totalPrice: unitPrice.mul(quantity),
+                totalPrice: unitPrice.mul(quantity).toDecimalPlaces(2),
                 notes: typeof item.note === 'string' && item.note.trim() ? item.note.trim() : null
             };
         });
@@ -1003,17 +1003,22 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
             res.status(409).json({ success: false, error: 'Bu buyurtmani tasdiqlab boвЂlmaydi' });
             return;
         }
-        const updated = await prisma.order.update({
-            where: { id: order.id },
-            data: {
-                status: client_1.OrderStatus.TASDIQLANDI,
-                approvedAt: new Date(),
-                statusHistory: { create: { status: client_1.OrderStatus.TASDIQLANDI, userId: req.user.id } }
-            },
-            include: { table: { include: { room: true } } }
+        const updated = await prisma.$transaction(async (tx) => {
+            const changed = await tx.order.updateMany({
+                where: { id: order.id, status: order.status, processingById: order.processingById },
+                data: { status: client_1.OrderStatus.TASDIQLANDI, approvedAt: new Date() }
+            });
+            if (!changed.count)
+                return null;
+            await tx.orderStatusHistory.create({ data: { orderId: order.id, status: client_1.OrderStatus.TASDIQLANDI, userId: req.user.id } });
+            return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         });
+        if (!updated) {
+            res.status(409).json({ success: false, error: 'Buyurtma holati o‘zgardi. Qayta yuklang.' });
+            return;
+        }
         (0, socket_1.emitSocketEvent)('order_status_updated', { orderId: updated.id, tableId: updated.tableId, status: updated.status });
-        (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: updated.id, tableId: updated.tableId, roomId: updated.table.roomId, status: updated.status });
+        (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: updated.id, tableId: updated.tableId, roomId: updated.table?.roomId, status: updated.status });
         res.json({ success: true, message: 'Buyurtma tasdiqlandi', data: updated });
     }
     catch (error) {
@@ -1037,20 +1042,25 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
             return;
         }
         const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
-        const updated = await prisma.order.update({
-            where: { id: order.id },
-            data: {
-                status: client_1.OrderStatus.BEKOR_QILINDI,
-                statusHistory: { create: {
-                        status: client_1.OrderStatus.BEKOR_QILINDI,
-                        userId: req.user.id,
-                        ...(reason ? { comment: reason } : {})
-                    } }
-            },
-            include: { table: { include: { room: true } } }
+        const updated = await prisma.$transaction(async (tx) => {
+            const changed = await tx.order.updateMany({
+                where: { id: order.id, status: order.status, processingById: order.processingById },
+                data: { status: client_1.OrderStatus.BEKOR_QILINDI }
+            });
+            if (!changed.count)
+                return null;
+            await tx.orderStatusHistory.create({ data: {
+                    orderId: order.id, status: client_1.OrderStatus.BEKOR_QILINDI, userId: req.user.id,
+                    ...(reason ? { comment: reason } : {})
+                } });
+            return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         });
+        if (!updated) {
+            res.status(409).json({ success: false, error: 'Buyurtma holati o‘zgardi. Qayta yuklang.' });
+            return;
+        }
         (0, socket_1.emitSocketEvent)('order_status_updated', { orderId: updated.id, tableId: updated.tableId, status: updated.status });
-        (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: updated.id, tableId: updated.tableId, roomId: updated.table.roomId, status: updated.status });
+        (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: updated.id, tableId: updated.tableId, roomId: updated.table?.roomId, status: updated.status });
         res.json({ success: true, message: 'Buyurtma rad etildi', data: updated });
     }
     catch (error) {
@@ -1062,13 +1072,14 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
     const paymentMethods = {
         NAQD: client_1.PaymentMethod.NAQD, Naqd: client_1.PaymentMethod.NAQD,
         PLASTIK: client_1.PaymentMethod.PLASTIK, 'Plastik karta': client_1.PaymentMethod.PLASTIK,
-        ELEKTRON: client_1.PaymentMethod.ELEKTRON, 'Elektron toвЂlov': client_1.PaymentMethod.ELEKTRON
+        ELEKTRON: client_1.PaymentMethod.ELEKTRON, 'Elektron to‘lov': client_1.PaymentMethod.ELEKTRON
     };
-    const method = typeof req.body?.paymentMethod === 'string' ? paymentMethods[req.body.paymentMethod] : null;
+    const method = typeof req.body?.paymentMethod === 'string' && Object.hasOwn(paymentMethods, req.body.paymentMethod)
+        ? paymentMethods[req.body.paymentMethod] : null;
     const key = typeof req.body?.idempotencyKey === 'string' &&
         /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.idempotencyKey) ? req.body.idempotencyKey : '';
     if (!method || !key) {
-        res.status(400).json({ success: false, message: 'ToвЂlov turi yoki takrorlanishni himoyalovchi identifikator notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'To‘lov turi yoki takrorlanishni himoyalovchi identifikator noto‘g‘ri' });
         return;
     }
     const hash = (0, crypto_1.createHash)('sha256').update(JSON.stringify({
@@ -1079,20 +1090,22 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
         const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
-                res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+                res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
                 return;
             }
             res.json({ success: true, duplicate: true, data: JSON.parse(previous.responseJson) });
             return;
         }
         const result = await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw `SELECT "id" FROM "Order" WHERE "tableId" = ${req.params.tableId} ORDER BY "id" FOR UPDATE`;
             const orders = await tx.order.findMany({
                 where: {
                     tableId: req.params.tableId,
                     status: { notIn: [client_1.OrderStatus.TOLANDI, client_1.OrderStatus.YAKUNLANDI, client_1.OrderStatus.BEKOR_QILINDI, client_1.OrderStatus.QAYTARILDI] }
                 },
                 select: {
-                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, debt: { select: { amount: true, remaining: true } },
+                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, tableId: true,
+                    table: { select: { roomId: true } }, debt: { select: { amount: true, remaining: true } },
                     payments: { select: { amount: true } },
                     items: { select: { quantity: true, totalPrice: true, menuItem: { select: { name: true } } } }
                 }
@@ -1100,9 +1113,9 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
             if (!orders.length)
                 throw new Error('TABLE_NO_ORDERS');
             const paidOrderIds = [];
+            const updates = [];
             const updatedInventoryIds = new Set();
             for (const order of orders) {
-                await tx.$queryRaw `SELECT "id" FROM "Order" WHERE "id" = ${order.id} FOR UPDATE`;
                 if (order.processingById && order.processingById !== req.user.id)
                     throw new Error('ORDER_LOCKED');
                 const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
@@ -1178,6 +1191,7 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
                     });
                 }
                 paidOrderIds.push(order.id);
+                updates.push({ orderId: order.id, status, tableId: order.tableId, roomId: order.table.roomId, remaining: '0' });
             }
             if (!paidOrderIds.length)
                 throw new Error('TABLE_ALREADY_PAID');
@@ -1188,30 +1202,45 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
                     requestHash: hash, responseJson: JSON.stringify(response)
                 }
             });
-            return { response, updatedInventoryIds: [...updatedInventoryIds] };
-        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
-        for (const orderId of result.response.paidOrderIds)
-            (0, socket_1.emitSocketEvent)('paymentReceived', { orderId, status: 'TOLANDI' });
+            return { response, updates, updatedInventoryIds: [...updatedInventoryIds] };
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 60000 });
+        for (const update of result.updates) {
+            (0, socket_1.emitSocketEvent)('paymentReceived', update);
+            (0, socket_1.emitSocketEvent)('orderUpdate', update);
+            (0, socket_1.emitSocketEvent)('order_status_updated', update);
+        }
         (0, socket_1.emitSocketEvent)('table_status_updated', { tableId: req.params.tableId });
         if (result.updatedInventoryIds.length)
             (0, socket_1.emitSocketEvent)('inventory_updated', { inventoryIds: result.updatedInventoryIds });
         res.json({ success: true, data: result.response });
     }
     catch (error) {
+        try {
+            const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
+            if (previous) {
+                if (previous.userId !== req.user.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
+                    res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
+                    return;
+                }
+                res.json({ success: true, duplicate: true, data: JSON.parse(previous.responseJson) });
+                return;
+            }
+        }
+        catch { /* Preserve the original failure if replay cannot be read. */ }
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         if (error instanceof Error && error.message === 'TABLE_NO_ORDERS') {
-            res.status(409).json({ success: false, message: 'Stolda toвЂlanmagan buyurtmalar yoвЂq' });
+            res.status(409).json({ success: false, message: 'Stolda to‘lanmagan buyurtmalar yo‘q' });
             return;
         }
         if (error instanceof Error && error.message === 'TABLE_ALREADY_PAID') {
-            res.status(409).json({ success: false, message: 'Buyurtmalar allaqachon toвЂlangan' });
+            res.status(409).json({ success: false, message: 'Buyurtmalar allaqachon to‘langan' });
             return;
         }
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
         if (error instanceof Error && error.message === 'ORDER_LOCKED') {
@@ -1219,11 +1248,11 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
             return;
         }
         if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
-            res.status(409).json({ success: false, message: 'ToвЂlov allaqachon yuborilgan. Sahifani yangilang.' });
+            res.status(409).json({ success: false, message: 'To‘lov allaqachon yuborilgan. Sahifani yangilang.' });
             return;
         }
-        console.error('Stol uchun toвЂlovni saqlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Stol toвЂlovini saqlab boвЂlmadi' });
+        console.error('Stol uchun to‘lovni saqlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Stol to‘lovini saqlab bo‘lmadi' });
     }
 });
 app.get('/api/waiter/calls', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (_req, res) => {

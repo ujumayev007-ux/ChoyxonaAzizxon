@@ -2714,6 +2714,14 @@
 
         // Real-time updates via Socket.io
         const socket = io();
+        function refreshOrderPanels() {
+            if (!adminCurrentUser) return;
+            loadRooms();
+            loadOrders();
+        }
+        socket.on('connect', refreshOrderPanels);
+        socket.on('paymentReceived', refreshOrderPanels);
+        socket.on('order_status_updated', refreshOrderPanels);
         socket.on('orderUpdate', (data) => {
             showToast('Yangi buyurtma keldi yoki holat o‘zgardi!');
             loadRooms();

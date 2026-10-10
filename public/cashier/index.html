@@ -120,7 +120,7 @@
 
     <script>
         const socket = io();
-        const state = { user: null, tab: 'dashboard', menu: [], customers: [], cart: [], selectedCustomer: null, currentOrder: null };
+        const state = { user: null, tab: 'dashboard', menu: [], customers: [], cart: [], selectedCustomer: null, currentOrder: null, paymentSession: null, paymentOpening: false };
         const titles = {
             dashboard: 'Bosh sahifa', orders: 'Buyurtmalar', tables: 'Stollar', takeaway: 'Olib ketish / Soboy',
             payments: 'To‘lovlar tarixi', customers: 'Mijozlar', debts: 'Qarzlar',
@@ -133,7 +133,13 @@
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[char]));
         const dateTime = value => value ? new Date(value).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-        const newKey = () => crypto.randomUUID();
+        const newKey = () => typeof crypto.randomUUID === 'function' ? crypto.randomUUID() :
+            Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+        const moneyCents = value => Math.round(Number(value || 0) * 100);
+        const orderBalance = order => Math.max(0, moneyCents(order.totalAmount) -
+            (order.payments || []).reduce((sum, payment) => sum + moneyCents(payment.amount), 0) - moneyCents(order.debt?.amount));
+        const paymentDecimal = cents => (cents / 100).toFixed(2);
+        const closedPaymentStatuses = ['TOLANDI', 'YAKUNLANDI', 'BEKOR_QILINDI', 'QAYTARILDI'];
 
         function updateSidebar(collapsed) {
             const app = document.getElementById('app');
@@ -161,7 +167,11 @@
                 showLogin(data.message || 'Kassir hisobi bilan tizimga kiring.');
                 throw new Error(data.message || 'Bu amal uchun ruxsat yo‘q');
             }
-            if (!response.ok || data.success === false) throw new Error(data.message || 'So‘rov bajarilmadi');
+            if (!response.ok || data.success === false) {
+                const error = new Error(data.message || 'So‘rov bajarilmadi');
+                error.status = response.status;
+                throw error;
+            }
             return data;
         }
 
@@ -177,7 +187,7 @@
             state.user = null;
             state.currentOrder = null;
             state.cart = [];
-            closeModal();
+            closeModal({ force: true });
             document.getElementById('app').classList.add('hidden');
             const screen = document.getElementById('login-screen');
             screen.classList.remove('hidden');
@@ -263,8 +273,11 @@
             const customerPhone = order.customer?.phone || order.customerPhone;
             const items = (order.items || []).map(item => `<li class="flex justify-between gap-3 text-sm"><span>${esc(item.menuItem?.name || item.name)} × ${esc(item.quantity)}</span><b>${money(item.totalPrice)}</b></li>`).join('');
             const locked = order.processingBy ? `<p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">🔒 ${esc(order.processingBy.fullName)} buyurtmani qayta ishlamoqda</p>` : '';
-            const due = Number(order.totalAmount) - (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(order.debt?.amount || 0);
+            const due = orderBalance(order) / 100;
             const hasPayments = (order.payments || []).some(payment => Number(payment.amount) > 0);
+            const paymentStatus = order.status === 'BEKOR_QILINDI' ? 'Bekor qilingan' : order.status === 'QAYTARILDI' ? 'Qaytarilgan' :
+                ['TOLANDI', 'YAKUNLANDI'].includes(order.status) && due === 0 ? 'To‘langan' :
+                hasPayments ? 'Qisman to‘langan' : order.debt ? 'Qarzga yozilgan' : 'To‘lov kutilmoqda';
             const verificationReady = order.takeawayVerification && !order.takeawayVerification.usedAt &&
                 new Date(order.takeawayVerification.expiresAt) > new Date() && order.takeawayVerification.attempts < 5;
             return `<article class="card space-y-3 p-4">
@@ -274,7 +287,7 @@
                 </div>
                 ${order.orderType === 'TAKEAWAY' ? `<p class="rounded-lg bg-violet-50 p-2 text-xs"><b>🥡 OLIB KETISH</b> · ${esc(customer || 'Mijoz ko‘rsatilmagan')} ${customerPhone ? `· ${esc(customerPhone)}` : ''}</p>` : ''}
                 <ul class="space-y-1 border-y border-slate-100 py-2">${items}</ul>
-                <div class="flex items-end justify-between"><div><p class="text-xs text-slate-500">Jami</p><b class="text-lg">${money(order.totalAmount)}</b></div><span class="text-xs text-slate-500">${dateTime(order.createdAt)}</span></div>
+                <div class="flex items-end justify-between"><div><p class="text-xs text-slate-500">Jami</p><b class="text-lg">${money(order.totalAmount)}</b><p class="text-xs text-slate-500">To‘lov: ${paymentStatus} · Qoldiq: ${money(due)}</p></div><span class="text-xs text-slate-500">${dateTime(order.createdAt)}</span></div>
                 ${locked}
                 <div class="flex flex-wrap gap-2">
                     ${due > 0 && !options.closed ? `<button class="btn bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700" data-action="pay" data-id="${esc(order.id)}">To‘lov</button>` : ''}
@@ -365,7 +378,7 @@
                 const orders = byTable.get(table.id) || [];
                 const statusColor = table.status === 'AVAILABLE' ? 'emerald' : table.status === 'PENDING' ? 'amber' : 'rose';
                 return `<article class="card p-4"><div class="flex items-center justify-between"><b>Stol ${esc(table.number)}</b><span class="rounded-full bg-${statusColor}-50 px-2 py-1 text-xs font-bold text-${statusColor}-700">${table.status === 'AVAILABLE' ? 'Bo‘sh' : table.status === 'PENDING' ? 'Tasdiq kutilmoqda' : 'Band'}</span></div><p class="mt-2 text-sm text-slate-500">${orders.length} ta faol buyurtma</p><div class="mt-3 space-y-2">${orders.map(order => {
-                    const due = Number(order.totalAmount) - (order.payments || []).reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(order.debt?.amount || 0);
+                    const due = orderBalance(order) / 100;
                     return `<div class="rounded-lg bg-slate-50 p-2"><p class="text-xs font-bold">#${esc(order.orderNumber)} · ${money(order.totalAmount)}</p>${due > 0 ? `<button class="mt-1 text-xs font-bold text-blue-700" data-action="pay" data-id="${esc(order.id)}">To‘lov</button> ` : ''}<button class="text-xs font-bold text-slate-600" data-action="timeline" data-id="${esc(order.id)}">Tarix</button></div>`;
                 }).join('')}</div></article>`;
             }).join('')}</div></section>`).join('') : '<div class="card p-8 text-center text-slate-500">Faol xona yo‘q</div>';
@@ -618,88 +631,176 @@
         }
 
         function openModal(title, body, options = {}) {
+            if (!closeModal()) return;
             const root = document.getElementById('modal-root');
             root.innerHTML = `<div class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" data-backdrop><section role="dialog" aria-modal="true" aria-labelledby="modal-title" class="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div class="mb-4 flex items-center justify-between"><h2 id="modal-title" class="text-lg font-black">${esc(title)}</h2><button type="button" class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-xl" data-action="modal-close" aria-label="Yopish">&times;</button></div>${body}</section></div>`;
             root.querySelector('[data-backdrop]').addEventListener('click', event => { if (event.target === event.currentTarget) closeModal(); });
             root.querySelectorAll('[data-modal-submit]').forEach(button => button.addEventListener('click', options.submit));
         }
-        function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+        function closeModal({ paid = false, force = false } = {}) {
+            const session = state.paymentSession;
+            if (session?.submitting && !force) return false;
+            state.paymentSession = null;
+            state.currentOrder = null;
+            document.getElementById('modal-root').innerHTML = '';
+            if (session && !paid && state.user) {
+                api(`/api/cashier/orders/${encodeURIComponent(session.orderId)}/unlock`, { method: 'POST' }).catch(() => {});
+            }
+            return true;
+        }
+
+        function paymentAmounts(values, due) {
+            const cents = value => {
+                const text = String(value || '0');
+                if (!/^\d{1,12}(?:\.\d{1,2})?$/.test(text)) return NaN;
+                const [whole, fraction = ''] = text.split('.');
+                return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+            };
+            const cash = cents(values.cash), card = cents(values.card), electronic = cents(values.electronic), debt = cents(values.debt);
+            const given = values.given === '' || values.given == null ? cash : cents(values.given);
+            const total = cash + card + electronic + debt;
+            const nonCash = card + electronic + debt;
+            const appliedCash = Math.min(cash, Math.max(0, due - nonCash));
+            const remaining = Math.max(0, due - total);
+            const change = appliedCash > 0 ? Math.max(0, given - appliedCash) : 0;
+            const error = [cash, card, electronic, debt, given].some(value => !Number.isSafeInteger(value) || value < 0)
+                ? 'To‘lov summalarini to‘g‘ri kiriting' : nonCash > due
+                ? 'Karta, elektron va qarz summasi qoldiqdan oshmasligi kerak' : appliedCash === 0 && (cash > 0 || given > 0)
+                ? 'Naqd to‘lov uchun qoldiq yo‘q. Naqd summalarni olib tashlang.' : given < appliedCash
+                ? 'Mijoz bergan naqd summa naqd to‘lovdan kam' : remaining > 0
+                ? 'To‘lov qoldiqdan kam bo‘lmasligi kerak' : '';
+            return { cash, card, electronic, debt, given, total, appliedCash, remaining, change, error };
+        }
+
+        function updatePaymentForm(form, session) {
+            const amounts = paymentAmounts(Object.fromEntries(new FormData(form).entries()), session.due);
+            form.querySelector('#payment-due').textContent = money(session.due / 100);
+            form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amounts.total / 100)} · Qaytim: ${money(amounts.change / 100)} · Qoldiq: ${money(amounts.remaining / 100)}`;
+            const button = form.querySelector('#confirm-payment-btn');
+            button.disabled = session.submitting || (!session.request && (!session.payable || !!amounts.error));
+            button.style.opacity = button.disabled ? '0.5' : '1';
+            button.textContent = session.submitting ? 'To‘lov saqlanmoqda...' : session.request ? 'To‘lovni qayta tekshirish' : 'To‘lovni tasdiqlash';
+            form.querySelectorAll('input').forEach(input => { input.readOnly = session.submitting || !!session.request; });
+            form.querySelector('[data-action="unlock-order"]').disabled = session.submitting;
+        }
+
+        async function getPaymentOrder(orderId) {
+            const { data } = await api(`/api/cashier/orders?id=${encodeURIComponent(orderId)}`);
+            const order = data.find(item => item.id === orderId);
+            if (!order) throw new Error('Buyurtma topilmadi');
+            return order;
+        }
+
+        function setPaymentOrder(order, session) {
+            state.currentOrder = order;
+            session.due = orderBalance(order);
+            session.payable = session.due > 0 && !closedPaymentStatuses.includes(order.status) &&
+                (!order.processingBy || order.processingBy.id === state.user?.id);
+        }
+
+        async function refreshPaymentOrder(data = {}) {
+            const session = state.paymentSession;
+            if (!session || session.submitting || session.request || session.refreshing ||
+                (data.orderId && data.orderId !== session.orderId)) return;
+            session.refreshing = true;
+            try {
+                const order = await getPaymentOrder(session.orderId);
+                if (state.paymentSession !== session || session.submitting || session.request) return;
+                const previousDue = session.due;
+                setPaymentOrder(order, session);
+                const form = document.getElementById('payment-form');
+                if (!form) return;
+                updatePaymentForm(form, session);
+                if (!session.payable || previousDue !== session.due) {
+                    const error = form.querySelector('#payment-error');
+                    error.textContent = session.payable ? 'Buyurtma summasi o‘zgardi. To‘lovni qayta tekshiring.' : 'Buyurtmaga to‘lov qabul qilib bo‘lmaydi. Holatini tekshiring.';
+                    error.classList.remove('hidden');
+                }
+            } catch (error) { toast(error.message, 'error'); }
+            finally { session.refreshing = false; }
+        }
 
         async function openPayment(orderId) {
+            if (state.paymentOpening || state.paymentSession?.submitting || state.paymentSession?.orderId === orderId) return;
+            state.paymentOpening = true;
+            closeModal();
+            let locked = false;
             try {
                 await api(`/api/cashier/orders/${encodeURIComponent(orderId)}/lock`, { method: 'POST' });
-                const { data } = await api(`/api/cashier/orders?q=${encodeURIComponent(orderId)}`);
-                const order = data.find(item => item.id === orderId);
-                if (!order) throw new Error('Buyurtma topilmadi');
-                state.currentOrder = order;
-                const paid = order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-                const due = Number(order.totalAmount) - paid - Number(order.debt?.amount || 0);
-                openModal('To‘lovni qabul qilish', `<form id="payment-form" class="space-y-3"><div class="rounded-xl bg-blue-50 p-4"><p class="text-sm">Buyurtma #${esc(order.orderNumber)}</p><p class="text-2xl font-black">${money(due)}</p><p class="text-xs text-slate-500">Naqd, karta, elektron va qarz aralashtirish mumkin</p></div><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">Naqd<input class="field mt-1" name="cash" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Mijoz bergan naqd<input class="field mt-1" name="given" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Karta<input class="field mt-1" name="card" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Elektron<input class="field mt-1" name="electronic" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Qarz qismi<input class="field mt-1" name="debt" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Mijoz IDsi (qarz uchun)<input class="field mt-1" name="customerId" value="${esc(order.customer?.id || '')}"></label></div><p id="payment-sum" class="rounded-lg bg-slate-50 p-3 text-sm font-bold"></p><p id="payment-error" class="hidden text-sm text-rose-700"></p><button id="confirm-payment-btn" class="btn w-full bg-blue-600 px-4 py-3 text-white">To‘lovni tasdiqlash</button><button type="button" data-action="unlock-order" data-id="${esc(orderId)}" class="w-full py-2 text-sm font-semibold text-slate-500">Bekor qilish</button></form>`);
+                locked = true;
+                const order = await getPaymentOrder(orderId);
+                const session = { orderId, due: orderBalance(order), idempotencyKey: newKey(), submitting: false, request: null, payable: true };
+                if (session.due <= 0 || closedPaymentStatuses.includes(order.status)) throw new Error('Buyurtma uchun to‘lov qoldig‘i yo‘q');
+                openModal('To‘lovni qabul qilish', `<form id="payment-form" class="space-y-3"><div class="rounded-xl bg-blue-50 p-4"><p class="text-sm">Buyurtma #${esc(order.orderNumber)}</p><p id="payment-due" class="text-2xl font-black">${money(session.due / 100)}</p><p class="text-xs text-slate-500">Naqd, karta, elektron va qarz aralashtirish mumkin</p></div><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">Naqd<input class="field mt-1" name="cash" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Mijoz bergan naqd<input class="field mt-1" name="given" type="number" min="0" step="0.01" value=""></label><label class="text-sm font-semibold">Karta<input class="field mt-1" name="card" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Elektron<input class="field mt-1" name="electronic" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Qarz qismi<input class="field mt-1" name="debt" type="number" min="0" step="0.01" value="0"></label><label class="text-sm font-semibold">Mijoz IDsi (qarz uchun)<input class="field mt-1" name="customerId" value="${esc(order.customer?.id || '')}"></label></div><p id="payment-sum" class="rounded-lg bg-slate-50 p-3 text-sm font-bold"></p><p id="payment-error" class="hidden text-sm text-rose-700"></p><button type="submit" id="confirm-payment-btn" class="btn w-full bg-blue-600 px-4 py-3 text-white">To‘lovni tasdiqlash</button><button type="button" data-action="unlock-order" data-id="${esc(orderId)}" class="w-full py-2 text-sm font-semibold text-slate-500">Bekor qilish</button></form>`);
+                state.paymentSession = session;
+                setPaymentOrder(order, session);
                 const form = document.getElementById('payment-form');
-                const update = () => {
-                    const values = Object.fromEntries(new FormData(form).entries());
-                    const amount = ['cash', 'card', 'electronic', 'debt'].reduce((sum, key) => sum + Number(values[key] || 0), 0);
-                    const change = Math.max(0, amount - due);
-                    form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amount)} · Qaytim: ${money(change)}`;
-                    const confirmBtn = form.querySelector('#confirm-payment-btn');
-                    if (confirmBtn) {
-                        confirmBtn.disabled = amount < due;
-                        confirmBtn.style.opacity = amount < due ? '0.5' : '1';
-                    }
-                };
                 form.addEventListener('input', event => {
                     if (event.target.name === 'cash') form.elements.given.value = event.target.value;
-                    update();
+                    form.querySelector('#payment-error').classList.add('hidden');
+                    updatePaymentForm(form, session);
                 });
-                update();
+                updatePaymentForm(form, session);
                 form.addEventListener('submit', submitPayment);
-            } catch (error) { await api(`/api/cashier/orders/${encodeURIComponent(orderId)}/unlock`, { method: 'POST' }).catch(() => {}); toast(error.message, 'error'); }
+            } catch (error) {
+                if (locked) await api(`/api/cashier/orders/${encodeURIComponent(orderId)}/unlock`, { method: 'POST' }).catch(() => {});
+                toast(error.message, 'error');
+            } finally { state.paymentOpening = false; }
         }
 
         async function submitPayment(event) {
             event.preventDefault();
             const form = event.currentTarget;
+            const session = state.paymentSession;
+            if (!session || session.submitting) return;
             const values = Object.fromEntries(new FormData(form).entries());
-            const due = Number(state.currentOrder.totalAmount) - state.currentOrder.payments.reduce((sum, payment) => sum + Number(payment.amount), 0) - Number(state.currentOrder.debt?.amount || 0);
-            const cash = Number(values.cash || 0), card = Number(values.card || 0), electronic = Number(values.electronic || 0), debt = Number(values.debt || 0);
-            const sum = cash + card + electronic + debt;
+            const amounts = paymentAmounts(values, session.due);
             const error = form.querySelector('#payment-error');
-            if ([cash, card, electronic, debt].some(value => !Number.isFinite(value) || value < 0) || sum < due - 0.001) {
-                error.textContent = 'To‘lov qoldiqdan kam bo‘lmasligi kerak';
+            if (!session.request && (amounts.error || !session.payable || (amounts.debt > 0 && !values.customerId))) {
+                error.textContent = amounts.error || (!session.payable ? 'Buyurtmaga to‘lov qabul qilib bo‘lmaydi' : 'Qarz uchun mijoz IDsi kerak');
                 error.classList.remove('hidden');
                 return;
             }
-            if (debt > 0 && !values.customerId) { error.textContent = 'Qarz uchun mijoz IDsi kerak'; error.classList.remove('hidden'); return; }
-            
-            // Compute applied amounts (what goes toward the order). 
-            // Non-cash methods are applied exactly. Cash covers the remainder.
-            // Any cash overpayment is returned as change via customerGiven.
-            let remainingDue = due;
-            const appliedCard = Math.min(card, remainingDue); remainingDue -= appliedCard;
-            const appliedElectronic = Math.min(electronic, remainingDue); remainingDue -= appliedElectronic;
-            const appliedDebt = Math.min(debt, remainingDue); remainingDue -= appliedDebt;
-            const appliedCash = Math.min(cash, remainingDue); remainingDue -= appliedCash;
-            
-            const payments = [
-                ...(appliedCash > 0 ? [{ method: 'NAQD', amount: appliedCash, customerGiven: cash }] : []),
-                ...(appliedCard > 0 ? [{ method: 'PLASTIK', amount: appliedCard }] : []),
-                ...(appliedElectronic > 0 ? [{ method: 'ELEKTRON', amount: appliedElectronic }] : [])
-            ];
-            const button = form.querySelector('button[type="submit"]');
-            button.disabled = true;
+            session.submitting = true;
+            error.classList.add('hidden');
+            updatePaymentForm(form, session);
             try {
-                await api('/api/cashier/payments', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        orderId: state.currentOrder.id, payments, debtAmount: appliedDebt,
-                        customerId: values.customerId || null, idempotencyKey: newKey()
-                    })
-                });
-                closeModal();
+                if (!session.request) {
+                    const order = await getPaymentOrder(session.orderId);
+                    if (state.paymentSession !== session) return;
+                    const previousDue = session.due;
+                    setPaymentOrder(order, session);
+                    if (!session.payable || previousDue !== session.due) throw new Error('Buyurtma holati yoki summasi o‘zgardi. To‘lovni qayta tekshiring.');
+                    const payments = [
+                        ...(amounts.appliedCash > 0 ? [{ method: 'NAQD', amount: paymentDecimal(amounts.appliedCash), customerGiven: paymentDecimal(amounts.given) }] : []),
+                        ...(amounts.card > 0 ? [{ method: 'PLASTIK', amount: paymentDecimal(amounts.card) }] : []),
+                        ...(amounts.electronic > 0 ? [{ method: 'ELEKTRON', amount: paymentDecimal(amounts.electronic) }] : [])
+                    ];
+                    session.request = JSON.stringify({
+                        orderId: session.orderId, payments, debtAmount: paymentDecimal(amounts.debt),
+                        expectedRemaining: paymentDecimal(session.due), customerId: values.customerId || null,
+                        idempotencyKey: session.idempotencyKey
+                    });
+                }
+                await api('/api/cashier/payments', { method: 'POST', body: session.request });
+                session.submitting = false;
+                closeModal({ paid: true });
                 toast('To‘lov saqlandi. Chek chop etish navbatiga qo‘yildi.');
                 await switchTab(state.tab);
-            } catch (error) { form.querySelector('#payment-error').textContent = error.message; form.querySelector('#payment-error').classList.remove('hidden'); }
-            finally { button.disabled = false; }
+            } catch (failure) {
+                if (failure.status >= 400 && failure.status < 500) {
+                    session.request = null;
+                    session.idempotencyKey = newKey();
+                }
+                error.textContent = failure.message;
+                error.classList.remove('hidden');
+            } finally {
+                session.submitting = false;
+                if (state.paymentSession === session) {
+                    updatePaymentForm(form, session);
+                    if (!session.request) refreshPaymentOrder({ orderId: session.orderId });
+                }
+            }
         }
 
         function openDebtPayment(id, remaining) {
@@ -845,8 +946,7 @@
                     document.querySelector('#order-form [name="customerName"]').value = button.dataset.name;
                     document.getElementById('order-customer-results').innerHTML = '';
                 } else if (actionName === 'unlock-order') {
-                    await api(`/api/cashier/orders/${encodeURIComponent(id)}/unlock`, { method: 'POST' });
-                    closeModal(); await switchTab(state.tab);
+                    if (closeModal()) await switchTab(state.tab);
                 } else if (actionName === 'call-status') {
                     await api(`/api/cashier/waiter-calls/${encodeURIComponent(id)}/status`, { method: 'POST', body: JSON.stringify({ status: button.dataset.status }) });
                     toast('Chaqiruv yangilandi'); await switchTab(state.tab);
@@ -932,15 +1032,17 @@
             const status = document.getElementById('connection-status');
             status.textContent = 'Ulangan';
             status.className = 'rounded-full bg-emerald-100 px-2 py-1 text-emerald-800';
-            if (state.user) switchTab(state.tab);
+            if (state.user) { switchTab(state.tab); refreshPaymentOrder(); }
         });
         socket.on('disconnect', () => {
             const status = document.getElementById('connection-status');
             status.textContent = 'Uzildi';
             status.className = 'rounded-full bg-rose-100 px-2 py-1 text-rose-800';
         });
-        ['orderUpdate', 'order_status_updated', 'paymentReceived', 'waiter_call', 'waiter_call_updated', 'cashMovement', 'debtUpdated', 'cashRegisterUpdated']
-            .forEach(eventName => socket.on(eventName, () => { if (state.user) switchTab(state.tab); }));
+        ['orderUpdate', 'order_status_updated', 'order_processing_changed', 'table_status_updated', 'paymentReceived', 'waiter_call', 'waiter_call_updated', 'cashMovement', 'debtUpdated', 'cashRegisterUpdated']
+            .forEach(eventName => socket.on(eventName, data => {
+                if (state.user) { switchTab(state.tab); refreshPaymentOrder(data || {}); }
+            }));
         setInterval(() => {
             document.getElementById('live-clock').textContent = new Date().toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' });
         }, 1000);

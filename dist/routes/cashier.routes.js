@@ -9,6 +9,7 @@ const socket_1 = require("../socket");
 const password_1 = require("../utils/password");
 const order_packaging_1 = require("../utils/order-packaging");
 const order_recipes_1 = require("../utils/order-recipes");
+const telegram_1 = require("../utils/telegram");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, auth_1.requireCashierAccess);
 const activeStatuses = [
@@ -37,7 +38,7 @@ const methods = {
     ELEKTRON: client_1.PaymentMethod.ELEKTRON,
     ELECTRONIC: client_1.PaymentMethod.ELEKTRON,
     electronic: client_1.PaymentMethod.ELEKTRON,
-    'Elektron toвЂlov': client_1.PaymentMethod.ELEKTRON
+    'Elektron to‘lov': client_1.PaymentMethod.ELEKTRON
 };
 const parseDecimal = (value, pattern = moneyPattern) => {
     const text = typeof value === 'string' || typeof value === 'number' ? String(value) : '';
@@ -46,7 +47,7 @@ const parseDecimal = (value, pattern = moneyPattern) => {
     const result = new client_1.Prisma.Decimal(text);
     return result.isFinite() ? result : null;
 };
-const parseMethod = (value) => typeof value === 'string' ? methods[value] || null : null;
+const parseMethod = (value) => typeof value === 'string' && Object.hasOwn(methods, value) ? methods[value] : null;
 const dayStartInTashkent = () => {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Tashkent',
@@ -239,6 +240,7 @@ router.get('/dashboard', async (req, res) => {
     }
 });
 router.get('/orders', async (req, res) => {
+    const orderId = typeof req.query.id === 'string' ? req.query.id.trim() : '';
     const term = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const orderType = req.query.type === 'TAKEAWAY' ? client_1.OrderType.TAKEAWAY :
         req.query.type === 'DINE_IN' ? client_1.OrderType.DINE_IN : undefined;
@@ -248,10 +250,11 @@ router.get('/orders', async (req, res) => {
     try {
         const orders = await db_1.prisma.order.findMany({
             where: {
+                ...(orderId ? { id: orderId } : {}),
                 AND: [
                     ...(status ? [{ status }] : []),
                     ...(orderType ? [{ orderType }] : []),
-                    req.query.closed === 'true'
+                    orderId ? {} : req.query.closed === 'true'
                         ? { status: { in: [client_1.OrderStatus.QISMAN_TOLANDI, client_1.OrderStatus.TOLANDI, client_1.OrderStatus.YAKUNLANDI, client_1.OrderStatus.QAYTARILDI] } }
                         : {
                             OR: [
@@ -366,7 +369,7 @@ router.post('/orders', async (req, res) => {
                 menuItemId: menuItem.id,
                 quantity,
                 unitPrice,
-                totalPrice: unitPrice.mul(quantity),
+                totalPrice: unitPrice.mul(quantity).toDecimalPlaces(2),
                 ...(typeof item.notes === 'string' && item.notes.trim() ? { notes: item.notes.trim().slice(0, 500) } : {})
             };
         });
@@ -386,7 +389,7 @@ router.post('/orders', async (req, res) => {
             if (new client_1.Prisma.Decimal(option.inventory.quantity).lessThan(quantity))
                 throw new Error('PACKAGING_STOCK_SHORT');
             const unitPrice = new client_1.Prisma.Decimal(option.sellingPrice);
-            return { inventoryId: option.inventoryId, quantity, unitPrice, totalPrice: unitPrice.mul(quantity) };
+            return { inventoryId: option.inventoryId, quantity, unitPrice, totalPrice: unitPrice.mul(quantity).toDecimalPlaces(2) };
         });
         const subtotal = orderItems.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0))
             .plus(packagingItems.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0)));
@@ -487,7 +490,9 @@ router.post('/orders/:id/lock', async (req, res) => {
         const result = await db_1.prisma.order.updateMany({
             where: {
                 id: req.params.id,
-                OR: [{ processingById: null }, { processingById: req.user.id }, ...(expired ? [{ processingAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }] : [])]
+                status: { in: activeStatuses },
+                OR: [{ processingById: null }, { processingById: req.user.id }, ...(expired
+                        ? [{ processingAt: null }, { processingAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }] : [])]
             },
             data: { processingById: req.user.id, processingAt: new Date() }
         });
@@ -524,10 +529,13 @@ router.post('/payments', async (req, res) => {
         ? req.body.payments
         : [{ method: req.body?.method, amount: req.body?.amountPaid, customerGiven: req.body?.customerGiven, transactionRef: req.body?.transactionRef }];
     const debtAmount = parseDecimal(req.body?.debtAmount ?? '0');
+    const expectedRemaining = req.body?.expectedRemaining === undefined ? null : parseDecimal(req.body.expectedRemaining);
     const customerId = typeof req.body?.customerId === 'string' ? req.body.customerId : null;
     if (!orderId || !idempotencyKey || !debtAmount || submitted.length > 3 ||
+        (req.body?.expectedRemaining !== undefined && !expectedRemaining) ||
+        submitted.some(row => !row || typeof row !== 'object' || Array.isArray(row)) ||
         (submitted.length === 0 && debtAmount.isZero())) {
-        res.status(400).json({ success: false, message: 'ToвЂlov maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'To‘lov ma’lumotlari noto‘g‘ri' });
         return;
     }
     const rows = submitted.map(row => ({
@@ -536,15 +544,16 @@ router.post('/payments', async (req, res) => {
         customerGiven: row.customerGiven === undefined ? null : parseDecimal(row.customerGiven),
         transactionRef: typeof row.transactionRef === 'string' ? row.transactionRef.trim().slice(0, 120) : null
     }));
-    if (rows.some(row => !row.method || row.method === client_1.PaymentMethod.QARZ || !row.amount?.greaterThan(0) ||
-        (row.customerGiven && !row.customerGiven.greaterThan(0)))) {
-        res.status(400).json({ success: false, message: 'ToвЂlov usuli yoki summasi notoвЂgвЂri' });
+    if (rows.some((row, index) => !row.method || row.method === client_1.PaymentMethod.QARZ || !row.amount?.greaterThan(0) ||
+        (submitted[index].customerGiven !== undefined && !row.customerGiven?.greaterThan(0)))) {
+        res.status(400).json({ success: false, message: 'To‘lov usuli yoki summasi noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ orderId, rows: rows.map(row => ({
             method: row.method, amount: row.amount.toString(), customerGiven: row.customerGiven?.toString() || null,
             transactionRef: row.transactionRef
-        })), debtAmount: debtAmount.toString(), customerId });
+        })), debtAmount: debtAmount.toString(), customerId,
+        ...(expectedRemaining ? { expectedRemaining: expectedRemaining.toString() } : {}) });
     try {
         const previous = await readIdempotentResult(idempotencyKey, req.user.id, 'PAYMENT', hash);
         if (previous) {
@@ -557,13 +566,13 @@ router.post('/payments', async (req, res) => {
             const order = await tx.order.findUnique({
                 where: { id: orderId },
                 select: {
-                    id: true, orderNumber: true, totalAmount: true, status: true, orderType: true,
+                    id: true, orderNumber: true, totalAmount: true, status: true, orderType: true, tableId: true,
                     customerId: true, customerName: true, customerPhone: true, processingById: true, discount: true,
                     items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true, menuItem: { select: { name: true } } } },
                     packagingItems: { select: { quantity: true, unitPrice: true, totalPrice: true, inventory: { select: { name: true, unit: true } } } },
                     payments: { select: { amount: true } },
-                    debt: { select: { amount: true } },
-                    table: { select: { number: true, room: { select: { name: true } } } },
+                    debt: { select: { amount: true, remaining: true } },
+                    table: { select: { number: true, roomId: true, room: { select: { name: true } } } },
                     waiter: { select: { fullName: true } },
                     customer: { select: { firstName: true, lastName: true, phone: true } }
                 }
@@ -578,6 +587,8 @@ router.post('/payments', async (req, res) => {
             const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
             const existingDebt = order.debt?.amount || new client_1.Prisma.Decimal(0);
             const remaining = new client_1.Prisma.Decimal(order.totalAmount).minus(paid).minus(existingDebt);
+            if (expectedRemaining && !expectedRemaining.equals(remaining))
+                throw new Error('PAYMENT_TOTAL_CHANGED');
             const cashTotal = rows.filter(row => row.method === client_1.PaymentMethod.NAQD)
                 .reduce((sum, row) => sum.plus(row.amount), new client_1.Prisma.Decimal(0));
             const nonCashTotal = rows.filter(row => row.method !== client_1.PaymentMethod.NAQD)
@@ -596,20 +607,21 @@ router.post('/payments', async (req, res) => {
             const change = rows.filter(row => row.method === client_1.PaymentMethod.NAQD)
                 .reduce((sum, row) => sum.plus(row.customerGiven || row.amount), new client_1.Prisma.Decimal(0))
                 .minus(cashTotal);
-            if (change.isNegative())
+            if (rows.some(row => row.method === client_1.PaymentMethod.NAQD && row.customerGiven?.lessThan(row.amount))) {
                 throw new Error('CASH_INSUFFICIENT');
+            }
             const createdPayments = [];
             for (let index = 0; index < rows.length; index++) {
                 const row = rows[index];
-                const cashChange = row.method === client_1.PaymentMethod.NAQD && index === rows.findIndex(item => item.method === client_1.PaymentMethod.NAQD)
-                    ? change : new client_1.Prisma.Decimal(0);
+                const cashChange = row.method === client_1.PaymentMethod.NAQD
+                    ? (row.customerGiven || row.amount).minus(row.amount) : new client_1.Prisma.Decimal(0);
                 createdPayments.push(await tx.payment.create({
                     data: {
                         orderId,
                         cashierId: req.user.id,
                         method: row.method,
                         amount: row.amount,
-                        ...(row.method === client_1.PaymentMethod.NAQD ? { customerGiven: row.customerGiven || row.amount.plus(cashChange), changeAmount: cashChange } : {}),
+                        ...(row.method === client_1.PaymentMethod.NAQD ? { customerGiven: row.customerGiven || row.amount, changeAmount: cashChange } : {}),
                         ...(row.transactionRef ? { transactionRef: row.transactionRef } : {}),
                         idempotencyKey: `${idempotencyKey}_${index}`
                     },
@@ -633,7 +645,7 @@ router.post('/payments', async (req, res) => {
             }
             const totalPaid = paid.plus(paidNow);
             const fullySettled = totalPaid.plus(existingDebt).plus(debtAmount).greaterThanOrEqualTo(order.totalAmount);
-            const status = fullySettled && existingDebt.isZero() && debtAmount.isZero()
+            const status = fullySettled && (!order.debt || order.debt.remaining.isZero()) && debtAmount.isZero()
                 ? client_1.OrderStatus.TOLANDI : client_1.OrderStatus.QISMAN_TOLANDI;
             const updated = await tx.order.update({
                 where: { id: orderId },
@@ -643,9 +655,9 @@ router.post('/payments', async (req, res) => {
                     processingById: null,
                     processingAt: null,
                     ...(debtCustomerId && !order.customerId ? { customerId: debtCustomerId } : {}),
-                    statusHistory: { create: { status, userId: req.user.id, comment: `Kassir toвЂlovi: ${paidNow.toString()}` } }
+                    statusHistory: { create: { status, userId: req.user.id, comment: `Kassir to‘lovi: ${paidNow.toString()}` } }
                 },
-                select: { id: true, orderNumber: true, status: true, totalAmount: true, orderType: true }
+                select: { id: true, orderNumber: true, status: true, totalAmount: true, orderType: true, tableId: true }
             });
             if (status === client_1.OrderStatus.TOLANDI && order.orderType === client_1.OrderType.DINE_IN) {
                 await (0, order_packaging_1.deductPackaging)(tx, orderId, req.user.id);
@@ -687,29 +699,53 @@ router.post('/payments', async (req, res) => {
             });
             if (debt)
                 await writeAudit(tx, req.user.id, 'DEBT_CREATED', 'CustomerDebt', debt.id, { amount: debtAmount.toString() });
-            const response = { order: updated, payments: createdPayments, debtAmount: debtAmount.toString(), change: change.toString(), receipt };
+            const response = {
+                order: updated, payments: createdPayments, debtAmount: debtAmount.toString(), change: change.toString(),
+                remaining: remaining.minus(paidNow).minus(debtAmount).toString(), receipt
+            };
             await saveIdempotentResult(tx, idempotencyKey, req.user.id, 'PAYMENT', hash, orderId, response);
-            return { response, updatedInventoryIds: [...updatedInventoryIds] };
-        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
-        (0, socket_1.emitSocketEvent)('paymentReceived', { orderId, status: result.response.order.status });
-        (0, socket_1.emitSocketEvent)('orderUpdate', { orderId, status: result.response.order.status });
+            return { response, roomId: order.table?.roomId, updatedInventoryIds: [...updatedInventoryIds] };
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 30000 });
+        const update = {
+            orderId, status: result.response.order.status, tableId: result.response.order.tableId,
+            roomId: result.roomId, totalAmount: result.response.order.totalAmount.toString(), remaining: result.response.remaining
+        };
+        (0, socket_1.emitSocketEvent)('paymentReceived', update);
+        (0, socket_1.emitSocketEvent)('orderUpdate', update);
+        (0, socket_1.emitSocketEvent)('order_status_updated', update);
+        if (update.tableId)
+            (0, socket_1.emitSocketEvent)('table_status_updated', { tableId: update.tableId, roomId: result.roomId });
         if (result.updatedInventoryIds.length)
             (0, socket_1.emitSocketEvent)('inventory_updated', { inventoryIds: result.updatedInventoryIds });
         res.json({ success: true, data: result.response });
     }
     catch (error) {
+        // A concurrent retry can wait for the first payment to commit, then see a
+        // paid order or a serialization conflict. Replay the committed result.
+        try {
+            const previous = await readIdempotentResult(idempotencyKey, req.user.id, 'PAYMENT', hash);
+            if (previous) {
+                res.json({ success: true, duplicate: true, data: previous });
+                return;
+            }
+        }
+        catch (replayError) {
+            if (replayError instanceof Error && replayError.message === 'IDEMPOTENCY_KEY_REUSED')
+                error = replayError;
+        }
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         const knownErrors = {
             ORDER_NOT_FOUND: { status: 404, message: 'Buyurtma topilmadi' },
-            ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani toвЂlab boвЂlmaydi' },
+            ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani to‘lab bo‘lmaydi' },
             ORDER_LOCKED: { status: 409, message: 'Buyurtma boshqa xodim tomonidan qayta ishlanmoqda' },
-            PAYMENT_AMOUNT_INVALID: { status: 400, message: 'ToвЂlov va qarz summasi qoldiq summaga mos emas' },
+            PAYMENT_AMOUNT_INVALID: { status: 400, message: 'To‘lov va qarz summasi qoldiq summaga mos emas' },
+            PAYMENT_TOTAL_CHANGED: { status: 409, message: 'Buyurtma qoldig‘i o‘zgardi. Hisobni yangilab, qayta tekshiring.' },
             CUSTOMER_REQUIRED: { status: 400, message: 'Qarz uchun mijozni tanlang' },
             CASH_INSUFFICIENT: { status: 400, message: 'Mijoz bergan naqd pul yetarli emas' },
-            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' }
+            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' }
         };
         if (error instanceof Error && knownErrors[error.message]) {
             const result = knownErrors[error.message];
@@ -717,15 +753,15 @@ router.post('/payments', async (req, res) => {
             return;
         }
         if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
-            res.status(409).json({ success: false, message: 'ToвЂlov allaqachon yuborilgan yoki maвЂ™lumotlar yangilandi. Sahifani yangilang.' });
+            res.status(409).json({ success: false, message: 'To‘lov allaqachon yuborilgan yoki ma’lumotlar yangilandi. Sahifani yangilang.' });
             return;
         }
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
-        console.error('Kassir toвЂlovini yozishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'ToвЂlovni amalga oshirib boвЂlmadi' });
+        console.error('Kassir to‘lovini yozishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'To‘lovni amalga oshirib bo‘lmadi' });
     }
 });
 router.get('/payments', async (req, res) => {
@@ -1056,7 +1092,7 @@ router.post('/refunds', async (req, res) => {
                 select: {
                     id: true, status: true, debt: { select: { remaining: true, payments: { select: { amount: true } } } },
                     payments: { select: { amount: true } },
-                    items: { select: { id: true, quantity: true, unitPrice: true } },
+                    items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true } },
                     refunds: { select: { amount: true } }
                 }
             });
@@ -1075,12 +1111,18 @@ router.post('/refunds', async (req, res) => {
                 const quantity = parseDecimal(item.quantity, quantityPattern);
                 const previouslyReturned = await tx.refundItem.aggregate({
                     where: { orderItemId: orderItem.id },
-                    _sum: { quantity: true }
+                    _sum: { quantity: true, amount: true }
                 });
-                if (new client_1.Prisma.Decimal(previouslyReturned._sum.quantity || 0).plus(quantity).greaterThan(orderItem.quantity)) {
+                const returnedQuantity = new client_1.Prisma.Decimal(previouslyReturned._sum.quantity || 0).plus(quantity);
+                if (returnedQuantity.greaterThan(orderItem.quantity)) {
                     throw new Error('REFUND_QUANTITY_EXCEEDED');
                 }
-                const amount = new client_1.Prisma.Decimal(orderItem.unitPrice).mul(quantity);
+                // Allocate the saved line total so partial returns add up to the
+                // exact amount charged, including rounding on fractional dishes.
+                const lineTotal = new client_1.Prisma.Decimal(orderItem.totalPrice);
+                const cumulativeAmount = returnedQuantity.equals(orderItem.quantity)
+                    ? lineTotal : lineTotal.mul(returnedQuantity).div(orderItem.quantity).toDecimalPlaces(2);
+                const amount = cumulativeAmount.minus(previouslyReturned._sum.amount || 0);
                 total = total.plus(amount);
                 lineData.push({ orderItemId: orderItem.id, quantity, amount });
             }
@@ -1890,15 +1932,8 @@ async function sendShiftCloseReport(cashierId, sessionId) {
         `Plastik to'lovlar: ${cardPayments.toString()}`,
         `Elektron to'lovlar: ${electronicPayments.toString()}`,
         `Xarajatlar: ${totalExpenses.toString()}`,
-        `Qaytarishlar: \`
-  ];
-  await sendToActiveSubscribers(formatTelegramMessage('Smena hisobi', lines));
-}
-
-export default router;
-
-
-
-
+        `Qaytarishlar: ${totalRefunds.toString()}`,
     ];
+    await (0, telegram_1.sendToActiveSubscribers)((0, telegram_1.formatTelegramMessage)('Smena hisobi', lines));
 }
+exports.default = router;
