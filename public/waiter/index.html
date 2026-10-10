@@ -284,7 +284,7 @@
                                 <span id="cart-total-amount" class="text-sky-600">0 so'm</span>
                             </div>
                             <button onclick="submitWaiterOrder()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-paper-plane"></i> Buyurtmani yuborish
+                                <i class="fa-solid fa-utensils"></i> Buyurtmani yuborish
                             </button>
                         </div>
                     </div>
@@ -1268,12 +1268,17 @@
                 </button>`).join('');
         }
 
+        function normalizeMenuSearch(value) {
+            return String(value ?? '').normalize('NFKC').toLowerCase()
+                .replace(/['‘’ʻʼ`´]/g, '').replace(/\s+/g, ' ').trim();
+        }
+
         function renderMenuCatalog(items) {
             const grid = document.getElementById('menu-items-grid');
+            const query = normalizeMenuSearch(document.getElementById('menu-search-input').value);
             const filtered = items.filter(it => {
                 if (selectedCategory !== 'ALL' && (it.category?.name || it.category) !== selectedCategory) return false;
-                const q = document.getElementById('menu-search-input').value.toLowerCase();
-                if (q && !it.name.toLowerCase().includes(q)) return false;
+                if (query && !normalizeMenuSearch(it.name).includes(query)) return false;
                 return true;
             });
 
