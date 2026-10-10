@@ -236,16 +236,30 @@
                     <!-- Menu Catalog (2 cols) -->
                     <div class="lg:col-span-2 space-y-4">
                         <!-- Table Selection & Search bar -->
-                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-4 justify-between items-center">
-                            <div class="w-full sm:w-1/2">
+                        <div class="rounded-2xl bg-gradient-to-r from-sky-700 to-indigo-700 p-5 text-white shadow-lg shadow-sky-900/10">
+                            <p class="text-xs font-bold uppercase tracking-widest text-sky-200">Yangi buyurtma</p>
+                            <h2 class="mt-1 text-2xl font-black">Mehmonlar uchun dasturxon</h2>
+                            <p class="mt-2 text-sm text-sky-100">Stol va mijozlar sonini tanlang, so‘ng taomlarni savatga qo‘shing.</p>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stolni tanlang</label>
                                 <select id="builder-table-select" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
                                     <option value="">-- Stol tanlanmagan --</option>
                                 </select>
                             </div>
-                            <div class="w-full sm:w-1/2">
+                            <div>
+                                <label for="builder-guest-count" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Mijozlar soni</label>
+                                <div class="flex items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 p-1">
+                                    <button type="button" onclick="changeGuestCount(-1)" aria-label="Mijozlar sonini kamaytirish" class="h-10 w-10 shrink-0 rounded-lg bg-white text-sky-700 text-xl font-bold shadow-sm hover:bg-sky-100">−</button>
+                                    <input id="builder-guest-count" type="number" min="1" max="999" step="1" value="1" inputmode="numeric" class="min-w-0 w-full bg-transparent text-center text-lg font-black text-sky-900 focus:outline-none focus:ring-2 focus:ring-sky-500 rounded-lg" aria-label="Mijozlar soni">
+                                    <span class="text-xs font-semibold text-sky-700">kishi</span>
+                                    <button type="button" onclick="changeGuestCount(1)" aria-label="Mijozlar sonini oshirish" class="h-10 w-10 shrink-0 rounded-lg bg-sky-600 text-white text-xl font-bold shadow-sm hover:bg-sky-700">+</button>
+                                </div>
+                            </div>
+                            <div class="sm:col-span-2">
                                 <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Taom qidirish</label>
-                                <input type="text" id="menu-search-input" oninput="filterMenuCatalog()" placeholder="Taom qidirish..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                <div class="relative"><i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-slate-400" aria-hidden="true"></i><input type="search" id="menu-search-input" oninput="filterMenuCatalog()" placeholder="Taom nomini yozing..." class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"></div>
                             </div>
                         </div>
 
@@ -261,9 +275,9 @@
                     </div>
 
                     <!-- Order Builder / Cart (1 col sticky) -->
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col h-[calc(100vh-140px)] sticky top-6">
+                    <div class="bg-white rounded-2xl border border-sky-100 shadow-xl shadow-slate-200/50 p-5 sm:p-6 flex flex-col lg:max-h-[calc(100vh-140px)] lg:sticky lg:top-6">
                         <h2 class="text-lg font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100 flex items-center justify-between">
-                            <span>Buyurtma</span>
+                            <span><i class="fa-solid fa-basket-shopping text-sky-600 mr-2" aria-hidden="true"></i>Buyurtma</span>
                             <span id="cart-item-count" class="text-xs bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full font-bold">0 taom</span>
                         </h2>
 
@@ -279,11 +293,11 @@
 
                         <!-- Total & Submit Button -->
                         <div class="mt-4 pt-4 border-t border-slate-200 space-y-3">
-                            <div class="flex justify-between items-center text-base font-bold text-slate-900">
+                            <div class="flex justify-between items-center gap-2 rounded-xl bg-sky-50 p-4 text-base font-bold text-slate-900">
                                 <span>Jami summa:</span>
                                 <span id="cart-total-amount" class="text-sky-600">0 so'm</span>
                             </div>
-                            <button onclick="submitWaiterOrder()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
+                            <button type="button" id="submit-waiter-order" onclick="submitWaiterOrder()" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-utensils"></i> Buyurtmani yuborish
                             </button>
                         </div>
@@ -1358,7 +1372,15 @@
             cartItems[idx].note = val;
         }
 
+        function changeGuestCount(delta) {
+            const input = document.getElementById('builder-guest-count');
+            const value = Number(input.value);
+            input.value = Math.max(1, Math.min(999, (Number.isInteger(value) ? value : 1) + delta));
+        }
+
         async function submitWaiterOrder() {
+            const button = document.getElementById('submit-waiter-order');
+            if (button.disabled) return;
             const tableId = document.getElementById('builder-table-select').value;
             if (!tableId) {
                 alert('Iltimos, stolni tanlang!');
@@ -1369,13 +1391,21 @@
                 return;
             }
             const generalNote = document.getElementById('order-general-note').value;
+            const guestCount = Number(document.getElementById('builder-guest-count').value);
+            if (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 999) {
+                alert('Mijozlar sonini 1 dan 999 gacha butun son bilan kiriting');
+                document.getElementById('builder-guest-count').focus();
+                return;
+            }
 
+            button.disabled = true;
             try {
                 const res = await fetch('/api/orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         tableId,
+                        guestCount,
                         items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity, note: i.note })),
                         note: generalNote
                     })
@@ -1385,6 +1415,7 @@
                     showNotification('Buyurtma muvaffaqiyatli yuborildi!');
                     cartItems = [];
                     document.getElementById('order-general-note').value = '';
+                    document.getElementById('builder-guest-count').value = '1';
                     renderCart();
                     switchTab('orders');
                 } else {
@@ -1394,6 +1425,8 @@
             } catch(e) {
                 console.error('Buyurtma yaratishda tarmoq xatoligi:', e);
                 alert('Internet aloqasi xatoligi');
+            } finally {
+                button.disabled = false;
             }
         }
 
