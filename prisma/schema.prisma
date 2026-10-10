@@ -29,6 +29,7 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  pinCodeHash  String?
 
   // Aloqalar
   waiterProfile           WaiterProfile?
@@ -181,7 +182,8 @@ model InventoryProduct {
   unit        String // kg, g, litr, dona
   quantity    Decimal @default(0) // Qoldiq miqdor
   minQuantity Decimal @default(5) // Minimal xavfsiz qoldiq (Kam qolganda ogohlantirish)
-  isActive    Boolean @default(true)
+
+  lowStockNotified Boolean @default(false)
 
   recipes        Recipe[]
   transactions   InventoryTransaction[]
@@ -693,3 +695,32 @@ model RestaurantSetting {
   negativeStockAllowed Boolean  @default(false)
   updatedAt            DateTime @updatedAt
 }
+
+
+model TelegramSubscriber {
+  id        String   @id @default(uuid())
+  name      String
+  username  String?
+  chatId    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  id             String   @id @default(uuid())
+  role           RoleType
+  permissionKey  String
+  enabled        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([role, permissionKey])
+  @@index([role])
+}
+
+
+
+
+
+

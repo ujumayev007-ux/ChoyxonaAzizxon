@@ -312,7 +312,7 @@ async function summary(filters) {
         getSalesTrend(filters),
         menuAggregates(filters),
         db_1.prisma.inventoryProduct.findMany({
-            where: { isActive: true },
+            where: {},
             select: { id: true, quantity: true, minQuantity: true }
         }),
         db_1.prisma.order.groupBy({
@@ -600,7 +600,7 @@ async function cashiers(filters) {
 }
 async function inventory(filters) {
     const products = await db_1.prisma.inventoryProduct.findMany({
-        where: { isActive: true },
+        where: {},
         select: { id: true, name: true, unit: true, quantity: true, minQuantity: true },
         orderBy: { name: 'asc' }
     });
