@@ -38,12 +38,12 @@ async function readFilters(query) {
     const from = query.from === undefined ? tashkentDayStart() : parseDate(query.from);
     const to = query.to === undefined ? new Date(tashkentDayStart().getTime() + 24 * 60 * 60 * 1000 - 1) : parseDate(query.to);
     if (!from || !to || from > to || to.getTime() - from.getTime() > 3660 * 24 * 60 * 60 * 1000) {
-        return 'Hisobot sanalari notoвЂgвЂri yoki 10 yildan uzun';
+        return 'Hisobot sanalari noto‘g‘ri yoki 10 yildan uzun';
     }
     const filters = { from, to };
     if (query.search !== undefined) {
         if (typeof query.search !== 'string' || query.search.length > 100)
-            return 'Qidiruv matni notoвЂgвЂri';
+            return 'Qidiruv matni noto‘g‘ri';
         filters.search = query.search.trim();
     }
     const idFields = ['waiterId', 'cashierId', 'dishId', 'categoryId'];
@@ -52,7 +52,7 @@ async function readFilters(query) {
         if (value === undefined || value === '')
             continue;
         if (typeof value !== 'string' || value.length > 100)
-            return 'Hisobot filtri notoвЂgвЂri';
+            return 'Hisobot filtri noto‘g‘ri';
         filters[field] = value;
     }
     if (filters.waiterId || filters.cashierId) {
@@ -76,13 +76,13 @@ async function readFilters(query) {
     }
     if (query.paymentMethod !== undefined) {
         if (typeof query.paymentMethod !== 'string' || !Object.values(client_1.PaymentMethod).includes(query.paymentMethod)) {
-            return 'ToвЂlov turi notoвЂgвЂri';
+            return 'To‘lov turi noto‘g‘ri';
         }
         filters.paymentMethod = query.paymentMethod;
     }
     if (query.orderType !== undefined) {
         if (typeof query.orderType !== 'string' || !Object.values(client_1.OrderType).includes(query.orderType)) {
-            return 'Buyurtma turi notoвЂgвЂri';
+            return 'Buyurtma turi noto‘g‘ri';
         }
         filters.orderType = query.orderType;
     }
@@ -277,11 +277,11 @@ async function menuAggregates(filters) {
         const revenue = (group._sum.totalPrice || zero).minus(returned?.revenue || zero);
         return {
             menuItemId: group.menuItemId,
-            name: byId.get(group.menuItemId)?.name || 'NomaвЂ™lum taom',
+            name: byId.get(group.menuItemId)?.name || 'Noma’lum taom',
             unit: byId.get(group.menuItemId)?.unit || 'dona',
             isActive: byId.get(group.menuItemId)?.isActive ?? false,
             categoryId: byId.get(group.menuItemId)?.category.id || null,
-            category: byId.get(group.menuItemId)?.category.name || 'NomaвЂ™lum kategoriya',
+            category: byId.get(group.menuItemId)?.category.name || 'Noma’lum kategoriya',
             categoryActive: byId.get(group.menuItemId)?.category.isActive ?? false,
             quantity: quantity.toString(),
             revenue: revenue.toString()
@@ -312,7 +312,7 @@ async function summary(filters) {
         getSalesTrend(filters),
         menuAggregates(filters),
         db_1.prisma.inventoryProduct.findMany({
-            where: {},
+            where: { isActive: true },
             select: { id: true, quantity: true, minQuantity: true }
         }),
         db_1.prisma.order.groupBy({
@@ -379,7 +379,7 @@ async function summary(filters) {
         ...paymentHistory.map(payment => ({
             id: payment.id, amount: payment.amount.toString(), method: payment.method,
             createdAt: payment.createdAt.toISOString(), cashier: payment.cashier.fullName,
-            orderNumber: payment.order.orderNumber, orderType: payment.order.orderType, kind: 'Buyurtma toвЂlovi'
+            orderNumber: payment.order.orderNumber, orderType: payment.order.orderType, kind: 'Buyurtma to‘lovi'
         })),
         ...debtPaymentHistory.map(payment => ({
             id: payment.id, amount: payment.amount.toString(), method: payment.method,
@@ -600,7 +600,7 @@ async function cashiers(filters) {
 }
 async function inventory(filters) {
     const products = await db_1.prisma.inventoryProduct.findMany({
-        where: {},
+        where: { isActive: true },
         select: { id: true, name: true, unit: true, quantity: true, minQuantity: true },
         orderBy: { name: 'asc' }
     });
@@ -702,7 +702,7 @@ async function refunds(filters) {
             amount: record.amount.toString(),
             createdAt: record.createdAt.toISOString(),
             items: record.items.map(item => ({
-                name: itemNames.get(item.orderItemId)?.name || 'NomaвЂ™lum taom',
+                name: itemNames.get(item.orderItemId)?.name || 'Noma’lum taom',
                 unit: itemNames.get(item.orderItemId)?.unit || 'dona',
                 quantity: item.quantity.toString(),
                 amount: item.amount.toString()
@@ -847,9 +847,9 @@ async function loyalCustomers() {
     });
     return {
         thresholds: {
-            silver: '5+ buyurtma, 2 mln soвЂm+, oвЂrtacha chek 200 ming soвЂm+, oxirgi tashrif 90 kun ichida',
-            gold: '15+ buyurtma, 10 mln soвЂm+, oвЂrtacha chek 500 ming soвЂm+, oxirgi tashrif 60 kun ichida',
-            vip: '30+ buyurtma, 20 mln soвЂm+, oвЂrtacha chek 750 ming soвЂm+, oxirgi tashrif 45 kun ichida',
+            silver: '5+ buyurtma, 2 mln so‘m+, o‘rtacha chek 200 ming so‘m+, oxirgi tashrif 90 kun ichida',
+            gold: '15+ buyurtma, 10 mln so‘m+, o‘rtacha chek 500 ming so‘m+, oxirgi tashrif 60 kun ichida',
+            vip: '30+ buyurtma, 20 mln so‘m+, o‘rtacha chek 750 ming so‘m+, oxirgi tashrif 45 kun ichida',
             reengageAfterDays: 90
         },
         levels: ['Bronze', 'Silver', 'Gold', 'VIP'].map(level => ({ level, count: ranked.filter(row => row.level === level).length })),
@@ -998,12 +998,12 @@ router.get('/filters', async (_req, res) => {
     }
     catch (error) {
         console.error('Hisobot filtrlari yuklanmadi:', error);
-        res.status(500).json({ success: false, message: 'Hisobot filtrlarini yuklab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Hisobot filtrlarini yuklab bo‘lmadi' });
     }
 });
 router.get('/:section', async (req, res) => {
     if (!validSections.has(req.params.section)) {
-        res.status(404).json({ success: false, message: 'Hisobot boвЂlimi topilmadi' });
+        res.status(404).json({ success: false, message: 'Hisobot bo‘limi topilmadi' });
         return;
     }
     try {

@@ -1,4 +1,4 @@
-﻿import { createHash, randomBytes, randomInt } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import { OrderSource, OrderStatus, OrderType, PaymentMethod, Prisma, RoleType } from '@prisma/client';
 import { Router } from 'express';
 import { authenticateToken, clearTerminalAdminCookie, requireCashierAccess, requireRole, setTerminalAdminCookie } from '../middleware/auth';
@@ -37,7 +37,7 @@ const methods: Record<string, PaymentMethod> = {
     ELEKTRON: PaymentMethod.ELEKTRON,
     ELECTRONIC: PaymentMethod.ELEKTRON,
     electronic: PaymentMethod.ELEKTRON,
-    'Elektron toвЂlov': PaymentMethod.ELEKTRON
+    'Elektron to‘lov': PaymentMethod.ELEKTRON
 };
 
 const parseDecimal = (value: unknown, pattern = moneyPattern): Prisma.Decimal | null => {
@@ -269,7 +269,7 @@ router.get('/dashboard', async (req, res) => {
         });
     } catch (error) {
         console.error('Kassir bosh sahifasini yuklashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassa maвЂ™lumotlarini yuklab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassa ma’lumotlarini yuklab bo‘lmadi' });
     }
 });
 
@@ -340,7 +340,7 @@ router.get('/orders', async (req, res) => {
         res.json({ success: true, data: orders });
     } catch (error) {
         console.error('Kassir buyurtmalarini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Buyurtmalarni yuklab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Buyurtmalarni yuklab bo‘lmadi' });
     }
 });
 
@@ -351,7 +351,7 @@ router.post('/orders', async (req, res) => {
     if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 100 ||
         itemsInput.some(item => !item || typeof item.menuItemId !== 'string' ||
             !parseDecimal(item.quantity, quantityPattern)?.greaterThan(0))) {
-        res.status(400).json({ success: false, message: 'Buyurtma taomlari yoki miqdori notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Buyurtma taomlari yoki miqdori noto‘g‘ri' });
         return;
     }
     if (type === OrderType.DINE_IN && typeof req.body?.tableId !== 'string') {
@@ -366,26 +366,26 @@ router.post('/orders', async (req, res) => {
     if (packagingInput !== undefined && (!Array.isArray(packagingInput) ||
         packagingInput.some(item => !item || typeof item.optionId !== 'string' ||
             !parseDecimal(item.quantity, quantityPattern)?.greaterThan(0)))) {
-        res.status(400).json({ success: false, message: 'Qadoqlash maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Qadoqlash ma’lumotlari noto‘g‘ri' });
         return;
     }
     try {
         const tableId = type === OrderType.DINE_IN ? req.body.tableId as string : null;
         if (tableId) {
-            const table = await prisma.table.findFirst({ where: { id: tableId, room: {  } } });
+            const table = await prisma.table.findFirst({ where: { id: tableId, isActive: true, room: { isActive: true } } });
             if (!table) {
                 res.status(400).json({ success: false, message: 'Faol stol topilmadi' });
                 return;
             }
         }
         const customerId = typeof req.body?.customerId === 'string' ? req.body.customerId : null;
-        if (customerId && !await prisma.customer.findFirst({ where: { id: customerId }, select: { id: true } })) {
+        if (customerId && !await prisma.customer.findFirst({ where: { id: customerId, isActive: true }, select: { id: true } })) {
             res.status(400).json({ success: false, message: 'Mijoz topilmadi yoki faol emas' });
             return;
         }
         const menuIds = [...new Set((itemsInput as Array<{ menuItemId: string }>).map(item => item.menuItemId))];
         const menu = await prisma.menuItem.findMany({
-            where: { id: { in: menuIds }, category: {  } },
+            where: { id: { in: menuIds }, isActive: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         if (menu.length !== menuIds.length) {
@@ -407,7 +407,7 @@ router.post('/orders', async (req, res) => {
         });
         const packageRows = (packagingInput || []) as Array<{ optionId: string; quantity: string | number }>;
         const packageOptions = packageRows.length ? await prisma.packagingOption.findMany({
-            where: { id: { in: packageRows.map(item => item.optionId) } },
+            where: { id: { in: packageRows.map(item => item.optionId) }, isActive: true },
             include: { inventory: { select: { id: true, name: true, unit: true, quantity: true } } }
         }) : [];
         if (packageOptions.length !== new Set(packageRows.map(item => item.optionId)).size) {
@@ -486,11 +486,11 @@ router.post('/orders', async (req, res) => {
         });
     } catch (error) {
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsulotining ombordagi qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsulotining ombordagi qoldig‘i yetarli emas' });
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
-            res.status(409).json({ success: false, message: 'MaвЂ™lumotlar bir vaqtda oвЂzgardi, qayta urinib koвЂring' });
+            res.status(409).json({ success: false, message: 'Ma’lumotlar bir vaqtda o‘zgardi, qayta urinib ko‘ring' });
             return;
         }
         console.error('Kassir buyurtmasini yaratishda xatolik:', error);
@@ -509,7 +509,7 @@ router.post('/orders/:id/lock', async (req, res) => {
             return;
         }
         if (([OrderStatus.TOLANDI, OrderStatus.YAKUNLANDI, OrderStatus.BEKOR_QILINDI, OrderStatus.QAYTARILDI] as OrderStatus[]).includes(current.status)) {
-            res.status(409).json({ success: false, message: 'Yakunlangan buyurtmani kassaga bandlab boвЂlmaydi' });
+            res.status(409).json({ success: false, message: 'Yakunlangan buyurtmani kassaga bandlab bo‘lmaydi' });
             return;
         }
         const expired = !current.processingAt || Date.now() - current.processingAt.getTime() > 10 * 60 * 1000;
@@ -532,7 +532,7 @@ router.post('/orders/:id/lock', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Buyurtmani kassirga biriktirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Buyurtmani band qilib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Buyurtmani band qilib bo‘lmadi' });
     }
 });
 
@@ -546,7 +546,7 @@ router.post('/orders/:id/unlock', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Buyurtma bandligini yechishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Buyurtmani boвЂshatib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Buyurtmani bo‘shatib bo‘lmadi' });
     }
 });
 
@@ -560,7 +560,7 @@ router.post('/payments', async (req, res) => {
     const customerId = typeof req.body?.customerId === 'string' ? req.body.customerId : null;
     if (!orderId || !idempotencyKey || !debtAmount || submitted.length > 3 ||
         (submitted.length === 0 && debtAmount.isZero())) {
-        res.status(400).json({ success: false, message: 'ToвЂlov maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'To‘lov ma’lumotlari noto‘g‘ri' });
         return;
     }
     const rows = submitted.map(row => ({
@@ -571,7 +571,7 @@ router.post('/payments', async (req, res) => {
     }));
     if (rows.some(row => !row.method || row.method === PaymentMethod.QARZ || !row.amount?.greaterThan(0) ||
         (row.customerGiven && !row.customerGiven.greaterThan(0)))) {
-        res.status(400).json({ success: false, message: 'ToвЂlov usuli yoki summasi notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'To‘lov usuli yoki summasi noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ orderId, rows: rows.map(row => ({
@@ -620,7 +620,7 @@ router.post('/payments', async (req, res) => {
             if (debtAmount.greaterThan(0) && !customerId && !order.customerId) throw new Error('CUSTOMER_REQUIRED');
             const debtCustomerId = customerId || order.customerId;
             if (debtAmount.greaterThan(0) && debtCustomerId &&
-                !await tx.customer.findFirst({ where: { id: debtCustomerId }, select: { id: true } })) {
+                !await tx.customer.findFirst({ where: { id: debtCustomerId, isActive: true }, select: { id: true } })) {
                 throw new Error('CUSTOMER_REQUIRED');
             }
             const change = rows.filter(row => row.method === PaymentMethod.NAQD)
@@ -672,7 +672,7 @@ router.post('/payments', async (req, res) => {
                     processingById: null,
                     processingAt: null,
                     ...(debtCustomerId && !order.customerId ? { customerId: debtCustomerId } : {}),
-                    statusHistory: { create: { status, userId: req.user!.id, comment: `Kassir toвЂlovi: ${paidNow.toString()}` } }
+                    statusHistory: { create: { status, userId: req.user!.id, comment: `Kassir to‘lovi: ${paidNow.toString()}` } }
                 },
                 select: { id: true, orderNumber: true, status: true, totalAmount: true, orderType: true }
             });
@@ -724,17 +724,17 @@ router.post('/payments', async (req, res) => {
         res.json({ success: true, data: result.response });
     } catch (error) {
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         const knownErrors: Record<string, { status: number; message: string }> = {
             ORDER_NOT_FOUND: { status: 404, message: 'Buyurtma topilmadi' },
-            ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani toвЂlab boвЂlmaydi' },
+            ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani to‘lab bo‘lmaydi' },
             ORDER_LOCKED: { status: 409, message: 'Buyurtma boshqa xodim tomonidan qayta ishlanmoqda' },
-            PAYMENT_AMOUNT_INVALID: { status: 400, message: 'ToвЂlov va qarz summasi qoldiq summaga mos emas' },
+            PAYMENT_AMOUNT_INVALID: { status: 400, message: 'To‘lov va qarz summasi qoldiq summaga mos emas' },
             CUSTOMER_REQUIRED: { status: 400, message: 'Qarz uchun mijozni tanlang' },
             CASH_INSUFFICIENT: { status: 400, message: 'Mijoz bergan naqd pul yetarli emas' },
-            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' }
+            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' }
         };
         if (error instanceof Error && knownErrors[error.message]) {
             const result = knownErrors[error.message];
@@ -742,15 +742,15 @@ router.post('/payments', async (req, res) => {
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
-            res.status(409).json({ success: false, message: 'ToвЂlov allaqachon yuborilgan yoki maвЂ™lumotlar yangilandi. Sahifani yangilang.' });
+            res.status(409).json({ success: false, message: 'To‘lov allaqachon yuborilgan yoki ma’lumotlar yangilandi. Sahifani yangilang.' });
             return;
         }
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
-        console.error('Kassir toвЂlovini yozishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'ToвЂlovni amalga oshirib boвЂlmadi' });
+        console.error('Kassir to‘lovini yozishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'To‘lovni amalga oshirib bo‘lmadi' });
     }
 });
 
@@ -767,8 +767,8 @@ router.get('/payments', async (req, res) => {
         });
         res.json({ success: true, data: payments });
     } catch (error) {
-        console.error('ToвЂlovlar tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'ToвЂlovlar tarixini olib boвЂlmadi' });
+        console.error('To‘lovlar tarixini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'To‘lovlar tarixini olib bo‘lmadi' });
     }
 });
 
@@ -783,7 +783,7 @@ router.get('/customers', async (req, res) => {
     try {
         const customers = await prisma.customer.findMany({
             where: {
-                
+                isActive: true,
                 OR: [
                     { firstName: { contains: query, mode: 'insensitive' } },
                     { lastName: { contains: query, mode: 'insensitive' } },
@@ -815,7 +815,7 @@ router.get('/customers', async (req, res) => {
         });
     } catch (error) {
         console.error('Mijozlarni qidirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Mijozlarni qidirib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Mijozlarni qidirib bo‘lmadi' });
     }
 });
 
@@ -825,7 +825,7 @@ router.post('/customers', async (req, res) => {
     const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim().slice(0, 40) : '';
     const phoneDigits = phone.replace(/\D/g, '');
     if (!firstName || !phoneDigits || phoneDigits.length < 7) {
-        res.status(400).json({ success: false, message: 'Mijoz ismi va toвЂgвЂri telefon raqami kerak' });
+        res.status(400).json({ success: false, message: 'Mijoz ismi va to‘g‘ri telefon raqami kerak' });
         return;
     }
     try {
@@ -836,7 +836,7 @@ router.post('/customers', async (req, res) => {
         res.status(201).json({ success: true, data: customer });
     } catch (error) {
         console.error('Mijoz yaratishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Mijozni yaratib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Mijozni yaratib bo‘lmadi' });
     }
 });
 
@@ -857,14 +857,14 @@ router.get('/customers/:id', async (req, res) => {
         res.json({ success: true, data: customer });
     } catch (error) {
         console.error('Mijoz kartasini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Mijoz maвЂ™lumotlarini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Mijoz ma’lumotlarini olib bo‘lmadi' });
     }
 });
 
 router.patch('/customers/:id', requireRole(['ADMIN']), async (req, res) => {
     const status = req.body?.status;
     if (status !== undefined && !['YANGI', 'DOIMIY', 'VIP', 'ODDIY'].includes(status)) {
-        res.status(400).json({ success: false, message: 'Mijoz holati notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Mijoz holati noto‘g‘ri' });
         return;
     }
     const data: Prisma.CustomerUpdateInput = {};
@@ -877,7 +877,7 @@ router.patch('/customers/:id', requireRole(['ADMIN']), async (req, res) => {
     if (typeof req.body?.notes === 'string') data.notes = req.body.notes.trim().slice(0, 1000);
     if (typeof status === 'string') data.status = status;
     if (!Object.keys(data).length) {
-        res.status(400).json({ success: false, message: 'Yangilash uchun maвЂ™lumot kiriting' });
+        res.status(400).json({ success: false, message: 'Yangilash uchun ma’lumot kiriting' });
         return;
     }
     try {
@@ -892,8 +892,8 @@ router.patch('/customers/:id', requireRole(['ADMIN']), async (req, res) => {
             res.status(404).json({ success: false, message: 'Mijoz topilmadi' });
             return;
         }
-        console.error('Mijoz maвЂ™lumotlarini yangilashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Mijoz maвЂ™lumotlarini yangilab boвЂlmadi' });
+        console.error('Mijoz ma’lumotlarini yangilashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Mijoz ma’lumotlarini yangilab bo‘lmadi' });
     }
 });
 
@@ -914,7 +914,7 @@ router.get('/debts', async (req, res) => {
         res.json({ success: true, data: debts });
     } catch (error) {
         console.error('Qarzlar tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qarzlar tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Qarzlar tarixini olib bo‘lmadi' });
     }
 });
 
@@ -923,7 +923,7 @@ router.post('/debts/:id/payments', async (req, res) => {
     const method = parseMethod(req.body?.method);
     const key = getIdempotencyKey(req.body?.idempotencyKey);
     if (!amount?.greaterThan(0) || !method || method === PaymentMethod.QARZ || !key) {
-        res.status(400).json({ success: false, message: 'Qarz toвЂlovi maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Qarz to‘lovi ma’lumotlari noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ debtId: req.params.id, amount: amount.toString(), method });
@@ -977,7 +977,7 @@ router.post('/debts/:id/payments', async (req, res) => {
                             data: {
                                 status: OrderStatus.TOLANDI,
                                 paidAt: new Date(),
-                                statusHistory: { create: { status: OrderStatus.TOLANDI, userId: req.user!.id, comment: 'Qarz toвЂliq toвЂlandi' } }
+                                statusHistory: { create: { status: OrderStatus.TOLANDI, userId: req.user!.id, comment: 'Qarz to‘liq to‘landi' } }
                             }
                         });
                         settledOrderId = order.id;
@@ -1025,23 +1025,23 @@ router.post('/debts/:id/payments', async (req, res) => {
         res.status(201).json({ success: true, data: result.response });
     } catch (error) {
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         if (error instanceof Error && error.message === 'IDEMPOTENCY_KEY_REUSED') {
-            res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+            res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
             return;
         }
         if (error instanceof Error && error.message === 'DEBT_PAYMENT_INVALID') {
-            res.status(409).json({ success: false, message: 'Qarz topilmadi yoki toвЂlov qoldiqdan koвЂp' });
+            res.status(409).json({ success: false, message: 'Qarz topilmadi yoki to‘lov qoldiqdan ko‘p' });
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
-            res.status(409).json({ success: false, message: 'Qarz toвЂlovi allaqachon yuborilgan yoki yangilandi' });
+            res.status(409).json({ success: false, message: 'Qarz to‘lovi allaqachon yuborilgan yoki yangilandi' });
             return;
         }
-        console.error('Qarz toвЂlovini saqlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qarz toвЂlovini saqlab boвЂlmadi' });
+        console.error('Qarz to‘lovini saqlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Qarz to‘lovini saqlab bo‘lmadi' });
     }
 });
 
@@ -1055,7 +1055,7 @@ router.post('/refunds', async (req, res) => {
         !items.length || new Set(items.map(item => item.orderItemId)).size !== items.length ||
         items.some(item => typeof item.orderItemId !== 'string' ||
             !parseDecimal(item.quantity, quantityPattern)?.greaterThan(0))) {
-        res.status(400).json({ success: false, message: 'Qaytarish maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Qaytarish ma’lumotlari noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ orderId, reason, method, items });
@@ -1137,13 +1137,13 @@ router.post('/refunds', async (req, res) => {
         res.status(201).json({ success: true, data: refund });
     } catch (error) {
         const messages: Record<string, { status: number; message: string }> = {
-            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' },
-            REFUND_ORDER_INVALID: { status: 400, message: 'Buyurtmani qaytarib boвЂlmaydi' },
-            REFUND_OUTSTANDING_DEBT: { status: 409, message: 'Qarz toвЂlanmaguncha buyurtmani qaytarib boвЂlmaydi' },
+            IDEMPOTENCY_KEY_REUSED: { status: 409, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' },
+            REFUND_ORDER_INVALID: { status: 400, message: 'Buyurtmani qaytarib bo‘lmaydi' },
+            REFUND_OUTSTANDING_DEBT: { status: 409, message: 'Qarz to‘lanmaguncha buyurtmani qaytarib bo‘lmaydi' },
             REFUND_ITEM_INVALID: { status: 400, message: 'Buyurtma taomi topilmadi' },
             REFUND_QUANTITY_EXCEEDED: { status: 409, message: 'Qaytarilgan miqdor buyurtma miqdoridan oshdi' },
-            REFUND_AMOUNT_EXCEEDED: { status: 409, message: 'Qaytarish summasi olingan toвЂlovdan oshdi' },
-            ADMIN_APPROVAL_REQUIRED: { status: 403, message: 'Bu summa uchun Admin tasdigвЂi kerak' }
+            REFUND_AMOUNT_EXCEEDED: { status: 409, message: 'Qaytarish summasi olingan to‘lovdan oshdi' },
+            ADMIN_APPROVAL_REQUIRED: { status: 403, message: 'Bu summa uchun Admin tasdig‘i kerak' }
         };
         if (error instanceof Error && messages[error.message]) {
             const entry = messages[error.message];
@@ -1155,7 +1155,7 @@ router.post('/refunds', async (req, res) => {
             return;
         }
         console.error('Buyurtmani qaytarishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qaytarishni saqlab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Qaytarishni saqlab bo‘lmadi' });
     }
 });
 
@@ -1170,7 +1170,7 @@ router.get('/expenses', async (req, res) => {
         res.json({ success: true, data: expenses });
     } catch (error) {
         console.error('Xarajatlar tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xarajatlar tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Xarajatlar tarixini olib bo‘lmadi' });
     }
 });
 
@@ -1181,7 +1181,7 @@ router.post('/expenses', async (req, res) => {
     const description = typeof req.body?.description === 'string' ? req.body.description.trim().slice(0, 500) : '';
     const key = getIdempotencyKey(req.body?.idempotencyKey);
     if (!amount?.greaterThan(0) || !method || method === PaymentMethod.QARZ || !category || !description || !key) {
-        res.status(400).json({ success: false, message: 'Xarajat maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Xarajat ma’lumotlari noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ amount: amount.toString(), method, category, description });
@@ -1208,15 +1208,15 @@ router.post('/expenses', async (req, res) => {
         res.status(201).json({ success: true, data: expense });
     } catch (error) {
         if (error instanceof Error && error.message === 'IDEMPOTENCY_KEY_REUSED') {
-            res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+            res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
-            res.status(409).json({ success: false, message: 'Xarajat allaqachon yuborilgan yoki maвЂ™lumot yangilandi' });
+            res.status(409).json({ success: false, message: 'Xarajat allaqachon yuborilgan yoki ma’lumot yangilandi' });
             return;
         }
         console.error('Xarajatni saqlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xarajatni saqlab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Xarajatni saqlab bo‘lmadi' });
     }
 });
 
@@ -1236,7 +1236,7 @@ router.get('/register', async (req, res) => {
         });
     } catch (error) {
         console.error('Kassa smenasini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassa smenasini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassa smenasini olib bo‘lmadi' });
     }
 });
 
@@ -1245,7 +1245,7 @@ router.post('/register/open', async (req, res) => {
     const key = getIdempotencyKey(req.body?.idempotencyKey);
     if (!startingBalance || !key || (req.body?.terminalId !== undefined &&
         (typeof req.body.terminalId !== 'string' || req.body.terminalId.length > 100))) {
-        res.status(400).json({ success: false, message: 'BoshlangвЂich kassa summasi notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Boshlang‘ich kassa summasi noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ startingBalance: startingBalance.toString(), terminalId: req.body?.terminalId || null });
@@ -1283,15 +1283,15 @@ router.post('/register/open', async (req, res) => {
             return;
         }
         if (error instanceof Error && error.message === 'IDEMPOTENCY_KEY_REUSED') {
-            res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+            res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
-            res.status(409).json({ success: false, message: 'Kassa smenasi bir vaqtda oвЂzgardi' });
+            res.status(409).json({ success: false, message: 'Kassa smenasi bir vaqtda o‘zgardi' });
             return;
         }
         console.error('Kassani ochishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassani ochib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassani ochib bo‘lmadi' });
     }
 });
 
@@ -1299,7 +1299,7 @@ router.post('/register/close', async (req, res) => {
     const actualCash = parseDecimal(req.body?.actualCash);
     const key = getIdempotencyKey(req.body?.idempotencyKey);
     if (!actualCash || !key) {
-        res.status(400).json({ success: false, message: 'Amaldagi kassa summasi notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Amaldagi kassa summasi noto‘g‘ri' });
         return;
     }
     const hash = requestHash({ actualCash: actualCash.toString(), closingNote: req.body?.closingNote || '' });
@@ -1351,15 +1351,15 @@ router.post('/register/close', async (req, res) => {
             return;
         }
         if (error instanceof Error && error.message === 'IDEMPOTENCY_KEY_REUSED') {
-            res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+            res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
-            res.status(409).json({ success: false, message: 'Kassa smenasi bir vaqtda oвЂzgardi' });
+            res.status(409).json({ success: false, message: 'Kassa smenasi bir vaqtda o‘zgardi' });
             return;
         }
         console.error('Kassani yopishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassani yopib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassani yopib bo‘lmadi' });
     }
 });
 
@@ -1367,7 +1367,7 @@ router.get('/history', async (req, res) => {
     const from = typeof req.query.from === 'string' ? new Date(req.query.from) : dayStartInTashkent();
     const to = typeof req.query.to === 'string' ? new Date(req.query.to) : new Date();
     if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
-        res.status(400).json({ success: false, message: 'Sana oraligвЂi notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Sana oralig‘i noto‘g‘ri' });
         return;
     }
     try {
@@ -1387,7 +1387,7 @@ router.get('/history', async (req, res) => {
         res.json({ success: true, data: { movements, sessions } });
     } catch (error) {
         console.error('Kassa tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassa tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassa tarixini olib bo‘lmadi' });
     }
 });
 
@@ -1421,7 +1421,7 @@ router.get('/search', async (req, res) => {
             }),
             prisma.customer.findMany({
                 where: {
-                    
+                    isActive: true,
                     OR: [
                         { firstName: { contains: query, mode: 'insensitive' } },
                         { lastName: { contains: query, mode: 'insensitive' } },
@@ -1446,7 +1446,7 @@ router.get('/search', async (req, res) => {
         });
     } catch (error) {
         console.error('Kassa umumiy qidiruvida xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qidiruvni bajarib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Qidiruvni bajarib bo‘lmadi' });
     }
 });
 
@@ -1477,10 +1477,10 @@ router.get('/orders/:id/timeline', async (req, res) => {
                 role: item.user?.role || null, details: item.comment
             })),
             ...order.payments.map(item => ({
-                at: item.createdAt, action: 'TOвЂLOV', employee: item.cashier.fullName, role: item.cashier.role, details: `${item.amount} ${item.method}`
+                at: item.createdAt, action: 'TO‘LOV', employee: item.cashier.fullName, role: item.cashier.role, details: `${item.amount} ${item.method}`
             })),
             ...order.refunds.map(item => ({
-                at: item.createdAt, action: 'QAYTARISH', employee: item.cashier.fullName, role: RoleType.CASHIER, details: `${item.amount} soвЂm вЂ” ${item.reason}`
+                at: item.createdAt, action: 'QAYTARISH', employee: item.cashier.fullName, role: RoleType.CASHIER, details: `${item.amount} so‘m — ${item.reason}`
             })),
             ...(order.createdBy ? [{
                 at: order.createdAt, action: 'ORDER_SOURCE', employee: order.createdBy.fullName, role: order.createdBy.role, details: order.source
@@ -1489,7 +1489,7 @@ router.get('/orders/:id/timeline', async (req, res) => {
         res.json({ success: true, data: { order, entries } });
     } catch (error) {
         console.error('Buyurtma tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Buyurtma tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Buyurtma tarixini olib bo‘lmadi' });
     }
 });
 
@@ -1507,14 +1507,14 @@ router.get('/waiter-calls', async (_req, res) => {
         res.json({ success: true, data: calls });
     } catch (error) {
         console.error('Ofitsiant chaqiruvlarini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chaqiruvlarni olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Chaqiruvlarni olib bo‘lmadi' });
     }
 });
 
 router.post('/waiter-calls/:id/status', async (req, res) => {
     const next = req.body?.status;
     if (!['QABUL_QILINDI', 'YAKUNLANDI'].includes(next)) {
-        res.status(400).json({ success: false, message: 'Chaqiruv holati notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Chaqiruv holati noto‘g‘ri' });
         return;
     }
     try {
@@ -1536,7 +1536,7 @@ router.post('/waiter-calls/:id/status', async (req, res) => {
         res.json({ success: true, data: updated });
     } catch (error) {
         console.error('Ofitsiant chaqiruvini yangilashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chaqiruv holatini yangilab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Chaqiruv holatini yangilab bo‘lmadi' });
     }
 });
 
@@ -1544,7 +1544,7 @@ router.get('/reports', async (req, res) => {
     const from = typeof req.query.from === 'string' ? new Date(req.query.from) : dayStartInTashkent();
     const to = typeof req.query.to === 'string' ? new Date(req.query.to) : new Date();
     if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
-        res.status(400).json({ success: false, message: 'Hisobot sanalari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Hisobot sanalari noto‘g‘ri' });
         return;
     }
     const cashierFilter = req.user!.role === RoleType.CASHIER ? { cashierId: req.user!.id } : {};
@@ -1572,7 +1572,7 @@ router.get('/reports', async (req, res) => {
         });
     } catch (error) {
         console.error('Kassir hisobotini tuzishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Hisobotni olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Hisobotni olib bo‘lmadi' });
     }
 });
 
@@ -1593,7 +1593,7 @@ router.get('/receipts', async (req, res) => {
         res.json({ success: true, data: receipts });
     } catch (error) {
         console.error('Cheklar tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Cheklar tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Cheklar tarixini olib bo‘lmadi' });
     }
 });
 
@@ -1621,7 +1621,7 @@ router.post('/receipts/:id/reprint', async (req, res) => {
         }
         const lastJob = receipt.order.printJobs[0];
         if (!lastJob) {
-            res.status(409).json({ success: false, message: 'Chek uchun chop etish maвЂ™lumoti topilmadi' });
+            res.status(409).json({ success: false, message: 'Chek uchun chop etish ma’lumoti topilmadi' });
             return;
         }
         const job = await prisma.printJob.create({
@@ -1632,35 +1632,35 @@ router.post('/receipts/:id/reprint', async (req, res) => {
         });
         res.status(201).json({ success: true, data: { jobId: job.id, payload: JSON.parse(job.payload), status: job.status } });
     } catch (error) {
-        console.error('Chekni qayta chop etish navbatiga qoвЂyishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chekni chop etishga tayyorlab boвЂlmadi' });
+        console.error('Chekni qayta chop etish navbatiga qo‘yishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Chekni chop etishga tayyorlab bo‘lmadi' });
     }
 });
 
 router.get('/printers', requireRole(['ADMIN']), async (_req, res) => {
     try {
         const printers = await prisma.printer.findMany({
-            select: { id: true, name: true, department: true, ipAddress: true, port: true },
+            select: { id: true, name: true, department: true, isActive: true, ipAddress: true, port: true },
             orderBy: { department: 'asc' }
         });
-        res.json({ success: true, data: printers.map(printer => ({ ...printer, status: true ? 'CONFIGURED' : 'DISABLED' })) });
+        res.json({ success: true, data: printers.map(printer => ({ ...printer, status: printer.isActive ? 'CONFIGURED' : 'DISABLED' })) });
     } catch (error) {
         console.error('Printerlar holatini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Printerlar holatini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Printerlar holatini olib bo‘lmadi' });
     }
 });
 
 router.get('/packaging', async (_req, res) => {
     try {
         const options = await prisma.packagingOption.findMany({
-            where: {  inventory: {  } },
+            where: { isActive: true, inventory: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true, inventory: { select: { id: true, unit: true, quantity: true } } },
             orderBy: { name: 'asc' }
         });
         res.json({ success: true, data: options });
     } catch (error) {
-        console.error('Qadoqlash roвЂyxatini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qadoqlash roвЂyxatini olib boвЂlmadi' });
+        console.error('Qadoqlash ro‘yxatini olishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Qadoqlash ro‘yxatini olib bo‘lmadi' });
     }
 });
 
@@ -1669,11 +1669,11 @@ router.post('/packaging', requireRole(['ADMIN']), async (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 100) : '';
     const sellingPrice = parseDecimal(req.body?.sellingPrice);
     if (!inventoryId || !name || !sellingPrice) {
-        res.status(400).json({ success: false, message: 'Qadoqlash maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Qadoqlash ma’lumotlari noto‘g‘ri' });
         return;
     }
     try {
-        const inventory = await prisma.inventoryProduct.findFirst({ where: { id: inventoryId }, select: { id: true } });
+        const inventory = await prisma.inventoryProduct.findFirst({ where: { id: inventoryId, isActive: true }, select: { id: true } });
         if (!inventory) {
             res.status(400).json({ success: false, message: 'Faol ombor mahsuloti topilmadi' });
             return;
@@ -1681,12 +1681,12 @@ router.post('/packaging', requireRole(['ADMIN']), async (req, res) => {
         const option = await prisma.packagingOption.upsert({
             where: { inventoryId },
             create: { inventoryId, name, sellingPrice },
-            update: { name, sellingPrice }
+            update: { name, sellingPrice, isActive: true }
         });
         res.status(201).json({ success: true, data: option });
     } catch (error) {
         console.error('Qadoqlash sozlamasini saqlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qadoqlash sozlamasini saqlab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Qadoqlash sozlamasini saqlab bo‘lmadi' });
     }
 });
 
@@ -1736,9 +1736,9 @@ router.post('/orders/:id/verify-pickup', async (req, res) => {
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         if ('failure' in result) {
             const responses = {
-                VERIFICATION_INVALID: { status: 400, message: 'Tasdiqlash kodi notoвЂgвЂri' },
-                VERIFICATION_UNAVAILABLE: { status: 409, message: 'Kod bekor boвЂlgan, muddati tugagan yoki urinishlar soni oshgan' },
-                ORDER_NOT_PAID: { status: 409, message: 'Buyurtma toвЂlov holatida emas' }
+                VERIFICATION_INVALID: { status: 400, message: 'Tasdiqlash kodi noto‘g‘ri' },
+                VERIFICATION_UNAVAILABLE: { status: 409, message: 'Kod bekor bo‘lgan, muddati tugagan yoki urinishlar soni oshgan' },
+                ORDER_NOT_PAID: { status: 409, message: 'Buyurtma to‘lov holatida emas' }
             };
             const response = responses[result.failure];
             res.status(response.status).json({ success: false, message: response.message });
@@ -1749,15 +1749,15 @@ router.post('/orders/:id/verify-pickup', async (req, res) => {
         res.json({ success: true, message: 'Tasdiqlash kodi qabul qilindi, buyurtma topshirildi' });
     } catch (error) {
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         console.error('Olib ketish kodini tekshirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kodni tekshirib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kodni tekshirib bo‘lmadi' });
     }
 });
 
@@ -1799,11 +1799,11 @@ router.post('/orders/:id/verification/renew', requireRole(['ADMIN']), async (req
         res.json({ success: true, data: { expiresAt: renewed.updated.expiresAt, code, telegramSent } });
     } catch (error) {
         if (error instanceof Error && error.message === 'VERIFICATION_CANNOT_RENEW') {
-            res.status(409).json({ success: false, message: 'Bu buyurtma uchun kodni yangilab boвЂlmaydi' });
+            res.status(409).json({ success: false, message: 'Bu buyurtma uchun kodni yangilab bo‘lmaydi' });
             return;
         }
         console.error('Olib ketish kodini yangilashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Tasdiqlash kodini yangilab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Tasdiqlash kodini yangilab bo‘lmadi' });
     }
 });
 
@@ -1821,10 +1821,10 @@ router.post('/admin-access', async (req, res) => {
     try {
         const admin = await prisma.user.findUnique({
             where: { username },
-            select: { id: true, role: true, fullName: true, passwordHash: true, updatedAt: true }
+            select: { id: true, role: true, fullName: true, passwordHash: true, isActive: true, updatedAt: true }
         });
-        if (!admin  || admin.role !== RoleType.ADMIN || !await verifyPassword(password, admin.passwordHash)) {
-            res.status(401).json({ success: false, message: 'Admin login yoki paroli notoвЂgвЂri' });
+        if (!admin || !admin.isActive || admin.role !== RoleType.ADMIN || !await verifyPassword(password, admin.passwordHash)) {
+            res.status(401).json({ success: false, message: 'Admin login yoki paroli noto‘g‘ri' });
             return;
         }
         const access = await prisma.$transaction(async tx => {
@@ -1840,7 +1840,7 @@ router.post('/admin-access', async (req, res) => {
         res.json({ success: true, data: { admin: admin.fullName, accessId: access.id, adminUrl: '/admin/' } });
     } catch (error) {
         console.error('Kassir terminalida Admin ruxsatini berishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Admin sessiyasini ochib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Admin sessiyasini ochib bo‘lmadi' });
     }
 });
 
@@ -1864,7 +1864,7 @@ router.post('/admin-access/close', requireRole(['ADMIN']), async (req, res) => {
         res.json({ success: true, message: 'Kassir rejimiga qaytdingiz' });
     } catch (error) {
         console.error('Admin terminal sessiyasini yopishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Admin sessiyasini yopib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Admin sessiyasini yopib bo‘lmadi' });
     }
 });
 

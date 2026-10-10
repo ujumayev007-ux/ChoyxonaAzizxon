@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -21,21 +21,20 @@ import adminTelegramRoutes from './routes/admin-telegram.routes';
 import adminRolePermissionsRoutes from './routes/admin-role-permissions.routes';
 import authPinRoutes from './routes/auth-pin.routes';
 
+dotenv.config();
+
 const app = express();
 const server = http.createServer(app);
 const prisma = new PrismaClient();
 
 async function ensureInitialAdmin(): Promise<void> {
+    const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
+    if (adminCount > 0) return;
+
     const username = process.env.INITIAL_ADMIN_USERNAME?.trim();
     const password = process.env.INITIAL_ADMIN_PASSWORD;
-
-    // Without provisioning configuration there is nothing to reconcile; just report
-    // whether the system currently has any usable administrator at all.
     if (!username && !password) {
-        const adminCount = await prisma.user.count({ where: { role: RoleType.ADMIN } });
-        if (adminCount === 0) {
-            console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
-        }
+        console.warn('No administrator account exists. Set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD to create the first admin.');
         return;
     }
     if (!username || !password || password.length < 12) {
@@ -48,35 +47,9 @@ async function ensureInitialAdmin(): Promise<void> {
     }
 
     const existingUser = await prisma.user.findUnique({ where: { username } });
-
-    // Never take over a username that belongs to a non-administrator account.
-    if (existingUser && existingUser.role !== RoleType.ADMIN) {
+    if (existingUser) {
         throw new Error('INITIAL_ADMIN_USERNAME already belongs to a non-admin account.');
     }
-
-    if (existingUser) {
-        // The administrator already exists. Only reconcile when the configured password
-        // is still valid for it, so a known-good deployment stays untouched. If the
-        // configured password no longer matches, reset the stored hash so operators can
-        // recover access without deleting the production database.
-        if (await verifyPassword(password, existingUser.passwordHash)) {
-            return;
-        }
-        await prisma.user.update({
-            where: { id: existingUser.id },
-            data: {
-                passwordHash: await hashPassword(password),
-                
-                role: RoleType.ADMIN,
-                ...(process.env.INITIAL_ADMIN_FULL_NAME?.trim()
-                    ? { fullName: process.env.INITIAL_ADMIN_FULL_NAME.trim() }
-                    : {})
-            }
-        });
-        console.log('Initial administrator password reconciled with INITIAL_ADMIN_PASSWORD.');
-        return;
-    }
-
     await prisma.user.create({
         data: {
             username,
@@ -114,6 +87,9 @@ initSocket(io);
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/admin/reports', adminReportsRoutes);
 app.use('/api', telegramRoutes);
+app.use('/api/admin/telegram', adminTelegramRoutes);
+app.use('/api/admin', adminRolePermissionsRoutes);
+app.use('/api/auth', authPinRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
@@ -131,7 +107,7 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const user = await loginUser(req.body?.username, req.body?.password, [RoleType.ADMIN]);
         if (!user) {
-            res.status(401).json({ success: false, message: 'Login yoki parol notoвЂgвЂri' });
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
             return;
         }
         setAuthCookie(res, user);
@@ -169,7 +145,7 @@ app.post('/api/auth/logout', optionalAuthenticateToken, async (req, res) => {
             });
         } catch (error) {
             console.error('Sessiyani bekor qilishda xatolik:', error);
-            res.status(500).json({ success: false, message: 'Sessiyani bekor qilib boвЂlmadi' });
+            res.status(500).json({ success: false, message: 'Sessiyani bekor qilib bo‘lmadi' });
             return;
         }
     }
@@ -227,7 +203,7 @@ app.get('/api/waiter/stats', authenticateToken, requireRole(['WAITER']), async (
         });
     } catch (error) {
         console.error('Ofitsiant statistikasini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Statistikani yuklab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Statistikani yuklab bo‘lmadi' });
     }
 });
 
@@ -250,7 +226,7 @@ app.post('/api/kitchen/logout', authenticateToken, requireRole(['KITCHEN']), asy
         res.json({ success: true });
     } catch (error) {
         console.error('Oshxona sessiyasidan chiqishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Sessiyadan chiqib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Sessiyadan chiqib bo‘lmadi' });
     }
 });
 
@@ -258,7 +234,7 @@ app.post('/api/kitchen/login', async (req, res) => {
     try {
         const user = await loginUser(req.body?.username ?? req.body?.login, req.body?.password, [RoleType.KITCHEN]);
         if (!user) {
-            res.status(401).json({ success: false, message: 'Login yoki parol notoвЂgвЂri' });
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
             return;
         }
         setAuthCookie(res, user);
@@ -295,7 +271,7 @@ app.post('/api/cashier/login', async (req, res) => {
     try {
         const user = await loginUser(req.body?.username, req.body?.password, [RoleType.CASHIER]);
         if (!user) {
-            res.status(401).json({ success: false, message: 'Login yoki parol notoвЂgвЂri' });
+            res.status(401).json({ success: false, message: 'Login yoki parol noto‘g‘ri' });
             return;
         }
         const activeTerminalSessions = await prisma.adminTerminalAccess.findMany({
@@ -349,7 +325,7 @@ bot?.start((ctx: Context) => {
     ctx.reply('Assalomu alaykum! "ChoyxonaAzizxon" restoraniga xush kelibsiz. Marhamat, quyidagi tugmani bosib menyuni oching:', {
         reply_markup: {
             inline_keyboard: [
-                [{ text: 'рџЌЅ Menyuni ochish', web_app: { url: webAppUrl.toString() } }]
+                [{ text: '🍽 Menyuni ochish', web_app: { url: webAppUrl.toString() } }]
             ]
         }
     });
@@ -376,10 +352,10 @@ if (bot) {
 app.get('/api/rooms', authenticateToken, requireRole(['ADMIN', 'WAITER', 'CASHIER']), async (req, res) => {
     try {
         const rooms = await prisma.room.findMany({
-            where: {  },
+            where: { isActive: true },
             include: {
                 tables: {
-                    where: {  },
+                    where: { isActive: true },
                     include: {
                         orders: {
                             where: {
@@ -418,15 +394,15 @@ app.post('/api/rooms', authenticateToken, requireRole(['ADMIN']), async (req, re
     try {
         const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
         if (!name || name.length > 100) {
-            res.status(400).json({ success: false, message: 'Xona nomini toвЂgвЂri kiriting' });
+            res.status(400).json({ success: false, message: 'Xona nomini to‘g‘ri kiriting' });
             return;
         }
         const room = await prisma.room.create({ data: { name } });
         emitSocketEvent('restaurant_structure_updated', { type: 'room_created', roomId: room.id });
         res.json({ success: true, data: room });
     } catch (error) {
-        console.error('Xona qoвЂshishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xona qoвЂshilmadi' });
+        console.error('Xona qo‘shishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Xona qo‘shilmadi' });
     }
 });
 
@@ -459,7 +435,7 @@ app.delete('/api/rooms/:id', authenticateToken, requireRole(['ADMIN']), async (r
             return;
         }
         if (room.tables.some(table => table._count.orders > 0)) {
-            res.status(409).json({ success: false, message: 'Faol buyurtmalari mavjud xonani oвЂchirib boвЂlmaydi' });
+            res.status(409).json({ success: false, message: 'Faol buyurtmalari mavjud xonani o‘chirib bo‘lmaydi' });
             return;
         }
         await prisma.$transaction([
@@ -469,8 +445,8 @@ app.delete('/api/rooms/:id', authenticateToken, requireRole(['ADMIN']), async (r
         emitSocketEvent('restaurant_structure_updated', { type: 'room_deleted', roomId: id });
         res.json({ success: true });
     } catch (error) {
-        console.error('Xonani oвЂchirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xonani oвЂchirib boвЂlmadi' });
+        console.error('Xonani o‘chirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Xonani o‘chirib bo‘lmadi' });
     }
 });
 
@@ -480,15 +456,15 @@ app.post('/api/tables', authenticateToken, requireRole(['ADMIN']), async (req, r
         : '';
     const roomId = typeof req.body?.roomId === 'string' ? req.body.roomId.trim() : '';
     if (!number || number.length > 20 || /[\u0000-\u001f]/.test(number) || !roomId) {
-        res.status(400).json({ success: false, message: 'Stol raqami va xona maвЂ™lumotini toвЂgвЂri kiriting' });
+        res.status(400).json({ success: false, message: 'Stol raqami va xona ma’lumotini to‘g‘ri kiriting' });
         return;
     }
     if (/^\d+(?:\.\d+)?$/.test(number) && (!Number.isInteger(Number(number)) || Number(number) < 1)) {
-        res.status(400).json({ success: false, message: 'Stol raqami musbat butun son boвЂlishi kerak' });
+        res.status(400).json({ success: false, message: 'Stol raqami musbat butun son bo‘lishi kerak' });
         return;
     }
     try {
-        const room = await prisma.room.findFirst({ where: { id: roomId }, select: { id: true } });
+        const room = await prisma.room.findFirst({ where: { id: roomId, isActive: true }, select: { id: true } });
         if (!room) {
             res.status(404).json({ success: false, message: 'Xona topilmadi yoki faol emas' });
             return;
@@ -499,7 +475,7 @@ app.post('/api/tables', authenticateToken, requireRole(['ADMIN']), async (req, r
         });
         emitSocketEvent('restaurant_structure_updated', { type: 'table_created', roomId, tableId: table.id });
         emitSocketEvent('table_status_updated', { roomId, tableId: table.id, status: 'AVAILABLE' });
-        res.status(201).json({ success: true, message: 'Stol muvaffaqiyatli qoвЂshildi', data: table });
+        res.status(201).json({ success: true, message: 'Stol muvaffaqiyatli qo‘shildi', data: table });
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             res.status(409).json({ success: false, message: 'Bu stol raqami allaqachon mavjud' });
@@ -509,8 +485,8 @@ app.post('/api/tables', authenticateToken, requireRole(['ADMIN']), async (req, r
             res.status(400).json({ success: false, message: 'Tanlangan xona mavjud emas' });
             return;
         }
-        console.error('Stol qoвЂshishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Stol qoвЂshishda xatolik yuz berdi' });
+        console.error('Stol qo‘shishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Stol qo‘shishda xatolik yuz berdi' });
     }
 });
 
@@ -538,7 +514,7 @@ app.delete('/api/tables/:id', authenticateToken, requireRole(['ADMIN']), async (
             return;
         }
         if (table._count.orders > 0) {
-            res.status(409).json({ success: false, message: 'Faol buyurtmalari mavjud stolni oвЂchirib boвЂlmaydi' });
+            res.status(409).json({ success: false, message: 'Faol buyurtmalari mavjud stolni o‘chirib bo‘lmaydi' });
             return;
         }
         await prisma.table.update({ where: { id }, data: { isActive: false } });
@@ -546,8 +522,8 @@ app.delete('/api/tables/:id', authenticateToken, requireRole(['ADMIN']), async (
         emitSocketEvent('table_status_updated', { roomId: table.roomId, tableId: id, status: 'DELETED' });
         res.json({ success: true });
     } catch (error) {
-        console.error('Stolni oвЂchirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Stolni oвЂchirib boвЂlmadi' });
+        console.error('Stolni o‘chirishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Stolni o‘chirib bo‘lmadi' });
     }
 });
 
@@ -565,10 +541,10 @@ app.post('/api/tables/:id/free', authenticateToken, requireRole(['WAITER', 'ADMI
             }
         });
         if (activeOrders > 0) {
-            res.status(409).json({ success: false, message: 'Faol buyurtmalari bor stolni boвЂshatib boвЂlmaydi' });
+            res.status(409).json({ success: false, message: 'Faol buyurtmalari bor stolni bo‘shatib bo‘lmaydi' });
             return;
         }
-        res.json({ success: true, message: 'Stol boвЂsh' });
+        res.json({ success: true, message: 'Stol bo‘sh' });
     } catch (error) {
         console.error('Stol holatini tekshirishda xatolik:', error);
         res.status(500).json({ success: false, message: 'Stol holatini yangilashda xatolik yuz berdi' });
@@ -584,7 +560,7 @@ app.get('/api/inventory', authenticateToken, requireRole(['ADMIN']), async (req,
         const products = await prisma.inventoryProduct.findMany();
         res.json(products);
     } catch (error) {
-        console.error('Ombor maвЂ™lumotlarini olishda xatolik:', error);
+        console.error('Ombor ma’lumotlarini olishda xatolik:', error);
         res.status(500).json({ success: false, message: "Ombor ma'lumotlarini olishda xatolik" });
     }
 });
@@ -594,7 +570,7 @@ const createInventoryProduct = async (req: express.Request, res: express.Respons
     if (typeof name !== 'string' || !name.trim() || typeof unit !== 'string' || !unit.trim() ||
         (quantity !== undefined && (!Number.isFinite(Number(quantity)) || Number(quantity) < 0)) ||
         (minQuantity !== undefined && (!Number.isFinite(Number(minQuantity)) || Number(minQuantity) < 0))) {
-        res.status(400).json({ success: false, message: 'Ombor mahsuloti maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Ombor mahsuloti ma’lumotlari noto‘g‘ri' });
         return;
     }
 
@@ -609,8 +585,8 @@ const createInventoryProduct = async (req: express.Request, res: express.Respons
         });
         res.status(201).json({ success: true, data: product });
     } catch (error) {
-        console.error('Ombor mahsulotini qoвЂshishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Ombor mahsuloti qoвЂshilmadi' });
+        console.error('Ombor mahsulotini qo‘shishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Ombor mahsuloti qo‘shilmadi' });
     }
 };
 
@@ -633,7 +609,7 @@ app.get('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (_req
         res.json(purchases);
     } catch (error) {
         console.error('Bozorlik tarixini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Bozorlik tarixini olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Bozorlik tarixini olib bo‘lmadi' });
     }
 });
 
@@ -649,7 +625,7 @@ app.post('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (req
     let totalAmount = 0n;
     for (const submittedItem of submittedItems) {
         if (!submittedItem || typeof submittedItem !== 'object') {
-            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti maвЂ™lumotlari notoвЂgвЂri' });
+            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti ma’lumotlari noto‘g‘ri' });
             return;
         }
         const item = submittedItem as { inventoryId?: unknown; quantity?: unknown; totalCost?: unknown };
@@ -658,13 +634,13 @@ app.post('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (req
         if (typeof item.inventoryId !== 'string' || !item.inventoryId ||
             !/^\d{1,12}(?:\.\d{1,6})?$/.test(quantityText) ||
             !/^\d{1,15}$/.test(amountText) || inventoryIds.has(item.inventoryId)) {
-            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti maвЂ™lumotlari notoвЂgвЂri' });
+            res.status(400).json({ success: false, message: 'Bozorlik mahsuloti ma’lumotlari noto‘g‘ri' });
             return;
         }
         const quantity = new Prisma.Decimal(quantityText);
         const totalCost = new Prisma.Decimal(amountText);
         if (!quantity.isFinite() || !quantity.greaterThan(0) || !totalCost.isFinite() || !totalCost.greaterThan(0)) {
-            res.status(400).json({ success: false, message: 'Miqdor va jami summa 0 dan katta boвЂlishi kerak' });
+            res.status(400).json({ success: false, message: 'Miqdor va jami summa 0 dan katta bo‘lishi kerak' });
             return;
         }
         inventoryIds.add(item.inventoryId);
@@ -679,7 +655,7 @@ app.post('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (req
     try {
         const purchase = await prisma.$transaction(async transaction => {
             const products = await transaction.inventoryProduct.findMany({
-                where: { id: { in: [...inventoryIds] } }
+                where: { id: { in: [...inventoryIds] }, isActive: true }
             });
             if (products.length !== inventoryIds.size) {
                 throw new Error('BOZORLIK_MAHSULOT_TOPILMADI');
@@ -733,11 +709,11 @@ app.post('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (req
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
-            res.status(409).json({ success: false, message: 'Ombor maвЂ™lumotlari bir vaqtda oвЂzgardi. Bozorlikni qayta yuboring.' });
+            res.status(409).json({ success: false, message: 'Ombor ma’lumotlari bir vaqtda o‘zgardi. Bozorlikni qayta yuboring.' });
             return;
         }
         console.error('Bozorlikni yakunlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Bozorlikni yakunlab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Bozorlikni yakunlab bo‘lmadi' });
     }
 });
 
@@ -751,7 +727,7 @@ app.get('/api/users', authenticateToken, requireRole(['ADMIN']), async (req, res
                 fullName: true,
                 phone: true,
                 role: true,
-                
+                isActive: true,
                 createdAt: true,
                 waiterProfile: true,
                 cashierProfile: true
@@ -779,7 +755,7 @@ app.post('/api/employees', authenticateToken, requireRole(['ADMIN']), async (req
         typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length > 100 ||
         typeof phone !== 'string' || !phone.trim() || phone.trim().length > 50 || !isEmployeeRole(role) ||
         (commissionPercent !== undefined && (!Number.isFinite(Number(commissionPercent)) || Number(commissionPercent) < 0 || Number(commissionPercent) > 100))) {
-        res.status(400).json({ success: false, message: 'Xodim maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Xodim ma’lumotlari noto‘g‘ri' });
         return;
     }
 
@@ -800,7 +776,7 @@ app.post('/api/employees', authenticateToken, requireRole(['ADMIN']), async (req
                     } } }
                     : role === 'CASHIER' ? { cashierProfile: { create: {} } } : {})
             },
-            select: { id: true, username: true, fullName: true, phone: true, role: true, createdAt: true }
+            select: { id: true, username: true, fullName: true, phone: true, role: true, isActive: true, createdAt: true }
         });
         res.status(201).json({ success: true, data: user });
     } catch (error) {
@@ -808,8 +784,8 @@ app.post('/api/employees', authenticateToken, requireRole(['ADMIN']), async (req
             res.status(409).json({ success: false, message: 'Bu login allaqachon mavjud' });
             return;
         }
-        console.error('Xodim qoвЂshishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xodim qoвЂshilmadi' });
+        console.error('Xodim qo‘shishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Xodim qo‘shilmadi' });
     }
 });
 
@@ -864,7 +840,7 @@ app.post('/api/orders/:id/return-item', authenticateToken, requireRole(['WAITER'
     const quantityText = String(req.body?.quantity ?? '');
     if (!orderId || !orderItemId || !reason || !idempotencyKey ||
         !/^\d{1,10}(?:\.\d{1,6})?$/.test(quantityText) || Number(quantityText) <= 0) {
-        res.status(400).json({ success: false, message: 'Qaytarish soвЂrovi maвЂ™lumotlari notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'Qaytarish so‘rovi ma’lumotlari noto‘g‘ri' });
         return;
     }
     try {
@@ -878,12 +854,12 @@ app.post('/api/orders/:id/return-item', authenticateToken, requireRole(['WAITER'
         });
         const item = order?.items[0];
         if (!order || !item) {
-            res.status(404).json({ success: false, message: 'OвЂzingizning buyurtmangizdagi taom topilmadi' });
+            res.status(404).json({ success: false, message: 'O‘zingizning buyurtmangizdagi taom topilmadi' });
             return;
         }
         const requestedQuantity = new Prisma.Decimal(quantityText);
         if (!requestedQuantity.equals(item.quantity)) {
-            res.status(400).json({ success: false, message: 'Qisman qaytarish hozircha qoвЂllab-quvvatlanmaydi; toвЂliq taomni tanlang' });
+            res.status(400).json({ success: false, message: 'Qisman qaytarish hozircha qo‘llab-quvvatlanmaydi; to‘liq taomni tanlang' });
             return;
         }
         const result = await prisma.$transaction(async tx => {
@@ -914,16 +890,16 @@ app.post('/api/orders/:id/return-item', authenticateToken, requireRole(['WAITER'
         res.status(result.duplicate ? 200 : 202).json({
             success: true,
             duplicate: result.duplicate,
-            message: 'Qaytarish soвЂrovi kassir/Admin koвЂrib chiqishiga yuborildi',
+            message: 'Qaytarish so‘rovi kassir/Admin ko‘rib chiqishiga yuborildi',
             ...(result.duplicate ? {} : { data: result.request })
         });
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            res.status(409).json({ success: false, message: 'Qaytarish soвЂrovi allaqachon yuborilgan' });
+            res.status(409).json({ success: false, message: 'Qaytarish so‘rovi allaqachon yuborilgan' });
             return;
         }
-        console.error('Ofitsiant qaytarish soвЂrovini yuborishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Qaytarish soвЂrovini yuborib boвЂlmadi' });
+        console.error('Ofitsiant qaytarish so‘rovini yuborishda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Qaytarish so‘rovini yuborib bo‘lmadi' });
     }
 });
 
@@ -936,17 +912,17 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
     if (items.some(item => !item || typeof (item.productId || item.menuItemId) !== 'string' ||
         !/^\d{1,10}(?:\.\d{1,6})?$/.test(String(item.quantity)) || Number(item.quantity) <= 0 ||
         (item.note !== undefined && typeof item.note !== 'string'))) {
-        res.status(400).json({ success: false, error: 'Buyurtma tarkibidagi taomlar yoki miqdor notoвЂgвЂri' });
+        res.status(400).json({ success: false, error: 'Buyurtma tarkibidagi taomlar yoki miqdor noto‘g‘ri' });
         return;
     }
     if (guestCount !== undefined && (!Number.isInteger(Number(guestCount)) || Number(guestCount) < 1)) {
-        res.status(400).json({ success: false, error: 'Mehmonlar sonini toвЂgвЂri kiriting' });
+        res.status(400).json({ success: false, error: 'Mehmonlar sonini to‘g‘ri kiriting' });
         return;
     }
 
     try {
         const table = await prisma.table.findFirst({
-            where: { id: tableId.trim(), room: {  } },
+            where: { id: tableId.trim(), isActive: true, room: { isActive: true } },
             select: { id: true, roomId: true }
         });
         if (!table) {
@@ -956,7 +932,7 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
 
         const requestedIds = items.map(item => String(item.productId || item.menuItemId));
         const menuItems = await prisma.menuItem.findMany({
-            where: { id: { in: requestedIds }, category: {  } },
+            where: { id: { in: requestedIds }, isActive: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         const menuById = new Map(menuItems.map(item => [item.id, item]));
@@ -1010,7 +986,7 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
         res.status(201).json({ success: true, message: 'Buyurtma muvaffaqiyatli yaratildi', data: order });
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            res.status(409).json({ success: false, error: 'Buyurtma raqami toвЂqnashdi, qayta urinib koвЂring' });
+            res.status(409).json({ success: false, error: 'Buyurtma raqami to‘qnashdi, qayta urinib ko‘ring' });
             return;
         }
         console.error('Ofitsiant buyurtmasini yaratishda xatolik:', error);
@@ -1030,7 +1006,7 @@ app.post('/api/orders/:id/approve', authenticateToken, requireRole(['WAITER', 'A
             return;
         }
         if (!['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(order.status)) {
-            res.status(409).json({ success: false, error: 'Bu buyurtmani tasdiqlab boвЂlmaydi' });
+            res.status(409).json({ success: false, error: 'Bu buyurtmani tasdiqlab bo‘lmaydi' });
             return;
         }
         const updated = await prisma.order.update({
@@ -1063,7 +1039,7 @@ app.post('/api/orders/:id/reject', authenticateToken, requireRole(['WAITER', 'AD
             return;
         }
         if (!['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(order.status)) {
-            res.status(409).json({ success: false, error: 'Bu buyurtmani rad etib boвЂlmaydi' });
+            res.status(409).json({ success: false, error: 'Bu buyurtmani rad etib bo‘lmaydi' });
             return;
         }
         const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
@@ -1092,13 +1068,13 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
     const paymentMethods: Record<string, PaymentMethod> = {
         NAQD: PaymentMethod.NAQD, Naqd: PaymentMethod.NAQD,
         PLASTIK: PaymentMethod.PLASTIK, 'Plastik karta': PaymentMethod.PLASTIK,
-        ELEKTRON: PaymentMethod.ELEKTRON, 'Elektron toвЂlov': PaymentMethod.ELEKTRON
+        ELEKTRON: PaymentMethod.ELEKTRON, 'Elektron to‘lov': PaymentMethod.ELEKTRON
     };
     const method = typeof req.body?.paymentMethod === 'string' ? paymentMethods[req.body.paymentMethod] : null;
     const key = typeof req.body?.idempotencyKey === 'string' &&
         /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.idempotencyKey) ? req.body.idempotencyKey : '';
     if (!method || !key) {
-        res.status(400).json({ success: false, message: 'ToвЂlov turi yoki takrorlanishni himoyalovchi identifikator notoвЂgвЂri' });
+        res.status(400).json({ success: false, message: 'To‘lov turi yoki takrorlanishni himoyalovchi identifikator noto‘g‘ri' });
         return;
     }
     const hash = createHash('sha256').update(JSON.stringify({
@@ -1109,7 +1085,7 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
         const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user!.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
-                res.status(409).json({ success: false, message: 'SoвЂrov identifikatori boshqa amal uchun ishlatilgan' });
+                res.status(409).json({ success: false, message: 'So‘rov identifikatori boshqa amal uchun ishlatilgan' });
                 return;
             }
             res.json({ success: true, duplicate: true, data: JSON.parse(previous.responseJson) });
@@ -1221,19 +1197,19 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
         res.json({ success: true, data: result.response });
     } catch (error) {
         if (error instanceof Error && error.message.startsWith('RECIPE_STOCK_SHORT:')) {
-            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldigвЂi yetarli emas` });
+            res.status(409).json({ success: false, message: `${error.message.slice('RECIPE_STOCK_SHORT:'.length)} ombor qoldig‘i yetarli emas` });
             return;
         }
         if (error instanceof Error && error.message === 'TABLE_NO_ORDERS') {
-            res.status(409).json({ success: false, message: 'Stolda toвЂlanmagan buyurtmalar yoвЂq' });
+            res.status(409).json({ success: false, message: 'Stolda to‘lanmagan buyurtmalar yo‘q' });
             return;
         }
         if (error instanceof Error && error.message === 'TABLE_ALREADY_PAID') {
-            res.status(409).json({ success: false, message: 'Buyurtmalar allaqachon toвЂlangan' });
+            res.status(409).json({ success: false, message: 'Buyurtmalar allaqachon to‘langan' });
             return;
         }
         if (error instanceof Error && error.message === 'PACKAGING_STOCK_SHORT') {
-            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldigвЂi yetarli emas' });
+            res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
         if (error instanceof Error && error.message === 'ORDER_LOCKED') {
@@ -1241,11 +1217,11 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
             return;
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
-            res.status(409).json({ success: false, message: 'ToвЂlov allaqachon yuborilgan. Sahifani yangilang.' });
+            res.status(409).json({ success: false, message: 'To‘lov allaqachon yuborilgan. Sahifani yangilang.' });
             return;
         }
-        console.error('Stol uchun toвЂlovni saqlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Stol toвЂlovini saqlab boвЂlmadi' });
+        console.error('Stol uchun to‘lovni saqlashda xatolik:', error);
+        res.status(500).json({ success: false, message: 'Stol to‘lovini saqlab bo‘lmadi' });
     }
 });
 
@@ -1262,7 +1238,7 @@ app.get('/api/waiter/calls', authenticateToken, requireRole(['WAITER', 'ADMIN'])
         res.json(calls.map(call => ({ ...call, tableNumber: call.table.number })));
     } catch (error) {
         console.error('Ofitsiant chaqiruvlarini olishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chaqiruvlarni olib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Chaqiruvlarni olib bo‘lmadi' });
     }
 });
 
@@ -1274,7 +1250,7 @@ app.post('/api/waiter/cashier-call', authenticateToken, requireRole(['WAITER']),
     }
     try {
         const table = await prisma.table.findFirst({
-            where: { id: tableId, room: {  } },
+            where: { id: tableId, isActive: true, room: { isActive: true } },
             select: { id: true, number: true, room: { select: { name: true } } }
         });
         if (!table) {
@@ -1302,7 +1278,7 @@ app.post('/api/waiter/cashier-call', authenticateToken, requireRole(['WAITER']),
         res.status(201).json({ success: true, data: call });
     } catch (error) {
         console.error('Kassirni chaqirishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Kassirni chaqirib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Kassirni chaqirib bo‘lmadi' });
     }
 });
 
@@ -1324,7 +1300,7 @@ app.post('/api/waiter/calls/:id/accept', authenticateToken, requireRole(['WAITER
         res.json({ success: true, data: updated });
     } catch (error) {
         console.error('Chaqiruvni qabul qilishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chaqiruvni qabul qilib boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Chaqiruvni qabul qilib bo‘lmadi' });
     }
 });
 
@@ -1346,7 +1322,7 @@ app.post('/api/waiter/calls/:id/complete', authenticateToken, requireRole(['WAIT
         res.json({ success: true, data: updated });
     } catch (error) {
         console.error('Chaqiruvni yakunlashda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Chaqiruvni yakunlab boвЂlmadi' });
+        res.status(500).json({ success: false, message: 'Chaqiruvni yakunlab bo‘lmadi' });
     }
 });
 

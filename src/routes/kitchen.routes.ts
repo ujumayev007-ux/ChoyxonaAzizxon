@@ -23,6 +23,7 @@ const DEPARTMENT_PRINTERS = {
     'Baliq': 'Baliqxona',
     'Deniz Mahsulotlari': 'Baliqxona',
     'Fastfood': 'Fastfood',
+    'Fast Food': 'Fastfood',
     'Burger': 'Fastfood',
     'Sendvich': 'Fastfood',
     'Lavash': 'Fastfood',

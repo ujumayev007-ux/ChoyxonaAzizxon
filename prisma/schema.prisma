@@ -183,6 +183,7 @@ model InventoryProduct {
   quantity    Decimal @default(0) // Qoldiq miqdor
   minQuantity Decimal @default(5) // Minimal xavfsiz qoldiq (Kam qolganda ogohlantirish)
 
+  isActive    Boolean @default(true)
   lowStockNotified Boolean @default(false)
 
   recipes        Recipe[]
