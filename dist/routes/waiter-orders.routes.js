@@ -8,6 +8,7 @@ const auth_1 = require("../middleware/auth");
 const socket_1 = require("../socket");
 const kitchen_print_1 = require("../utils/kitchen-print");
 const crypto_2 = require("crypto");
+const service_policy_1 = require("../utils/service-policy");
 const router = (0, express_1.Router)();
 router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER']), async (req, res) => {
     const { items, idempotencyKey } = req.body || {};
@@ -30,6 +31,8 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
             const order = await tx.order.findUnique({ where: { id: req.params.id }, include: { payments: true, debt: true } });
             if (!order)
                 throw new Error('NOT_FOUND');
+            await (0, service_policy_1.authorizeService)(tx, req.user, 'read', order);
+            (0, service_policy_1.assertOrderFresh)(order, req.body.updatedAt);
             if (order.waiterId !== req.user.id)
                 throw new Error('FORBIDDEN');
             const allowed = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR', 'STOLGA_YETKAZILDI', 'TOLOV_KUTILMOQDA'];
@@ -38,7 +41,7 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
             if (order.processingById && order.processingAt && Date.now() - order.processingAt.getTime() <= 10 * 60 * 1000)
                 throw new Error('LOCKED');
             const menu = await tx.menuItem.findMany({
-                where: { id: { in: items.map(item => item.productId) }, isActive: true, category: { isActive: true } }
+                where: { id: { in: items.map(item => item.productId) }, isActive: true, available: true, category: { isActive: true } }
             });
             const lines = items.map(item => {
                 const product = menu.find(entry => entry.id === item.productId);
@@ -54,9 +57,7 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
             const nextServiceCharge = nextSubtotal.mul(order.serviceFeePercent).div(100).toDecimalPlaces(2);
             const serviceDelta = nextServiceCharge.minus(order.serviceCharge);
             // Previously finished dishes must not be prepared again when this order returns to the kitchen.
-            if (['TAYYOR', 'STOLGA_YETKAZILDI', 'TOLOV_KUTILMOQDA'].includes(order.status)) {
-                await tx.orderItem.updateMany({ where: { orderId: order.id }, data: { status: 'TAYYOR' } });
-            }
+            // Existing item statuses and their individual timestamps are preserved.
             const status = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TAYYORLANMOQDA'].includes(order.status)
                 ? order.status : client_1.OrderStatus.TASDIQLANDI;
             const updated = await tx.order.update({ where: { id: order.id }, data: {
@@ -78,6 +79,10 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
         res.json({ success: true, data: result });
     }
     catch (error) {
+        if (typeof error?.status === 'number') {
+            res.status(error.status).json({ success: false, message: error.message });
+            return;
+        }
         const messages = {
             NOT_FOUND: [404, 'Buyurtma topilmadi'], FORBIDDEN: [403, 'Faqat o‘zingizning buyurtmangizga taom qo‘sha olasiz'],
             NOT_EDITABLE: [409, 'To‘lov boshlangan yoki yakunlangan buyurtmaga taom qo‘shib bo‘lmaydi'],

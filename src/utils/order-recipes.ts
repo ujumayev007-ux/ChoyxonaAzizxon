@@ -18,6 +18,8 @@ export async function deductOrderRecipes(
             items: {
                 select: {
                     quantity: true,
+                    cancelledQuantity: true,
+                    status: true,
                     menuItem: {
                         select: {
                             id: true,
@@ -39,10 +41,12 @@ export async function deductOrderRecipes(
 
     const changedInventoryIds = new Set<string>();
     for (const orderItem of order.items) {
+        const soldQuantity = orderItem.quantity.minus(orderItem.cancelledQuantity || 0);
+        if (orderItem.status === 'BEKOR_QILINDI' || !soldQuantity.greaterThan(0)) continue;
         for (const recipe of orderItem.menuItem.recipes) {
             const perDishQuantity = new Prisma.Decimal(recipe.quantity);
             const fromUnit = recipe.unit || recipe.inventory.unit;
-            const requestedQuantity = perDishQuantity.mul(orderItem.quantity);
+            const requestedQuantity = perDishQuantity.mul(soldQuantity);
             const deduction = convertQuantity(requestedQuantity, fromUnit, recipe.inventory.unit);
             if (!deduction.isFinite() || !deduction.greaterThan(0)) {
                 throw new Error('RECIPE_QUANTITY_INVALID');

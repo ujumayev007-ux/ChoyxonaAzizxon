@@ -161,11 +161,8 @@
             const data = await response.json();
             if (response.status === 401) {
                 showLogin('Sessiya yakunlangan. Qayta kiring.');
-                throw new Error(data.message || 'Tizimga qayta kiring');
-            }
-            if (response.status === 403) {
+            } else if (response.status === 403 && url === '/api/cashier/me') {
                 showLogin(data.message || 'Kassir hisobi bilan tizimga kiring.');
-                throw new Error(data.message || 'Bu amal uchun ruxsat yo‘q');
             }
             if (!response.ok || data.success === false) {
                 const error = new Error(data.message || 'So‘rov bajarilmadi');
@@ -664,7 +661,8 @@
             const remaining = Math.max(0, due - total);
             const change = appliedCash > 0 ? Math.max(0, given - appliedCash) : 0;
             const error = [cash, card, electronic, debt, given].some(value => !Number.isSafeInteger(value) || value < 0)
-                ? 'To‘lov summalarini to‘g‘ri kiriting' : nonCash > due
+                ? 'To‘lov summalarini to‘g‘ri kiriting' : total === 0
+                ? 'Naqd, karta, elektron yoki qarz summasini kiriting' : nonCash > due
                 ? 'Karta, elektron va qarz summasi qoldiqdan oshmasligi kerak' : appliedCash === 0 && (cash > 0 || given > 0)
                 ? 'Naqd to‘lov uchun qoldiq yo‘q. Naqd summalarni olib tashlang.' : given < appliedCash
                 ? 'Mijoz bergan naqd summa naqd to‘lovdan kam' : remaining > 0
@@ -677,7 +675,7 @@
             form.querySelector('#payment-due').textContent = money(session.due / 100);
             form.querySelector('#payment-sum').textContent = `Kiritilgan: ${money(amounts.total / 100)} · Qaytim: ${money(amounts.change / 100)} · Qoldiq: ${money(amounts.remaining / 100)}`;
             const button = form.querySelector('#confirm-payment-btn');
-            button.disabled = session.submitting || (!session.request && (!session.payable || !!amounts.error));
+            button.disabled = session.submitting || (!session.request && !session.payable);
             button.style.opacity = button.disabled ? '0.5' : '1';
             button.textContent = session.submitting ? 'To‘lov saqlanmoqda...' : session.request ? 'To‘lovni qayta tekshirish' : 'To‘lovni tasdiqlash';
             form.querySelectorAll('input').forEach(input => { input.readOnly = session.submitting || !!session.request; });
@@ -882,7 +880,8 @@
             if (!printWindow) { toast('Chop etish oynasini ochishga ruxsat bering', 'error'); return; }
             try {
                 const { data } = await api(`/api/cashier/receipts/${encodeURIComponent(id)}/reprint`, { method: 'POST' });
-                printWindow.document.write(`<html><head><title>Chek ${esc(data.payload.receiptNumber)}</title><style>body{font:14px monospace;max-width:320px;margin:16px auto}hr{border:0;border-top:1px dashed #444}p{display:flex;justify-content:space-between}</style></head><body><h2>${esc(data.payload.restaurantName)}</h2><p>Buyurtma: ${esc(data.payload.orderNumber)}</p><p>Chek: ${esc(data.payload.receiptNumber)}</p><hr>${data.payload.items.map(item => `<p>${esc(item.name)} × ${esc(item.quantity)} <b>${money(item.amount)}</b></p>`).join('')}<hr><p>Xizmat haqi: <b>${money(data.payload.serviceCharge || 0)}</b></p><p>Chegirma: <b>${money(data.payload.discount || 0)}</b></p><p><b>Jami</b><b>${money(data.payload.total)}</b></p><p>Chop etish vazifasi: ${esc(data.status)}</p><script>window.onload=()=>window.print()<\/script></body></html>`);
+                printWindow.document.write(`<html><head><title>Chek ${esc(data.payload.receiptNumber)}</title><style>body{font:14px monospace;max-width:320px;margin:16px auto}hr{border:0;border-top:1px dashed #444}p{display:flex;justify-content:space-between}</style></head><body><h2>${esc(data.payload.restaurantName)}</h2><p>Buyurtma: ${esc(data.payload.orderNumber)}</p><p>Chek: ${esc(data.payload.receiptNumber)}</p><hr>${data.payload.items.map(item => `<p>${esc(item.name)} × ${esc(item.quantity)} <b>${money(item.amount)}</b></p>`).join('')}<hr><p>Xizmat haqi: <b>${money(data.payload.serviceCharge || 0)}</b></p><p>Chegirma: <b>${money(data.payload.discount || 0)}</b></p><p><b>Jami</b><b>${money(data.payload.total)}</b></p><p>Chop etish vazifasi: ${esc(data.status)}</p><script>window.onload=()=>window.print()<\/script><a href="/service.html" style="position:fixed;bottom:125px;right:16px;z-index:40;background:#0369a1;color:white;padding:10px 14px;border-radius:12px">Xizmat amallari</a>
+</body></html>`);
                 printWindow.document.close();
             } catch (error) { printWindow.close(); toast(error.message, 'error'); }
         }

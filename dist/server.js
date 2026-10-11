@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -40,6 +73,8 @@ const admin_settings_routes_1 = __importDefault(require("./routes/admin-settings
 const admin_order_control_routes_1 = __importDefault(require("./routes/admin-order-control.routes"));
 const settings_1 = require("./utils/settings");
 const kitchen_print_1 = require("./utils/kitchen-print");
+const service_routes_1 = __importStar(require("./routes/service.routes"));
+const service_policy_1 = require("./utils/service-policy");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 if (process.env.RENDER === 'true')
@@ -100,6 +135,9 @@ const io = new socket_io_1.Server(server, {
     }
 });
 (0, socket_1.initSocket)(io);
+app.use('/api/service', service_routes_1.default);
+// Exact compatibility paths use the same guarded service handlers as the new panel.
+app.use('/api', service_routes_1.serviceLegacyRouter);
 app.use('/api/kitchen', kitchen_routes_1.default);
 app.use('/api/admin/reports', admin_reports_routes_1.default);
 app.use('/api', telegram_routes_1.default);
@@ -745,6 +783,9 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
         const where = {};
+        if (req.user.role === client_1.RoleType.WAITER && (await (0, settings_1.getSettings)(prisma, 'waiterService')).scope === 'OWN') {
+            where.OR = [{ waiterId: req.user.id }, { waiterId: null, table: { assignedWaiterId: req.user.id } }, { waiterId: null, table: { assignedWaiterId: null } }];
+        }
         if (req.user.role === client_1.RoleType.ADMIN && req.query.archived !== 'true')
             where.archivedAt = null;
         if (tableId)
@@ -1099,8 +1140,8 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
                     status: { notIn: [client_1.OrderStatus.TOLANDI, client_1.OrderStatus.YAKUNLANDI, client_1.OrderStatus.BEKOR_QILINDI, client_1.OrderStatus.QAYTARILDI] }
                 },
                 select: {
-                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, tableId: true,
-                    table: { select: { roomId: true } }, debt: { select: { amount: true, remaining: true } },
+                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, tableId: true, waiterId: true,
+                    table: { select: { roomId: true, assignedWaiterId: true } }, debt: { select: { amount: true, remaining: true } },
                     payments: { select: { amount: true } },
                     items: { select: { quantity: true, totalPrice: true, menuItem: { select: { name: true } } } }
                 }
@@ -1111,6 +1152,10 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
             const updates = [];
             const updatedInventoryIds = new Set();
             for (const order of orders) {
+                if (req.user.role === client_1.RoleType.WAITER) {
+                    await (0, service_policy_1.authorizeService)(tx, req.user, 'takePayment', order);
+                    await (0, service_policy_1.authorizeService)(tx, req.user, 'read', order);
+                }
                 if (order.processingById && order.processingById !== req.user.id)
                     throw new Error('ORDER_LOCKED');
                 const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
@@ -1354,9 +1399,7 @@ app.post('/api/waiter/calls/:id/complete', auth_1.authenticateToken, (0, auth_1.
 // Ofitsiantni chaqirish Socket.io orqali
 io.on('connection', (socket) => {
     console.log('Foydalanuvchi ulandi:', socket.id);
-    socket.on('call_waiter', async (data) => {
-        io.emit('orderUpdate', data);
-    });
+    // Customer calls are authenticated and persisted by /api/customer/calls.
     socket.on('disconnect', () => {
         console.log('Foydalanuvchi uzildi:', socket.id);
     });

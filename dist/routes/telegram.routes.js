@@ -141,9 +141,38 @@ router.post('/customer/telegram/auth', async (req, res) => {
         res.status(500).json({ success: false, message: 'Telegram orqali kirishda xatolik yuz berdi' });
     }
 });
+router.post('/customer/calls', async (req, res) => {
+    try {
+        const token = await (0, telegram_1.telegramToken)();
+        const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
+        if (!token || !validateTelegramWebAppData(initData, token)) {
+            res.status(401).json({ success: false, message: 'Telegram orqali qayta kiring' });
+            return;
+        }
+        const tableId = typeof req.body?.tableId === 'string' ? req.body.tableId : '';
+        const call = await db_1.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw `SELECT "id" FROM "Table" WHERE "id" = ${tableId} FOR UPDATE`;
+            const table = await tx.table.findFirst({ where: { id: tableId, isActive: true, room: { isActive: true } } });
+            if (!table)
+                return null;
+            const existing = await tx.waiterCall.findFirst({ where: { tableId, kind: 'CUSTOMER', status: { not: 'YAKUNLANDI' } } });
+            return existing || tx.waiterCall.create({ data: { tableId, kind: 'CUSTOMER' } });
+        });
+        if (!call) {
+            res.status(404).json({ success: false, message: 'Faol stol topilmadi' });
+            return;
+        }
+        (0, socket_1.emitSocketEvent)('call_waiter', { callId: call.id, tableId, kind: call.kind });
+        (0, socket_1.emitSocketEvent)('waiter_call_updated', { callId: call.id, tableId, status: call.status });
+        res.json({ success: true, data: call });
+    }
+    catch {
+        res.status(503).json({ success: false, message: 'Chaqiruv natijasini qayta tekshiring' });
+    }
+});
 router.post('/customer/orders', async (req, res) => {
     const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botToken = await (0, telegram_1.telegramToken)();
     const telegramUser = initData && botToken ? validateTelegramWebAppData(initData, botToken) : null;
     if (!telegramUser) {
         res.status(401).json({ success: false, message: 'Telegram sessiyasi yaroqsiz yoki muddati tugagan' });
@@ -169,7 +198,7 @@ router.post('/customer/orders', async (req, res) => {
         }
         const menuIds = [...new Set(items.map(item => item.dishId))];
         const menu = await db_1.prisma.menuItem.findMany({
-            where: { id: { in: menuIds }, isActive: true, category: { isActive: true } },
+            where: { id: { in: menuIds }, isActive: true, available: true, category: { isActive: true } },
             select: { id: true, sellingPrice: true }
         });
         if (menu.length !== menuIds.length) {

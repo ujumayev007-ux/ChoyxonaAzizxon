@@ -170,6 +170,7 @@ router.get('/', optionalAuthenticateToken, async (req, res) => {
                 select: {
                     id: true, name: true, description: true, imageUrl: true, sellingPrice: true,
                     unit: true, preparationTime: true, kitchenSection: true, categoryId: true, isActive: true,
+                    available: true, unavailableReason: true,
                     category: { select: { id: true, name: true } }
                 }
             });

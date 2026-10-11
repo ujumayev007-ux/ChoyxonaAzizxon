@@ -6,6 +6,7 @@ import { authenticateToken, requireRole } from '../middleware/auth';
 import { emitSocketEvent } from '../socket';
 import { queueKitchenPrint } from '../utils/kitchen-print';
 import { randomUUID } from 'crypto';
+import { authorizeService, assertOrderFresh } from '../utils/service-policy';
 
 const router = Router();
 router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req, res) => {
@@ -28,12 +29,14 @@ router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req
             }
             const order = await tx.order.findUnique({ where: { id: req.params.id }, include: { payments: true, debt: true } });
             if (!order) throw new Error('NOT_FOUND');
+            await authorizeService(tx, req.user!, 'read', order);
+            assertOrderFresh(order, req.body.updatedAt);
             if (order.waiterId !== req.user!.id) throw new Error('FORBIDDEN');
             const allowed: OrderStatus[] = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR', 'STOLGA_YETKAZILDI', 'TOLOV_KUTILMOQDA'];
             if (!allowed.includes(order.status) || order.payments.length || order.debt || order.recipesDeductedAt || order.paidAt) throw new Error('NOT_EDITABLE');
             if (order.processingById && order.processingAt && Date.now() - order.processingAt.getTime() <= 10 * 60 * 1000) throw new Error('LOCKED');
             const menu = await tx.menuItem.findMany({
-                where: { id: { in: items.map(item => item.productId) }, isActive: true, category: { isActive: true } }
+                where: { id: { in: items.map(item => item.productId) }, isActive: true, available: true, category: { isActive: true } }
             });
             const lines = items.map(item => {
                 const product = menu.find(entry => entry.id === item.productId);
@@ -48,9 +51,7 @@ router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req
             const nextServiceCharge = nextSubtotal.mul(order.serviceFeePercent).div(100).toDecimalPlaces(2);
             const serviceDelta = nextServiceCharge.minus(order.serviceCharge);
             // Previously finished dishes must not be prepared again when this order returns to the kitchen.
-            if (['TAYYOR', 'STOLGA_YETKAZILDI', 'TOLOV_KUTILMOQDA'].includes(order.status)) {
-                await tx.orderItem.updateMany({ where: { orderId: order.id }, data: { status: 'TAYYOR' } });
-            }
+            // Existing item statuses and their individual timestamps are preserved.
             const status = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TAYYORLANMOQDA'].includes(order.status)
                 ? order.status : OrderStatus.TASDIQLANDI;
             const updated = await tx.order.update({ where: { id: order.id }, data: {
@@ -70,6 +71,7 @@ router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req
         emitSocketEvent('order_status_updated', { orderId: result.id, tableId: result.tableId, status: result.status });
         res.json({ success: true, data: result });
     } catch (error) {
+        if (typeof (error as any)?.status === 'number') { res.status((error as any).status).json({ success: false, message: (error as Error).message }); return; }
         const messages: Record<string, [number, string]> = {
             NOT_FOUND: [404, 'Buyurtma topilmadi'], FORBIDDEN: [403, 'Faqat o‘zingizning buyurtmangizga taom qo‘sha olasiz'],
             NOT_EDITABLE: [409, 'To‘lov boshlangan yoki yakunlangan buyurtmaga taom qo‘shib bo‘lmaydi'],

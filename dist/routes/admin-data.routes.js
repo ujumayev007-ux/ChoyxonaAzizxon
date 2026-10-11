@@ -68,7 +68,7 @@ router.get('/backups/:id/preview', async (req, res) => {
 });
 router.post('/backups/:id/restore-settings', async (req, res) => {
     const keys = req.body?.keys;
-    if (req.body?.confirmation !== 'SOZLAMALARNI TIKLASH' || !Array.isArray(keys) || !keys.length || keys.some(key => !['restaurant', 'payments', 'orders', 'alerts', 'telegramReport'].includes(key))) {
+    if (req.body?.confirmation !== 'SOZLAMALARNI TIKLASH' || !Array.isArray(keys) || !keys.length || keys.some(key => !['restaurant', 'payments', 'orders', 'alerts', 'telegramReport', 'waiterService', 'kitchenTv'].includes(key))) {
         res.status(400).json({ message: 'Tiklanadigan sozlamalarni tanlang va tasdiqlash matnini kiriting' });
         return;
     }

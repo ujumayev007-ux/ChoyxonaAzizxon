@@ -1,8 +1,12 @@
 import { Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
+export const settingsVersion = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const defaults = {
     telegramReport: { enabled: false, revenue: true, cash: true, card: true, electronic: true, expenses: false, netProfit: false, debts: false, waiters: false, inventory: false, hourly: false, daily: true, times: '23:00', shiftOpen: false, shiftClose: true },
     payments: { cash: true, card: true, electronic: true, split: true, requireOpenShift: false, refunds: true, maxDiscountPercent: 10, debtLimit: 0, cashDifferenceLimit: 0 },
     orders: { autoApprove: true, cancellation: true, tableTransfer: true, waiterReassignment: true },
+    waiterService: { scope: 'ALL', assign: true, deliver: true, requestReturn: true, requestCancel: true, transfer: false, reassign: false, takePayment: false, cashierReview: true, kitchenCancel: true, delayMinutes: 20 },
+    kitchenTv: { showReady: true, soundEnabled: false, textScale: 100, refreshSeconds: 15, kitchenSection: '' },
     alerts: { lowStock: true, delayedOrderMinutes: 45, unclosedShiftHours: 16, printerFailures: true, backupFailures: true, failedPayments: true },
     restaurant: { restaurantName: 'ChoyxonaAzizxon', address: '', phone: '', timezone: 'Asia/Tashkent', logoUrl: '', workingHours: '09:00–23:00', serviceFeePercent: 0 }
 };
@@ -19,6 +23,8 @@ export function validateSettings(key: SettingKey, value: any) {
         new Intl.DateTimeFormat('uz-UZ', { timeZone: result.timezone });
         if (!result.restaurantName.trim() || (result.logoUrl && !/^https:\/\//.test(result.logoUrl))) throw Error('INVALID_SETTINGS');
     }
+    if (key === 'waiterService' && (!['ALL', 'OWN'].includes(result.scope) || result.delayMinutes < 1 || result.delayMinutes > 240)) throw Error('INVALID_SETTINGS');
+    if (key === 'kitchenTv' && (result.textScale < 70 || result.textScale > 150 || !Number.isInteger(result.refreshSeconds) || result.refreshSeconds < 5 || result.refreshSeconds > 120 || result.kitchenSection.length > 100)) throw Error('INVALID_SETTINGS');
     if (key === 'telegramReport' && (!/^(?:[01]\d|2[0-3]):[0-5]\d(?:,(?:[01]\d|2[0-3]):[0-5]\d){0,23}$/.test(result.times))) throw Error('INVALID_SETTINGS');
     return result;
 }

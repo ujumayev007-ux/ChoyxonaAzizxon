@@ -12,7 +12,6 @@ async function loadRestaurantSettings() {
         const data = await apiFetch('/api/admin/settings');
         root.innerHTML = ['restaurant', 'payments', 'orders', 'alerts'].map(key => `<form data-settings="${key}" class="bg-white border rounded-xl p-5 space-y-3"><h2 class="font-bold text-lg">${settingLabels[key]}</h2>${Object.entries(data[key]).map(([field, value]) => `<label class="block text-sm">${settingLabels[field]} <input class="border rounded p-2 ${typeof value === 'boolean' ? '' : 'block w-full'}" name="${field}" type="${typeof value === 'boolean' ? 'checkbox' : typeof value === 'number' ? 'number' : 'text'}" ${typeof value === 'boolean' ? (value ? 'checked' : '') : `value="${escapeHtml(String(value))}"`} ${typeof value === 'number' ? 'min="0" step="0.01"' : 'maxlength="500"'}></label>`).join('')}<button class="bg-blue-600 text-white rounded px-4 py-2">Saqlash</button><output class="block text-sm"></output></form>`).join('') + '<section id="settings-history" class="bg-white border rounded-xl p-5"></section>';
         await loadSettingsHistory();
-        await loadOrderControls(root);
     } catch (error) { root.textContent = error.message; }
 }
 async function loadSettingsHistory() {

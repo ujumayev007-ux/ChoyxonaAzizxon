@@ -35,6 +35,8 @@ import adminSettingsRoutes from './routes/admin-settings.routes';
 import adminOrderControlRoutes from './routes/admin-order-control.routes';
 import { getSettings } from './utils/settings';
 import { queueKitchenPrint } from './utils/kitchen-print';
+import serviceRoutes, { serviceLegacyRouter } from './routes/service.routes';
+import { authorizeService } from './utils/service-policy';
 
 dotenv.config();
 
@@ -101,6 +103,9 @@ const io = new Server(server, {
   }
 });
 initSocket(io);
+app.use('/api/service', serviceRoutes);
+// Exact compatibility paths use the same guarded service handlers as the new panel.
+app.use('/api', serviceLegacyRouter);
 app.use('/api/kitchen', kitchenRoutes);
 app.use('/api/admin/reports', adminReportsRoutes);
 app.use('/api', telegramRoutes);
@@ -749,6 +754,9 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
         const where: Prisma.OrderWhereInput = {};
+        if (req.user!.role === RoleType.WAITER && (await getSettings(prisma, 'waiterService')).scope === 'OWN') {
+            where.OR = [{ waiterId: req.user!.id }, { waiterId: null, table: { assignedWaiterId: req.user!.id } }, { waiterId: null, table: { assignedWaiterId: null } }];
+        }
         if (req.user!.role === RoleType.ADMIN && req.query.archived !== 'true') where.archivedAt = null;
         if (tableId) where.tableId = tableId;
         if (status === 'PENDING') {
@@ -1093,8 +1101,8 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
                     status: { notIn: [OrderStatus.TOLANDI, OrderStatus.YAKUNLANDI, OrderStatus.BEKOR_QILINDI, OrderStatus.QAYTARILDI] }
                 },
                 select: {
-                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, tableId: true,
-                    table: { select: { roomId: true } }, debt: { select: { amount: true, remaining: true } },
+                    id: true, orderNumber: true, status: true, totalAmount: true, processingById: true, tableId: true, waiterId: true,
+                    table: { select: { roomId: true, assignedWaiterId: true } }, debt: { select: { amount: true, remaining: true } },
                     payments: { select: { amount: true } },
                     items: { select: { quantity: true, totalPrice: true, menuItem: { select: { name: true } } } }
                 }
@@ -1104,6 +1112,10 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
             const updates: Array<{ orderId: string; status: OrderStatus; tableId: string; roomId: string; remaining: string }> = [];
             const updatedInventoryIds = new Set<string>();
             for (const order of orders) {
+                if (req.user!.role === RoleType.WAITER) {
+                    await authorizeService(tx, req.user!, 'takePayment', order);
+                    await authorizeService(tx, req.user!, 'read', order);
+                }
                 if (order.processingById && order.processingById !== req.user!.id) throw new Error('ORDER_LOCKED');
                 const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new Prisma.Decimal(0));
                 const due = new Prisma.Decimal(order.totalAmount).minus(paid).minus(order.debt?.amount || 0);
@@ -1342,9 +1354,7 @@ app.post('/api/waiter/calls/:id/complete', authenticateToken, requireRole(['WAIT
 io.on('connection', (socket) => {
     console.log('Foydalanuvchi ulandi:', socket.id);
 
-    socket.on('call_waiter', async (data) => {
-        io.emit('orderUpdate', data);
-    });
+    // Customer calls are authenticated and persisted by /api/customer/calls.
 
     socket.on('disconnect', () => {
         console.log('Foydalanuvchi uzildi:', socket.id);

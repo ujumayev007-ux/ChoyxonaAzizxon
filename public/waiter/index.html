@@ -1497,7 +1497,12 @@
                         `<option value="${escapeWaiterHtml(table.id)}">Stol #${escapeWaiterHtml(table.number || table.id)}</option>`
                     ).join('')}</optgroup>`).join('')}`;
                 const builderSelect = document.getElementById('builder-table-select');
-                if (builderSelect) builderSelect.innerHTML = renderTableOptions('-- Stol tanlanmagan --');
+                if (builderSelect) {
+                    const selected = builderSelect.value;
+                    builderSelect.innerHTML = renderTableOptions('-- Stol tanlanmagan --');
+                    if (selected && ![...builderSelect.options].some(option => option.value === selected)) builderSelect.add(new Option('Avval tanlangan stol — mavjudligini tekshiring', selected));
+                    builderSelect.value = selected;
+                }
             } catch(e) {
                 console.error('Stol tanlash ro‘yxatini yuklashda xatolik:', e);
             }
@@ -1710,6 +1715,7 @@
 <script src="/pin-login.js" data-role="WAITER"></script>
 <a href="/attendance.html" class="fixed bottom-20 right-4 z-40 rounded-xl bg-sky-700 text-white px-4 py-2 shadow-lg">Davomat</a>
 <script src="/restaurant.js"></script>
+<script src="/service-client.js"></script>
+<script src="/waiter-service.js"></script>
 </body>
 </html>
-```[cite: 1, 2, 5]

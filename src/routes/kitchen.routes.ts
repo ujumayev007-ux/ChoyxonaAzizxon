@@ -4,15 +4,20 @@ import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import type { Request } from 'express';
+import { authorizeService } from '../utils/service-policy';
+import { getSettings } from '../utils/settings';
 
 const router = Router();
 router.use(authenticateToken, requireRole(['KITCHEN', 'ADMIN']));
 const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
     TASDIQLANDI: 'TAYYORLANMOQDA',
     OSHXONAGA_YUBORILDI: 'TAYYORLANMOQDA',
-    TAYYORLANMOQDA: 'TAYYOR',
-    TAYYOR: 'STOLGA_YETKAZILDI'
+    TAYYORLANMOQDA: 'TAYYOR'
 };
+router.get('/tv-settings', async (_req, res) => {
+    try { res.json(await getSettings(prisma, 'kitchenTv')); }
+    catch { res.status(500).json({ message: 'TV sozlamalari yuklanmadi' }); }
+});
 
 router.get('/orders', async (_req, res) => {
     try {
@@ -43,6 +48,8 @@ router.patch('/orders/:id/status', async (req: Request<{ id: string }>, res) => 
         }
 
         const updated = await prisma.$transaction(async tx => {
+            await authorizeService(tx, req.user!, 'kitchen', order);
+            if (order.processingById && order.processingAt && Date.now() - order.processingAt.getTime() < 600000) return null;
             const changed = await tx.order.updateMany({
                 where: { id: order.id, status: order.status, updatedAt: order.updatedAt },
                 data: {
@@ -53,7 +60,7 @@ router.patch('/orders/:id/status', async (req: Request<{ id: string }>, res) => 
             });
             if (!changed.count) return null;
             await tx.orderItem.updateMany({
-                where: { orderId: order.id, status: { notIn: ['TAYYOR', 'STOLGA_YETKAZILDI', 'BEKOR_QILINDI'] } },
+                where: { orderId: order.id, status: { notIn: ['TAYYOR', 'OLIB_KETILDI', 'STOLGA_YETKAZILDI', 'BEKOR_QILINDI'] } },
                 data: { status }
             });
             await tx.orderStatusHistory.create({

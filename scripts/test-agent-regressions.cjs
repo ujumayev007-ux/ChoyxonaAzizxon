@@ -107,7 +107,7 @@ test('Oshxona holati o‘zgarganda kartadagi tugma va ma’lumot yangilanadi', (
     assert.doesNotMatch(grid.innerHTML, />Boshlash</);
     assert.match(grid.innerHTML, />Tayyor</);
     context.renderKitchenOrders([{ ...order, status: 'TAYYOR' }]);
-    assert.match(grid.innerHTML, />Yakunlash</);
+    assert.ok(grid.innerHTML.includes('href="/service.html"'));
     context.renderKitchenOrders([]);
     assert.match(grid.innerHTML, /Hozircha faol buyurtmalar/);
 });

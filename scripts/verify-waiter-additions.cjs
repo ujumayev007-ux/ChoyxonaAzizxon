@@ -8,10 +8,11 @@ const decimal = value => new client.Prisma.Decimal(value);
 
 function setup(overrides = {}) {
     const order = { id: 'order-1', waiterId: 'waiter-1', tableId: 'table-1', status: 'STOLGA_YETKAZILDI',
-        payments: [], debt: null, serviceCharge: decimal(0), serviceFeePercent: decimal(0), processingById: null, subtotal: decimal(66000), totalAmount: decimal(65000), ...overrides };
+        updatedAt: new Date('2026-10-11T05:00:00Z'), payments: [], debt: null, serviceCharge: decimal(0), serviceFeePercent: decimal(0), processingById: null, subtotal: decimal(66000), totalAmount: decimal(65000), ...overrides };
     let handler, saved, writes = 0, oldItemsStatus;
     const events = [], lines = [];
     const tx = {
+        appSetting: { findUnique: async () => null },
         $queryRaw: async () => [],
         idempotencyRecord: { findUnique: async () => saved, create: async ({ data }) => { saved = data; } },
         menuItem: { findMany: async () => [{ id: 'food-1', sellingPrice: decimal('22000.25') }] },
@@ -32,6 +33,7 @@ function setup(overrides = {}) {
     const context = vm.createContext({ exports: {}, console, Date, require(name) {
         if (name === 'express') return { Router: () => ({ post: (_path, ...callbacks) => { handler = callbacks.at(-1); } }) };
         if (name === '../utils/db') return { prisma };
+        if (name === '../utils/service-policy') return require('../dist/utils/service-policy');
         if (name === '../utils/kitchen-print') return { queueKitchenPrint: async () => {} };
         if (name === '../middleware/auth') return { authenticateToken() {}, requireRole: () => () => {} };
         if (name === '../socket') return { emitSocketEvent: (...args) => events.push(args) };
@@ -40,11 +42,11 @@ function setup(overrides = {}) {
     vm.runInContext(ts.transpileModule(fs.readFileSync('src/routes/waiter-orders.routes.ts', 'utf8'), {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
     }).outputText, context);
-    const body = { items: [{ productId: 'food-1', quantity: 2, note: 'Tuzsiz' }], idempotencyKey: 'addition-request-12345' };
+    const body = { items: [{ productId: 'food-1', quantity: 2, note: 'Tuzsiz' }], updatedAt: order.updatedAt.toISOString(), idempotencyKey: 'addition-request-12345' };
     return { order, events, lines, get writes() { return writes; }, get oldItemsStatus() { return oldItemsStatus; },
         async send(changes = {}, userId = 'waiter-1') {
             let status = 200, result;
-            await handler({ params: { id: order.id }, user: { id: userId }, body: { ...body, ...changes } }, {
+            await handler({ params: { id: order.id }, user: { id: userId, role: 'WAITER' }, body: { ...body, ...changes } }, {
                 status(value) { status = value; return this; }, json(value) { result = value; }
             });
             return { status, result };
@@ -57,7 +59,7 @@ test('Qo‘shimcha taomlar joriy narxda qo‘shiladi, chegirma va eski taomlar s
     assert.equal(h.order.totalAmount.toString(), '109000.5');
     assert.equal(h.order.subtotal.toString(), '110000.5');
     assert.equal(h.order.status, 'TASDIQLANDI');
-    assert.equal(h.oldItemsStatus, 'TAYYOR');
+    assert.equal(h.oldItemsStatus, undefined, 'Eski taomlarga hech qanday holat yangilanishi yuborilmaydi');
     assert.equal(h.lines[0].status, 'YANGI');
     assert.ok(h.events.some(([event]) => event === 'orderUpdate'));
 });

@@ -330,7 +330,7 @@
                                     <div class="flex gap-2">
                                         ${(order.status === 'TASDIQLANDI' || order.status === 'OSHXONAGA_YUBORILDI') ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYORLANMOQDA')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-900/30">Boshlash</button>` : ''}
                                         ${order.status === 'TAYYORLANMOQDA' ? `<button onclick="updateOrderStatus('${order.id}', 'TAYYOR')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/30">Tayyor</button>` : ''}
-                                        ${order.status === 'TAYYOR' ? `<button onclick="updateOrderStatus('${order.id}', 'STOLGA_YETKAZILDI')" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-lg shadow-purple-900/30">Yakunlash</button>` : ''}
+                                        <a href="/service.html" class="px-4 py-2 bg-purple-600 text-white rounded-xl">Taomlar va izohlar</a>
                                     </div>
                                 </div>
                             </div>
@@ -369,5 +369,6 @@
         }
     </script>
 <a href="/attendance.html" class="fixed bottom-20 right-4 z-40 rounded-xl bg-sky-700 text-white px-4 py-2 shadow-lg">Davomat</a>
+<a href="/service.html" style="position:fixed;bottom:125px;right:16px;z-index:40;background:#0369a1;color:white;padding:10px 14px;border-radius:12px">Xizmat amallari</a>
 </body>
 </html>

@@ -529,15 +529,21 @@ check('Yaxlitlangan summaning qisman qaytimlari asl to‘lovga aniq teng', async
 const cashierHtml = fs.readFileSync(path.join(root, 'public/cashier/index.html'), 'utf8');
 const helpersStart = cashierHtml.indexOf('const moneyCents =');
 const helperEnd = cashierHtml.indexOf(';', cashierHtml.indexOf('const closedPaymentStatuses =')) + 1;
+const apiStart = cashierHtml.indexOf('async function api(');
+const apiEnd = cashierHtml.indexOf('function toast(');
 const paymentStart = cashierHtml.indexOf('function paymentAmounts(');
 const paymentEnd = cashierHtml.indexOf('function openDebtPayment(');
-assert(helpersStart >= 0 && helperEnd > helpersStart && paymentStart >= 0 && paymentEnd > paymentStart,
+assert(helpersStart >= 0 && helperEnd > helpersStart && apiStart >= 0 && apiEnd > apiStart &&
+    paymentStart >= 0 && paymentEnd > paymentStart,
     'Kassa to‘lov funksiyalari topilmadi');
-const frontendSource = cashierHtml.slice(helpersStart, helperEnd) + '\n' + cashierHtml.slice(paymentStart, paymentEnd);
+const frontendSource = cashierHtml.slice(helpersStart, helperEnd) + '\n' + cashierHtml.slice(apiStart, apiEnd) +
+    '\n' + cashierHtml.slice(paymentStart, paymentEnd);
 
 function frontend(values = {}, options = {}) {
     const classes = new Set(['hidden']);
-    const error = { textContent: '', classList: { add: key => classes.add(key), remove: key => classes.delete(key) } };
+    const error = { textContent: '', classList: {
+        add: key => classes.add(key), remove: key => classes.delete(key), contains: key => classes.has(key)
+    } };
     const button = { disabled: false, textContent: '', style: {} };
     const fields = Object.fromEntries(Object.entries({ cash: '', given: '', card: '0', electronic: '0',
         debt: '0', customerId: '', ...values }).map(([name, value]) => [name, { name, value, readOnly: false }]));
@@ -545,13 +551,25 @@ function frontend(values = {}, options = {}) {
         '#payment-error': error, '#confirm-payment-btn': button, '#payment-due': { textContent: '' },
         '#payment-sum': { textContent: '' }, '[data-action="unlock-order"]': { disabled: false }
     };
+    const listeners = new Map();
     const form = {
         elements: fields, querySelector: selector => nodes[selector] || null,
         querySelectorAll: selector => selector === 'input' ? Object.values(fields) : [],
-        addEventListener() {}
+        addEventListener(type, listener) {
+            if (!listeners.has(type)) listeners.set(type, []);
+            listeners.get(type).push(listener);
+        }
     };
     const calls = [];
     const notices = [];
+    const logins = [];
+    const pendingRequests = new Set();
+    const settleRequests = async () => {
+        while (pendingRequests.size) {
+            await Promise.allSettled([...pendingRequests]);
+            await Promise.resolve();
+        }
+    };
     let html = '';
     let active = false;
     let ambiguous = options.ambiguous;
@@ -570,24 +588,53 @@ function frontend(values = {}, options = {}) {
             active = true;
         },
         closeModal() { context.state.paymentSession = null; context.state.currentOrder = null; active = false; return true; },
-        async api(route, requestOptions = {}) {
-            calls.push({ route, options: copy(requestOptions) });
-            if (options.beforeRequest) await options.beforeRequest(route, requestOptions);
-            const result = await request(route.replace('/api/cashier', ''),
-                requestOptions.body ? JSON.parse(requestOptions.body) : undefined, requestOptions.method || 'GET');
-            if (result.status >= 400) throw Object.assign(new Error(result.body.message), { status: result.status });
-            if (route === '/api/cashier/payments' && ambiguous) {
-                ambiguous = false;
-                throw new Error('Tarmoq uzildi');
-            }
-            return result.body;
+        showLogin(message) {
+            logins.push(message);
+            context.state.user = null;
+            context.closeModal({ force: true });
+        },
+        fetch(route, requestOptions = {}) {
+            const pending = (async () => {
+                calls.push({ route, options: copy(requestOptions) });
+                if (options.beforeRequest) await options.beforeRequest(route, requestOptions);
+                const simulated = options.responseForRequest ? await options.responseForRequest(route, requestOptions) : null;
+                const result = simulated || await request(route.replace('/api/cashier', ''),
+                    requestOptions.body ? JSON.parse(requestOptions.body) : undefined, requestOptions.method || 'GET');
+                if (route === '/api/cashier/payments' && ambiguous) {
+                    ambiguous = false;
+                    throw new Error('Tarmoq uzildi');
+                }
+                return { status: result.status, ok: result.status >= 200 && result.status < 300,
+                    async json() { return result.body; } };
+            })();
+            pendingRequests.add(pending);
+            return pending.finally(() => pendingRequests.delete(pending));
         }
     };
     vm.createContext(context);
     vm.runInContext(frontendSource, context, { filename: 'public/cashier/index.html:payment' });
-    return { context, form, button, error, fields, nodes, calls, notices, get html() { return html; },
+    return { context, form, button, error, fields, nodes, calls, notices, logins, get html() { return html; },
         async open() { await context.openPayment('waiter-order'); assert(context.state.paymentSession); },
-        async submit() { await context.submitPayment({ preventDefault() {}, currentTarget: form }); }
+        async input(name, value) {
+            assert(fields[name], `${name}: maydon topilmadi`);
+            assert(!fields[name].readOnly, `${name}: maydon tahrirlash uchun yopilgan`);
+            fields[name].value = value;
+            for (const listener of listeners.get('input') || []) {
+                await listener({ target: fields[name], currentTarget: form });
+            }
+        },
+        async clickSubmit() {
+            if (!active || button.disabled) return false;
+            const registered = listeners.get('submit') || [];
+            assert.equal(registered.length, 1, 'Tasdiqlash uchun submit hodisasi ulanmagan');
+            let prevented = false;
+            for (const listener of registered) {
+                await listener({ preventDefault() { prevented = true; }, currentTarget: form });
+            }
+            await settleRequests();
+            assert(prevented, 'To‘lov tasdiqlanganda sahifa qayta yuklanmasligi kerak');
+            return true;
+        }
     };
 }
 
@@ -598,14 +645,17 @@ for (const [label, values, expected] of [
     ['aralash', { cash: '40.10', given: '50.50', card: '30.05', electronic: '30.10' }, ['NAQD', 'PLASTIK', 'ELEKTRON']]
 ]) check(`Kassa formasi: ${label} to‘lov API va bazagacha yetib boradi`, async () => {
     reset('100.25');
-    const ui = frontend(values);
+    const ui = frontend();
     await ui.open();
+    for (const [name, value] of Object.entries(values)) await ui.input(name, value);
     assert.equal(ui.button.disabled, false);
     assert.match(ui.nodes['#payment-sum'].textContent, /Qaytim: .*Qoldiq: 0 so‘m/);
-    await ui.submit();
+    await ui.clickSubmit();
     const sent = ui.calls.find(call => call.route === '/api/cashier/payments');
     assert(sent, 'Forma to‘lov so‘rovini yubormadi');
     const body = JSON.parse(sent.options.body);
+    assert.equal(sent.options.credentials, 'same-origin');
+    assert.equal(sent.options.headers['Content-Type'], 'application/json');
     assert.equal(body.expectedRemaining, '100.25');
     assert.deepEqual(body.payments.map(row => row.method), expected);
     assert.equal(state.order[0].status, OrderStatus.TOLANDI);
@@ -613,24 +663,90 @@ for (const [label, values, expected] of [
     if (values.given) assert.equal(state.payment[0].customerGiven.toString(), decimal(values.given).toString());
 });
 
+check('Kassa formasi: bo‘sh tasdiqlash xabar beradi va summa kiritilgach to‘lov ishlaydi', async () => {
+    reset();
+    const ui = frontend();
+    await ui.open();
+    assert.equal(ui.button.disabled, false, 'Bo‘sh formada tasdiqlash tugmasi jim bloklanmasligi kerak');
+    assert.equal(await ui.clickSubmit(), true);
+    assert.match(ui.error.textContent, /summasini kiriting/);
+    assert.equal(ui.error.classList.contains('hidden'), false);
+    assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
+    assertNoPayments(false);
+    await ui.input('cash', '100');
+    assert.equal(ui.fields.given.value, '100', 'Naqd summasi kiritilganda mijoz bergan summa yangilanishi kerak');
+    assert.equal(ui.error.classList.contains('hidden'), true);
+    await ui.clickSubmit();
+    assert.equal(state.payment.length, 1);
+    assert.equal(state.payment[0].amount.toString(), '100');
+    assert.equal(state.order[0].status, OrderStatus.TOLANDI);
+});
+
+check('Kassa formasi: faqat mijoz bergan naqd to‘lov summasini o‘rnini bosmaydi', async () => {
+    reset();
+    const ui = frontend();
+    await ui.open();
+    await ui.input('given', '150');
+    assert.equal(ui.fields.cash.value, '');
+    assert.equal(ui.button.disabled, false);
+    await ui.clickSubmit();
+    assert.match(ui.error.textContent, /summasini kiriting/);
+    assert.equal(ui.error.classList.contains('hidden'), false);
+    assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
+    assertNoPayments(false);
+});
+
 check('Kassa formasi: Qoldiq kamayadi va yetarli bo‘lmagan to‘lov yuborilmaydi', async () => {
     reset();
-    const ui = frontend({ cash: '40' });
+    const ui = frontend();
     await ui.open();
+    await ui.input('cash', '40');
     assert.match(ui.nodes['#payment-sum'].textContent, /Qoldiq: 60 so‘m/);
-    assert.equal(ui.button.disabled, true);
-    await ui.submit();
+    assert.equal(ui.button.disabled, false);
+    await ui.clickSubmit();
+    assert.match(ui.error.textContent, /qoldiqdan kam/);
+    assert.equal(ui.error.classList.contains('hidden'), false);
     assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
     assertNoPayments(false);
 });
 
 check('Kassa formasi: ortiqcha karta summasi qisqartirilmaydi va yuborilmaydi', async () => {
     reset();
-    const ui = frontend({ card: '150' });
+    const ui = frontend();
     await ui.open();
-    assert.equal(ui.button.disabled, true);
-    await ui.submit();
+    await ui.input('card', '150');
+    assert.equal(ui.button.disabled, false);
+    await ui.clickSubmit();
     assert.match(ui.error.textContent, /qoldiqdan oshmasligi/);
+    assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
+    assertNoPayments(false);
+});
+
+check('Kassa formasi: yetarli bo‘lmagan berilgan naqd tushunarli xabar beradi', async () => {
+    reset();
+    const ui = frontend();
+    await ui.open();
+    await ui.input('cash', '100');
+    await ui.input('given', '40');
+    assert.equal(ui.button.disabled, false);
+    await ui.clickSubmit();
+    assert.match(ui.error.textContent, /berg[a-z]+ naqd summa naqd to‘lovdan kam/);
+    assert.equal(ui.error.classList.contains('hidden'), false);
+    assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
+    assertNoPayments(false);
+});
+
+check('Kassa formasi: boshqa kassirga qulflangan buyurtmani tasdiqlash bloklanadi', async () => {
+    reset();
+    const ui = frontend({ card: '100' });
+    await ui.open();
+    state.order[0].processingById = 'cashier-2';
+    state.order[0].processingBy = { id: 'cashier-2', fullName: 'Boshqa kassir', role: RoleType.CASHIER };
+    await ui.context.refreshPaymentOrder();
+    assert.equal(ui.context.state.paymentSession.payable, false);
+    assert.equal(ui.button.disabled, true);
+    assert.equal(await ui.clickSubmit(), false, 'O‘chirilgan tugma submit hodisasini yubormasligi kerak');
+    assert.match(ui.error.textContent, /to‘lov qabul qilib bo‘lmaydi/);
     assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
     assertNoPayments(false);
 });
@@ -640,7 +756,7 @@ check('Kassa formasi: ortiqcha naqd pul Qaytim sifatida qaytariladi', async () =
     const ui = frontend({ cash: '150', given: '150' });
     await ui.open();
     assert.match(ui.nodes['#payment-sum'].textContent, /Qaytim: 50 so‘m/);
-    await ui.submit();
+    await ui.clickSubmit();
     assert.equal(state.payment[0].amount.toString(), '100');
     assert.equal(state.payment[0].changeAmount.toString(), '50');
 });
@@ -649,22 +765,89 @@ check('Kassa formasi: ketma-ket bosish faqat bitta so‘rov yuboradi', async () 
     reset();
     const ui = frontend({ card: '100' });
     await ui.open();
-    await Promise.all([ui.submit(), ui.submit()]);
+    const clicks = await Promise.all([ui.clickSubmit(), ui.clickSubmit()]);
+    assert.deepEqual(clicks, [true, false], 'Yuborish davomida ikkinchi bosish bloklanishi kerak');
     assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 1);
     assert.equal(state.payment.length, 1);
 });
+
+check('Kassa formasi: smena uchun 403 kassirni chiqarmaydi va smena ochilgach to‘lov tiklanadi', async () => {
+    reset();
+    state.appSetting.push({ key: 'payments', value: { requireOpenShift: true } });
+    const ui = frontend();
+    await ui.open();
+    await ui.input('cash', '100');
+    const session = ui.context.state.paymentSession;
+    const rejectedKey = session.idempotencyKey;
+    await ui.clickSubmit();
+    assert.match(ui.error.textContent, /Avval kassa smenasini oching/);
+    assert.equal(ui.error.classList.contains('hidden'), false);
+    assert.equal(ui.context.state.user, user);
+    assert.equal(ui.context.state.paymentSession, session);
+    assert.equal(ui.logins.length, 0, 'To‘lov siyosati sessiyani yakunlamasligi kerak');
+    assert.equal(session.request, null, '403 bilan rad etilgan to‘lov qayta tahrirlanishi kerak');
+    assert.notEqual(session.idempotencyKey, rejectedKey);
+    assert.equal(ui.button.disabled, false);
+    assert(Object.values(ui.fields).every(field => !field.readOnly));
+    assertNoPayments(false);
+    state.cashSession.push({ id: 'cash-session-1', cashierId: user.id, activeCashierId: user.id,
+        startingBalance: decimal(0), closedAt: null });
+    await ui.input('given', '120');
+    await ui.clickSubmit();
+    assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 2);
+    assert.equal(state.payment.length, 1);
+    assert.equal(state.payment[0].changeAmount.toString(), '20');
+    assert.equal(state.cashMovement[0].sessionId, 'cash-session-1');
+    assert.equal(ui.context.state.paymentSession, null);
+    assert.equal(ui.context.state.user, user);
+    assert.equal(ui.logins.length, 0);
+});
+
+check('Kassa formasi: to‘lov paytidagi 401 sessiyani yakunlaydi', async () => {
+    reset();
+    const ui = frontend({ card: '100' }, {
+        responseForRequest(route) {
+            return route === '/api/cashier/payments'
+                ? { status: 401, body: { success: false, message: 'Sessiya yakunlangan' } } : null;
+        }
+    });
+    await ui.open();
+    const session = ui.context.state.paymentSession;
+    await ui.clickSubmit();
+    assert.equal(ui.context.state.user, null);
+    assert.equal(ui.context.state.paymentSession, null);
+    assert.equal(ui.logins.length, 1);
+    assert.match(ui.logins[0], /Sessiya yakunlangan/);
+    assert.equal(session.request, null, '401 holati tanilgan HTTP xato sifatida uzatilishi kerak');
+    assert.equal(await ui.clickSubmit(), false);
+    assertNoPayments(false);
+});
+
+for (const status of [401, 403]) {
+    check(`Kassa API: /me uchun ${status} holati loginni ko‘rsatadi va xatoda saqlanadi`, async () => {
+        reset();
+        const ui = frontend({}, {
+            responseForRequest() { return { status, body: { success: false, message: 'Kassir sessiyasi kerak' } }; }
+        });
+        await assert.rejects(ui.context.api('/api/cashier/me'), failure =>
+            failure.status === status && failure.message === 'Kassir sessiyasi kerak');
+        assert.equal(ui.context.state.user, null);
+        assert.equal(ui.logins.length, 1);
+        assertNoPayments();
+    });
+}
 
 check('Kassa formasi: tarmoq uzilganda bir xil kalit va summa qayta tekshiriladi', async () => {
     reset();
     const ui = frontend({ cash: '100', given: '120' }, { ambiguous: true });
     await ui.open();
-    await ui.submit();
+    await ui.clickSubmit();
     assert.equal(state.payment.length, 1);
     assert(ui.context.state.paymentSession.request);
     assert.equal(ui.button.disabled, false);
     assert.match(ui.button.textContent, /qayta tekshirish/);
     ui.fields.cash.value = '200';
-    await ui.submit();
+    await ui.clickSubmit();
     const requests = ui.calls.filter(call => call.route === '/api/cashier/payments');
     assert.equal(requests.length, 2);
     assert.equal(requests[0].options.body, requests[1].options.body);
@@ -679,11 +862,11 @@ check('Kassa formasi: tasdiqlash oldidan o‘zgargan jami qayta tekshiriladi', a
     await ui.open();
     state.order[0].totalAmount = decimal(125);
     state.order[0].subtotal = decimal(125);
-    await ui.submit();
+    await ui.clickSubmit();
     assert.equal(ui.calls.filter(call => call.route === '/api/cashier/payments').length, 0);
     assert.match(ui.error.textContent, /o‘zgardi/);
     assert.equal(ui.context.state.paymentSession.due, 12500);
-    assert.equal(ui.button.disabled, true);
+    assert.equal(ui.button.disabled, false);
     assertNoPayments(false);
     // Oxirgi avtomatik yangilash tugashini kutish.
     await new Promise(resolve => setImmediate(resolve));

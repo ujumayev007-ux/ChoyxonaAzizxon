@@ -386,7 +386,7 @@ router.post('/orders', async (req, res) => {
         }
         const menuIds = [...new Set(itemsInput.map(item => item.menuItemId))];
         const menu = await db_1.prisma.menuItem.findMany({
-            where: { id: { in: menuIds }, isActive: true, category: { isActive: true } },
+            where: { id: { in: menuIds }, isActive: true, available: true, category: { isActive: true } },
             select: { id: true, name: true, sellingPrice: true }
         });
         if (menu.length !== menuIds.length) {
@@ -1143,7 +1143,7 @@ router.post('/refunds', async (req, res) => {
                 select: {
                     id: true, status: true, totalAmount: true, debt: { select: { remaining: true, payments: { select: { amount: true } } } },
                     payments: { select: { amount: true } },
-                    items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true } },
+                    items: { select: { id: true, quantity: true, cancelledQuantity: true, unitPrice: true, totalPrice: true } },
                     refunds: { select: { amount: true } }
                 }
             });
@@ -1179,14 +1179,15 @@ router.post('/refunds', async (req, res) => {
                     _sum: { quantity: true, amount: true }
                 });
                 const returnedQuantity = new client_1.Prisma.Decimal(previouslyReturned._sum.quantity || 0).plus(quantity);
-                if (returnedQuantity.greaterThan(orderItem.quantity)) {
+                const soldQuantity = new client_1.Prisma.Decimal(orderItem.quantity).minus(orderItem.cancelledQuantity || 0);
+                if (returnedQuantity.greaterThan(soldQuantity)) {
                     throw new Error('REFUND_QUANTITY_EXCEEDED');
                 }
                 // Allocate the saved line total so partial returns add up to the
                 // exact amount charged, including rounding on fractional dishes.
                 const lineTotal = budgets.get(orderItem.id);
-                const cumulativeAmount = returnedQuantity.equals(orderItem.quantity)
-                    ? lineTotal : lineTotal.mul(returnedQuantity).div(orderItem.quantity).toDecimalPlaces(2);
+                const cumulativeAmount = returnedQuantity.equals(soldQuantity)
+                    ? lineTotal : lineTotal.mul(returnedQuantity).div(soldQuantity).toDecimalPlaces(2);
                 const amount = cumulativeAmount.minus(previouslyReturned._sum.amount || 0);
                 if (amount.lessThan(0))
                     throw new Error('REFUND_AMOUNT_EXCEEDED');

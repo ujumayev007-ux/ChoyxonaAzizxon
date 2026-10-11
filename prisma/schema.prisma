@@ -57,6 +57,9 @@ model User {
   purchases               Purchase[]
   inventoryTxns           InventoryTransaction[]
   waiterShifts            WaiterShift[] @relation("WaiterShifts")
+  assignedTables          Table[] @relation("AssignedTables")
+  serviceRequestsMade     ServiceRequest[] @relation("ServiceRequester")
+  serviceRequestsDecided  ServiceRequest[] @relation("ServiceDecider")
 
   @@index([username])
 }
@@ -166,6 +169,8 @@ model Table {
   capacity    Int          @default(4)
   qrCodeToken String       @unique // Xavfsiz QR identifikatori
   isActive    Boolean      @default(true)
+  assignedWaiterId String?
+  assignedWaiter User? @relation("AssignedTables", fields: [assignedWaiterId], references: [id], onDelete: SetNull)
   orders      Order[]
   waiterCalls WaiterCall[]
   createdAt   DateTime     @default(now())
@@ -202,6 +207,8 @@ model MenuItem {
   preparationTime   Int          @default(15) // daqiqada
   kitchenSection    String       @default("Umumiy oshxona") // Bo'lim/Printer yo'nalishi
   isActive          Boolean      @default(true)
+  available         Boolean      @default(true)
+  unavailableReason String?
 
   recipes                Recipe[]
   orderItems             OrderItem[]
@@ -374,6 +381,9 @@ model Order {
   takeawayVerification TakeawayVerification?
   simulations          KitchenSimulation[]
   printJobs            PrintJob[]
+  serviceRequests      ServiceRequest[]
+  noteAcknowledgedAt   DateTime?
+  noteAcknowledgedById String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -398,6 +408,12 @@ model OrderItem {
   totalPrice Decimal
   status     String   @default("YANGI") // "Yangi", "Tayyorlanmoqda", "Tayyor", "Bekor qilingan"
   notes      String? // Maxsus izoh (masalan: piyozsiz)
+  pickedUpAt DateTime?
+  deliveredAt DateTime?
+  cancelledQuantity Decimal @default(0)
+  noteAcknowledgedAt DateTime?
+  noteAcknowledgedById String?
+  serviceRequests ServiceRequest[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -721,10 +737,38 @@ model WaiterCall {
   completedById String?
   completedBy   User?    @relation("WaiterCallCompleter", fields: [completedById], references: [id], onDelete: SetNull)
   kind          String   @default("CUSTOMER")
+  acceptedAt    DateTime?
+  completedAt   DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([tableId])
+}
+
+model ServiceRequest {
+  id String @id @default(uuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+  kind String
+  quantity Decimal
+  reason String
+  status String @default("KUTILMOQDA")
+  requestedById String
+  requestedBy User @relation("ServiceRequester", fields: [requestedById], references: [id])
+  decidedById String?
+  decidedBy User? @relation("ServiceDecider", fields: [decidedById], references: [id])
+  decisionReason String?
+  stockDisposition String @default("DISCARD")
+  restockInventoryId String?
+  restockQuantity Decimal?
+  refundId String? @unique
+  amount Decimal @default(0)
+  createdAt DateTime @default(now())
+  decidedAt DateTime?
+  @@index([orderId, status])
+  @@index([status, createdAt])
 }
 
 model Feedback {

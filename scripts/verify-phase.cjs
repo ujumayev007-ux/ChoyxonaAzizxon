@@ -4,12 +4,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const steps = [
     ['Prisma sxemasini tekshirish', ['node_modules/prisma/build/index.js', 'validate']],
-    ['Prisma klientini yaratish', ['node_modules/prisma/build/index.js', 'generate']],
-    ['TypeScript build', ['node_modules/typescript/bin/tsc']],
+    ['Prisma klientini yaratish', ['scripts/generate-prisma.cjs']],
+    ['TypeScript build', ['scripts/build.cjs']],
     ['Kassir to‘lovlari', ['scripts/verify-cashier-payments.js']],
     ['Ofitsant va stol to‘lovlari', ['scripts/verify-waiter-payment-flow.js']],
     ['Buyurtmalar, printerlar, PIN va regressiya', ['--test',
-        'scripts/verify-waiter-actions.cjs', 'scripts/verify-waiter-additions.cjs',
+        'scripts/verify-waiter-actions.cjs', 'scripts/verify-waiter-additions.cjs', 'scripts/verify-waiter-service.cjs',
+        'scripts/verify-admin-settings.cjs',
         'scripts/verify-printer-pin.cjs', 'scripts/verify-employees.cjs', 'scripts/verify-attendance.cjs', 'scripts/verify-sessions.cjs', 'scripts/verify-telegram-security.cjs', 'scripts/verify-inventory-settings.cjs', 'scripts/verify-backups.cjs', 'scripts/test-agent-regressions.cjs']],
     ['Printer ulash dasturi sintaksisi', ['--check', 'scripts/print-agent.cjs']],
     ['Nusxa o‘qish dasturi sintaksisi', ['--check', 'scripts/read-business-backup.cjs']]
