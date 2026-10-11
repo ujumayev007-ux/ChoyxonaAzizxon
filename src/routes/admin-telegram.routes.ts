@@ -5,10 +5,33 @@ import { requireAdminPin } from '../middleware/admin-pin';
 import { prisma } from '../utils/db';
 import { encryptSecret } from '../utils/secrets';
 import { sendTelegramMessage, telegramToken } from '../utils/telegram';
+import { getSettings, saveSettings } from '../utils/settings';
+import { buildTelegramReport } from '../utils/telegram-reports';
 const router = Router();
 router.use(authenticateToken, requireRole(['ADMIN']), requireAdminPin);
 const safeSubscriber = { id: true, name: true, username: true, chatId: true, isActive: true, verifiedAt: true, createdAt: true };
 const hashCode = (id: string, code: string) => createHash('sha256').update(`${id}:${code}`).digest('hex');
+router.get('/report', async (_req, res) => {
+    try { res.json({ config: await getSettings(prisma, 'telegramReport'), history: await prisma.settingRevision.findMany({ where: { key: 'telegramReport' }, take: 30, orderBy: { createdAt: 'desc' } }), runs: await prisma.scheduledReport.findMany({ take: 50, orderBy: { createdAt: 'desc' } }) }); }
+    catch { res.status(500).json({ message: 'Hisobot sozlamalari yuklanmadi' }); }
+});
+router.put('/report', async (req, res) => {
+    try { await prisma.$transaction(async tx => { await tx.$queryRaw`SELECT pg_advisory_xact_lock(72707372)`; await saveSettings(tx, 'telegramReport', req.body, req.user!.id); }); res.json({ success: true }); }
+    catch { res.status(400).json({ message: 'Hisobot ko‘rsatkichlari yoki vaqt noto‘g‘ri' }); }
+});
+router.post('/report/restore/:id', async (req, res) => {
+    try {
+        await prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(72707372)`;
+            const revision = await tx.settingRevision.findFirstOrThrow({ where: { id: req.params.id, key: 'telegramReport' } });
+            await saveSettings(tx, 'telegramReport', revision.previous, req.user!.id);
+        }); res.json({ success: true });
+    } catch { res.status(400).json({ message: 'Hisobot sozlamalari tiklanmadi' }); }
+});
+router.get('/report/preview', async (_req, res) => {
+    try { res.json({ text: await buildTelegramReport(new Date(Date.now() - 86400000), new Date()) }); }
+    catch { res.status(500).json({ message: 'Hisobot tuzilmadi' }); }
+});
 router.get('/config', async (_req, res) => {
     try { res.json({ configured: Boolean(await telegramToken()), encryptionReady: (process.env.SETTINGS_ENCRYPTION_KEY || process.env.AUTH_SECRET || process.env.SESSION_SECRET || '').length >= 32 }); }
     catch { res.status(503).json({ message: 'Bot kalitini ochib bo‘lmadi. Server shifrlash kalitini tekshiring' }); }

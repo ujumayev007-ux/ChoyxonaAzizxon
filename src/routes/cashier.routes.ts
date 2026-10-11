@@ -7,7 +7,7 @@ import { emitSocketEvent } from '../socket';
 import { verifyPassword } from '../utils/password';
 import { deductPackaging } from '../utils/order-packaging';
 import { deductOrderRecipes } from '../utils/order-recipes';
-import { formatTelegramMessage, sendToActiveSubscribers, telegramToken } from '../utils/telegram';
+import { telegramToken } from '../utils/telegram';
 import { getSettings } from '../utils/settings';
 const router = Router();
 router.use(authenticateToken, requireCashierAccess);
@@ -1411,7 +1411,7 @@ router.post('/register/close', async (req, res) => {
             return { closed, ...response };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         emitSocketEvent('cashRegisterUpdated', { cashierId: req.user!.id, status: 'CLOSED' });
-        try { await sendShiftCloseReport(req.user!.id, result.sessionId); } catch (e) { console.error('Failed to send shift close report:', e); }
+
         res.json({ success: true, data: result });
     } catch (error) {
         if (error instanceof Error && error.message === 'CASH_DIFFERENCE_LIMIT') { res.status(403).json({ message: 'Kassa farqi belgilangan limitdan oshdi. Admin tasdig?i kerak' }); return; }
@@ -1936,35 +1936,6 @@ router.post('/admin-access/close', requireRole(['ADMIN']), async (req, res) => {
         res.status(500).json({ success: false, message: 'Admin sessiyasini yopib bo‘lmadi' });
     }
 });
-
-async function sendShiftCloseReport(cashierId: string, sessionId: string) {
-  const [session, payments, expenses, refunds] = await Promise.all([
-    prisma.cashSession.findUnique({ where: { id: sessionId }, select: { closedAt: true, startingBalance: true, expectedCash: true, actualCash: true, difference: true } }),
-    prisma.payment.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true, method: true } }),
-    prisma.expense.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true } }),
-    prisma.refund.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true } })
-  ]);
-  const totalRevenue = payments.reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
-  const cashPayments = payments.filter(p => p.method === PaymentMethod.NAQD).reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
-  const cardPayments = payments.filter(p => p.method === PaymentMethod.PLASTIK).reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
-  const electronicPayments = payments.filter(p => p.method === PaymentMethod.ELEKTRON).reduce((sum, p) => sum.plus(p.amount), new Prisma.Decimal(0));
-  const totalExpenses = expenses.reduce((sum, e) => sum.plus(e.amount), new Prisma.Decimal(0));
-  const totalRefunds = refunds.reduce((sum, r) => sum.plus(r.amount), new Prisma.Decimal(0));
-  const lines = [
-    `Smena yopilgan: ${session?.closedAt ? new Date(session.closedAt).toLocaleString("uz-UZ") : ''}`,
-    `Boshlang'ich balans: ${session?.startingBalance?.toString() || "0"}`,
-    `Kutilayotgan naqd: ${session?.expectedCash?.toString() || "0"}`,
-    `Amaldagi naqd: ${session?.actualCash?.toString() || "0"}`,
-    `Farq: ${session?.difference?.toString() || "0"}`,
-    `Umumiy tushum: ${totalRevenue.toString()}`,
-    `Naqd to'lovlar: ${cashPayments.toString()}`,
-    `Plastik to'lovlar: ${cardPayments.toString()}`,
-    `Elektron to'lovlar: ${electronicPayments.toString()}`,
-    `Xarajatlar: ${totalExpenses.toString()}`,
-`Qaytarishlar: ${totalRefunds.toString()}`,
-  ];
-  await sendToActiveSubscribers(formatTelegramMessage('Smena hisobi', lines));
-}
 
 export default router;
 

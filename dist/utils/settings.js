@@ -5,6 +5,7 @@ exports.validateSettings = validateSettings;
 exports.getSettings = getSettings;
 exports.saveSettings = saveSettings;
 exports.defaults = {
+    telegramReport: { enabled: false, revenue: true, cash: true, card: true, electronic: true, expenses: false, netProfit: false, debts: false, waiters: false, inventory: false, hourly: false, daily: true, times: '23:00', shiftOpen: false, shiftClose: true },
     payments: { cash: true, card: true, electronic: true, split: true, requireOpenShift: false, refunds: true, maxDiscountPercent: 10, debtLimit: 0, cashDifferenceLimit: 0 },
     orders: { autoApprove: true, cancellation: true, tableTransfer: true, waiterReassignment: true },
     alerts: { lowStock: true, delayedOrderMinutes: 45, unclosedShiftHours: 16, printerFailures: true, backupFailures: true, failedPayments: true },
@@ -27,6 +28,8 @@ function validateSettings(key, value) {
         if (!result.restaurantName.trim() || (result.logoUrl && !/^https:\/\//.test(result.logoUrl)))
             throw Error('INVALID_SETTINGS');
     }
+    if (key === 'telegramReport' && (!/^(?:[01]\d|2[0-3]):[0-5]\d(?:,(?:[01]\d|2[0-3]):[0-5]\d){0,23}$/.test(result.times)))
+        throw Error('INVALID_SETTINGS');
     return result;
 }
 async function getSettings(db, key) {

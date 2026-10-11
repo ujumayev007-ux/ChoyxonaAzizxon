@@ -1429,12 +1429,6 @@ router.post('/register/close', async (req, res) => {
             return { closed, ...response };
         }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         (0, socket_1.emitSocketEvent)('cashRegisterUpdated', { cashierId: req.user.id, status: 'CLOSED' });
-        try {
-            await sendShiftCloseReport(req.user.id, result.sessionId);
-        }
-        catch (e) {
-            console.error('Failed to send shift close report:', e);
-        }
         res.json({ success: true, data: result });
     }
     catch (error) {
@@ -1965,32 +1959,4 @@ router.post('/admin-access/close', (0, auth_1.requireRole)(['ADMIN']), async (re
         res.status(500).json({ success: false, message: 'Admin sessiyasini yopib bo‘lmadi' });
     }
 });
-async function sendShiftCloseReport(cashierId, sessionId) {
-    const [session, payments, expenses, refunds] = await Promise.all([
-        db_1.prisma.cashSession.findUnique({ where: { id: sessionId }, select: { closedAt: true, startingBalance: true, expectedCash: true, actualCash: true, difference: true } }),
-        db_1.prisma.payment.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true, method: true } }),
-        db_1.prisma.expense.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true } }),
-        db_1.prisma.refund.findMany({ where: { cashierId, createdAt: { gte: dayStartInTashkent() } }, select: { amount: true } })
-    ]);
-    const totalRevenue = payments.reduce((sum, p) => sum.plus(p.amount), new client_1.Prisma.Decimal(0));
-    const cashPayments = payments.filter(p => p.method === client_1.PaymentMethod.NAQD).reduce((sum, p) => sum.plus(p.amount), new client_1.Prisma.Decimal(0));
-    const cardPayments = payments.filter(p => p.method === client_1.PaymentMethod.PLASTIK).reduce((sum, p) => sum.plus(p.amount), new client_1.Prisma.Decimal(0));
-    const electronicPayments = payments.filter(p => p.method === client_1.PaymentMethod.ELEKTRON).reduce((sum, p) => sum.plus(p.amount), new client_1.Prisma.Decimal(0));
-    const totalExpenses = expenses.reduce((sum, e) => sum.plus(e.amount), new client_1.Prisma.Decimal(0));
-    const totalRefunds = refunds.reduce((sum, r) => sum.plus(r.amount), new client_1.Prisma.Decimal(0));
-    const lines = [
-        `Smena yopilgan: ${session?.closedAt ? new Date(session.closedAt).toLocaleString("uz-UZ") : ''}`,
-        `Boshlang'ich balans: ${session?.startingBalance?.toString() || "0"}`,
-        `Kutilayotgan naqd: ${session?.expectedCash?.toString() || "0"}`,
-        `Amaldagi naqd: ${session?.actualCash?.toString() || "0"}`,
-        `Farq: ${session?.difference?.toString() || "0"}`,
-        `Umumiy tushum: ${totalRevenue.toString()}`,
-        `Naqd to'lovlar: ${cashPayments.toString()}`,
-        `Plastik to'lovlar: ${cardPayments.toString()}`,
-        `Elektron to'lovlar: ${electronicPayments.toString()}`,
-        `Xarajatlar: ${totalExpenses.toString()}`,
-        `Qaytarishlar: ${totalRefunds.toString()}`,
-    ];
-    await (0, telegram_1.sendToActiveSubscribers)((0, telegram_1.formatTelegramMessage)('Smena hisobi', lines));
-}
 exports.default = router;

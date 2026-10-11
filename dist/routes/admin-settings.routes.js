@@ -16,7 +16,7 @@ router.get('/', async (_req, res) => {
     }
 });
 router.put('/:key', async (req, res) => {
-    if (!Object.hasOwn(settings_1.defaults, req.params.key)) {
+    if (req.params.key === 'telegramReport' || !Object.hasOwn(settings_1.defaults, req.params.key)) {
         res.status(404).json({ message: 'Sozlama topilmadi' });
         return;
     }
@@ -44,7 +44,7 @@ router.post('/history/:id/restore', async (req, res) => {
         await db_1.prisma.$transaction(async (tx) => {
             await tx.$queryRaw `SELECT pg_advisory_xact_lock(72707372)`;
             const revision = await tx.settingRevision.findUniqueOrThrow({ where: { id: req.params.id } });
-            if (!Object.hasOwn(settings_1.defaults, revision.key))
+            if (revision.key === 'telegramReport' || !Object.hasOwn(settings_1.defaults, revision.key))
                 throw Error();
             await (0, settings_1.saveSettings)(tx, revision.key, revision.previous, req.user.id);
         }, { timeout: 30000 });

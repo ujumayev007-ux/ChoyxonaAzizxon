@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const telegram_reports_1 = require("./utils/telegram-reports");
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const socket_io_1 = require("socket.io");
@@ -1369,6 +1370,7 @@ Promise.resolve().then(() => {
     return ensureInitialAdmin();
 }).then(() => {
     server.listen(PORT, () => {
+        (0, telegram_reports_1.startReportSchedule)();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

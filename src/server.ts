@@ -1,3 +1,4 @@
+import { startReportSchedule } from './utils/telegram-reports';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -1374,6 +1375,7 @@ Promise.resolve().then(() => {
     return ensureInitialAdmin();
 }).then(() => {
     server.listen(PORT, () => {
+        startReportSchedule();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

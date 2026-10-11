@@ -10,7 +10,7 @@ router.get('/', async (_req, res) => {
     catch { res.status(500).json({ message: 'Sozlamalar yuklanmadi' }); }
 });
 router.put('/:key', async (req, res) => {
-    if (!Object.hasOwn(defaults, req.params.key)) { res.status(404).json({ message: 'Sozlama topilmadi' }); return; }
+    if (req.params.key === 'telegramReport' || !Object.hasOwn(defaults, req.params.key)) { res.status(404).json({ message: 'Sozlama topilmadi' }); return; }
     try {
         await prisma.$transaction(async tx => { await tx.$queryRaw`SELECT pg_advisory_xact_lock(72707372)`; await saveSettings(tx, req.params.key as SettingKey, req.body, req.user!.id); }, { timeout: 30000 });
         emitSocketEvent('settings_updated', { key: req.params.key }); res.json({ success: true });
@@ -29,7 +29,7 @@ router.post('/history/:id/restore', async (req, res) => {
         await prisma.$transaction(async tx => {
             await tx.$queryRaw`SELECT pg_advisory_xact_lock(72707372)`;
             const revision = await tx.settingRevision.findUniqueOrThrow({ where: { id: req.params.id } });
-            if (!Object.hasOwn(defaults, revision.key)) throw Error();
+            if (revision.key === 'telegramReport' || !Object.hasOwn(defaults, revision.key)) throw Error();
             await saveSettings(tx, revision.key as SettingKey, revision.previous, req.user!.id);
         }, { timeout: 30000 }); emitSocketEvent('settings_updated', {}); res.json({ success: true });
     } catch { res.status(400).json({ message: 'Oldingi sozlamalarni tiklab bo‘lmadi' }); }

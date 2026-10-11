@@ -7,10 +7,50 @@ const admin_pin_1 = require("../middleware/admin-pin");
 const db_1 = require("../utils/db");
 const secrets_1 = require("../utils/secrets");
 const telegram_1 = require("../utils/telegram");
+const settings_1 = require("../utils/settings");
+const telegram_reports_1 = require("../utils/telegram-reports");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), admin_pin_1.requireAdminPin);
 const safeSubscriber = { id: true, name: true, username: true, chatId: true, isActive: true, verifiedAt: true, createdAt: true };
 const hashCode = (id, code) => (0, crypto_1.createHash)('sha256').update(`${id}:${code}`).digest('hex');
+router.get('/report', async (_req, res) => {
+    try {
+        res.json({ config: await (0, settings_1.getSettings)(db_1.prisma, 'telegramReport'), history: await db_1.prisma.settingRevision.findMany({ where: { key: 'telegramReport' }, take: 30, orderBy: { createdAt: 'desc' } }), runs: await db_1.prisma.scheduledReport.findMany({ take: 50, orderBy: { createdAt: 'desc' } }) });
+    }
+    catch {
+        res.status(500).json({ message: 'Hisobot sozlamalari yuklanmadi' });
+    }
+});
+router.put('/report', async (req, res) => {
+    try {
+        await db_1.prisma.$transaction(async (tx) => { await tx.$queryRaw `SELECT pg_advisory_xact_lock(72707372)`; await (0, settings_1.saveSettings)(tx, 'telegramReport', req.body, req.user.id); });
+        res.json({ success: true });
+    }
+    catch {
+        res.status(400).json({ message: 'Hisobot ko‘rsatkichlari yoki vaqt noto‘g‘ri' });
+    }
+});
+router.post('/report/restore/:id', async (req, res) => {
+    try {
+        await db_1.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw `SELECT pg_advisory_xact_lock(72707372)`;
+            const revision = await tx.settingRevision.findFirstOrThrow({ where: { id: req.params.id, key: 'telegramReport' } });
+            await (0, settings_1.saveSettings)(tx, 'telegramReport', revision.previous, req.user.id);
+        });
+        res.json({ success: true });
+    }
+    catch {
+        res.status(400).json({ message: 'Hisobot sozlamalari tiklanmadi' });
+    }
+});
+router.get('/report/preview', async (_req, res) => {
+    try {
+        res.json({ text: await (0, telegram_reports_1.buildTelegramReport)(new Date(Date.now() - 86400000), new Date()) });
+    }
+    catch {
+        res.status(500).json({ message: 'Hisobot tuzilmadi' });
+    }
+});
 router.get('/config', async (_req, res) => {
     try {
         res.json({ configured: Boolean(await (0, telegram_1.telegramToken)()), encryptionReady: (process.env.SETTINGS_ENCRYPTION_KEY || process.env.AUTH_SECRET || process.env.SESSION_SECRET || '').length >= 32 });

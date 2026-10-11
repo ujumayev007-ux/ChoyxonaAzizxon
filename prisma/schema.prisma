@@ -789,6 +789,12 @@ model TelegramDelivery {
   @@index([createdAt])
 }
 
+model ScheduledReport {
+  key String @id
+  createdAt DateTime @default(now())
+  status String @default("ISHLANMOQDA")
+}
+
 model RolePermission {
   id             String   @id @default(uuid())
   role           RoleType

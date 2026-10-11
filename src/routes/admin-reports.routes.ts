@@ -1056,7 +1056,7 @@ router.get('/:section', async (req, res) => {
             case 'takeaway': data = await takeaway(filters); break;
             case 'audit': data = await audit(filters); break;
             case 'telegram':
-                data = { implemented: false, message: 'Telegram hisobotlari va admin qabul qiluvchilari tizimda sozlanmagan.' };
+                data = { implemented: true, message: 'Telegram boshqaruvi Admin Sozlamalar bo‘limida. Hisobot tarkibi va jadvali PIN bilan himoyalangan.' };
                 break;
             default: data = null;
         }

@@ -163,6 +163,7 @@ function loadHandlers(harness) {
     const middleware = () => {};
     const auth = new Proxy({}, { get: (_target, key) => key === 'requireRole' ? () => middleware : middleware });
     const mocks = {
+        './utils/telegram-reports': { startReportSchedule() {} },
         express,
         http: { createServer: () => ({ listen() {} }) },
         'socket.io': { Server: class { on() {} } },
