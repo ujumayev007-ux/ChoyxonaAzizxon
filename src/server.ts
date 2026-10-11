@@ -26,6 +26,9 @@ import printAgentRoutes from './routes/print-agent.routes';
 import employeeRoutes from './routes/employees.routes';
 import attendanceRoutes from './routes/attendance.routes';
 import adminSecurityRoutes from './routes/admin-security.routes';
+import adminSettingsRoutes from './routes/admin-settings.routes';
+import adminOrderControlRoutes from './routes/admin-order-control.routes';
+import { getSettings } from './utils/settings';
 import { queueKitchenPrint } from './utils/kitchen-print';
 
 dotenv.config();
@@ -105,6 +108,8 @@ app.use('/api/print-agent', printAgentRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
+app.use('/api/admin/settings', adminSettingsRoutes);
+app.use('/api/admin/order-control', adminOrderControlRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
@@ -765,7 +770,7 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         if (tableId) where.tableId = tableId;
         if (status === 'PENDING') {
             where.status = { in: ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'] };
-            where.source = { not: 'WAITER' };
+            if ((await getSettings(prisma, 'orders')).autoApprove) where.source = { not: 'WAITER' };
         } else if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
             where.status = status as OrderStatus;
         }
@@ -926,6 +931,9 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
             };
         });
         const totalAmount = orderItems.reduce((total, item) => total.plus(item.totalPrice), new Prisma.Decimal(0));
+        const [restaurant, rules] = await Promise.all([getSettings(prisma, 'restaurant'), getSettings(prisma, 'orders')]);
+        const serviceCharge = totalAmount.mul(restaurant.serviceFeePercent).div(100).toDecimalPlaces(2);
+        const initialStatus = rules.autoApprove ? OrderStatus.TASDIQLANDI : OrderStatus.YANGI;
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const orderNumber = `${date}-${randomBytes(4).toString('hex').toUpperCase()}`;
         const order = await prisma.$transaction(async tx => {
@@ -935,16 +943,17 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
                 tableId: table.id,
                 waiterId: req.user!.id,
                 guestCount: guestCount === undefined ? 1 : Number(guestCount),
-                status: OrderStatus.TASDIQLANDI,
+                status: initialStatus,
                 source: 'WAITER',
-                approvedAt: new Date(),
+                approvedAt: rules.autoApprove ? new Date() : null,
                 notes: typeof note === 'string' ? note.trim() : null,
                 createdById: req.user!.id,
                 subtotal: totalAmount,
-                totalAmount,
+                totalAmount: totalAmount.plus(serviceCharge),
+                serviceCharge, serviceFeePercent: restaurant.serviceFeePercent,
                 items: { create: orderItems },
                 statusHistory: { create: {
-                    status: OrderStatus.TASDIQLANDI,
+                    status: initialStatus,
                     userId: req.user!.id,
                     ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
                 } }
@@ -956,7 +965,7 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
             }
         });
 
-        await queueKitchenPrint(tx, created.id, 'initial');
+        if (rules.autoApprove) await queueKitchenPrint(tx, created.id, 'initial');
         return created;
         }, { maxWait: 10000, timeout: 30000 });
         emitSocketEvent('order_status_updated', { orderId: order.id, status: order.status });
@@ -1015,6 +1024,7 @@ app.post('/api/orders/:id/approve', authenticateToken, requireRole(['WAITER', 'A
 
 app.post('/api/orders/:id/reject', authenticateToken, requireRole(['WAITER', 'ADMIN']), async (req, res) => {
     try {
+        if (!(await getSettings(prisma, 'orders')).cancellation) { res.status(403).json({ message: 'Buyurtmalarni bekor qilish o‘chirilgan' }); return; }
         const order = await prisma.order.findUnique({ where: { id: req.params.id } });
         if (!order) {
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
@@ -1075,6 +1085,11 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
         method
     })).digest('hex');
     try {
+        const policy = await getSettings(prisma, 'payments');
+        if (!(method === 'NAQD' ? policy.cash : method === 'PLASTIK' ? policy.card : policy.electronic) ||
+            (policy.requireOpenShift && !await prisma.cashSession.findFirst({ where: { cashierId: req.user!.id, closedAt: null } }))) {
+            res.status(403).json({ message: 'To‘lov usuli o‘chirilgan yoki kassa smenasi ochilmagan' }); return;
+        }
         const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user!.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
@@ -1145,7 +1160,7 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
                         orderId: order.id,
                         jobType: 'RECEIPT',
                         payload: JSON.stringify({
-                            restaurantName: 'ChoyxonaAzizxon',
+                            restaurantName: (await getSettings(tx, 'restaurant')).restaurantName,
                             receiptNumber,
                             orderNumber: order.orderNumber,
                             cashier: req.user!.fullName,

@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const settings_1 = require("../utils/settings");
 const crypto_1 = require("crypto");
 const client_1 = require("@prisma/client");
 const express_1 = require("express");
@@ -175,6 +176,8 @@ router.post('/customer/orders', async (req, res) => {
             return { menuItemId: dish.id, quantity, unitPrice, totalPrice: quantity.mul(unitPrice) };
         });
         const total = orderItems.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
+        const restaurant = await (0, settings_1.getSettings)(db_1.prisma, 'restaurant');
+        const serviceCharge = total.mul(restaurant.serviceFeePercent).div(100).toDecimalPlaces(2);
         const order = await db_1.prisma.order.create({
             data: {
                 orderNumber: orderNumber(),
@@ -184,7 +187,7 @@ router.post('/customer/orders', async (req, res) => {
                 orderType: client_1.OrderType.DINE_IN,
                 status: client_1.OrderStatus.YANGI,
                 subtotal: total,
-                totalAmount: total,
+                totalAmount: total.plus(serviceCharge), serviceCharge, serviceFeePercent: restaurant.serviceFeePercent,
                 ...(typeof req.body?.notes === 'string' && req.body.notes.trim()
                     ? { notes: req.body.notes.trim().slice(0, 500) } : {}),
                 items: { create: orderItems },
@@ -192,7 +195,7 @@ router.post('/customer/orders', async (req, res) => {
             },
             select: { id: true, orderNumber: true, totalAmount: true, status: true, source: true }
         });
-        (0, socket_1.emitSocketEvent)('waiter_new_order', { orderId: order.id, tableId, totalAmount: total.toString() });
+        (0, socket_1.emitSocketEvent)('waiter_new_order', { orderId: order.id, tableId, totalAmount: order.totalAmount.toString() });
         (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: order.id, tableId, roomId: table.roomId, status: order.status, source: order.source });
         (0, socket_1.emitSocketEvent)('table_status_updated', { tableId, roomId: table.roomId });
         res.status(201).json({

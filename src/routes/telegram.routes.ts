@@ -1,3 +1,4 @@
+import { getSettings } from '../utils/settings';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { OrderSource, OrderStatus, OrderType, Prisma } from '@prisma/client';
 import { Router } from 'express';
@@ -180,6 +181,8 @@ router.post('/customer/orders', async (req, res) => {
             return { menuItemId: dish.id, quantity, unitPrice, totalPrice: quantity.mul(unitPrice) };
         });
         const total = orderItems.reduce((sum, item) => sum.plus(item.totalPrice), new Prisma.Decimal(0));
+        const restaurant = await getSettings(prisma, 'restaurant');
+        const serviceCharge = total.mul(restaurant.serviceFeePercent).div(100).toDecimalPlaces(2);
         const order = await prisma.order.create({
             data: {
                 orderNumber: orderNumber(),
@@ -189,7 +192,7 @@ router.post('/customer/orders', async (req, res) => {
                 orderType: OrderType.DINE_IN,
                 status: OrderStatus.YANGI,
                 subtotal: total,
-                totalAmount: total,
+                totalAmount: total.plus(serviceCharge), serviceCharge, serviceFeePercent: restaurant.serviceFeePercent,
                 ...(typeof req.body?.notes === 'string' && req.body.notes.trim()
                     ? { notes: req.body.notes.trim().slice(0, 500) } : {}),
                 items: { create: orderItems },
@@ -197,7 +200,7 @@ router.post('/customer/orders', async (req, res) => {
             },
             select: { id: true, orderNumber: true, totalAmount: true, status: true, source: true }
         });
-        emitSocketEvent('waiter_new_order', { orderId: order.id, tableId, totalAmount: total.toString() });
+        emitSocketEvent('waiter_new_order', { orderId: order.id, tableId, totalAmount: order.totalAmount.toString() });
         emitSocketEvent('orderUpdate', { orderId: order.id, tableId, roomId: table.roomId, status: order.status, source: order.source });
         emitSocketEvent('table_status_updated', { tableId, roomId: table.roomId });
         res.status(201).json({

@@ -161,7 +161,7 @@ function model(name) {
 
 const models = ['order', 'payment', 'customerDebt', 'customer', 'receipt', 'printJob', 'auditLog',
     'idempotencyRecord', 'cashMovement', 'cashSession', 'orderStatusHistory', 'table', 'expense',
-    'refund', 'refundItem', 'takeawayVerification'];
+    'refund', 'refundItem', 'takeawayVerification', 'appSetting', 'restaurantSetting'];
 const prisma = Object.fromEntries(models.map(name => [name, model(name)]));
 prisma.$queryRaw = async (strings, ...values) => {
     assert.match(strings.join('?'), /FOR UPDATE/i, 'To‘lov buyurtmani bloklashi kerak');
@@ -218,7 +218,7 @@ function reset(total = '100.00', overrides = {}) {
         tableId: 'table-1', table: { id: 'table-1', number: '1', roomId: 'room-1', room: { id: 'room-1', name: 'Zal' } },
         waiter: { id: 'waiter-1', fullName: 'Ofitsiant' }, waiterId: 'waiter-1',
         customerId: null, customer: null, customerName: null, customerPhone: null,
-        processingById: null, processingAt: null, discount: decimal(0), subtotal: decimal(total),
+        processingById: null, processingAt: null, serviceCharge: decimal(0), serviceFeePercent: decimal(0), discount: decimal(0), subtotal: decimal(total),
         totalAmount: decimal(total), paidAt: null, createdAt: new Date('2026-10-10T05:00:00Z'),
         items: [{ id: 'item-1', menuItemId: 'menu-1', quantity: decimal(1), unitPrice: decimal(total),
             totalPrice: decimal(total), menuItem: { id: 'menu-1', name: 'Osh', unit: 'dona' } }],
@@ -256,6 +256,14 @@ function assertNoPayments(expectNoEvents = true) {
 const checks = [];
 function check(name, run) { checks.push({ name, run }); }
 
+check('To‘lov sozlamalari usulni, aralash to‘lovni va ochiq smenani serverda cheklaydi', async () => {
+ for (const value of [{cash:false}, {split:false}, {requireOpenShift:true}]) {
+  reset('100'); state.appSetting.push({key:'payments',value});
+  const rows = value.split === false ? [{method:'NAQD',amount:'50'},{method:'PLASTIK',amount:'50'}] : [{method:'cash',amount:'100'}];
+  const result = await request('/payments', payment(rows));
+  assert.equal(result.status,403,JSON.stringify(result.body)); assertNoPayments();
+ }
+});
 check('Ofitsiant buyurtmasi kassa ro‘yxati va bosh sahifada to‘g‘ri ko‘rinadi', async () => {
     reset('45000.50', { status: OrderStatus.YANGI });
     const orders = await request('/orders');

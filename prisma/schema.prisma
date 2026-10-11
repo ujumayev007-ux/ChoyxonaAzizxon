@@ -351,6 +351,8 @@ model Order {
   guestCount          Int         @default(1)
   status              OrderStatus @default(YANGI)
   subtotal            Decimal     @default(0)
+  serviceFeePercent   Decimal     @default(0)
+  serviceCharge       Decimal     @default(0)
   discount            Decimal     @default(0)
   totalAmount         Decimal     @default(0)
 
@@ -757,6 +759,9 @@ model RestaurantSetting {
   oshSimulationMinutes Int      @default(40)
   voiceEnabled         Boolean  @default(true)
   negativeStockAllowed Boolean  @default(false)
+  logoUrl String?
+  workingHours String @default("09:00–23:00")
+  serviceFeePercent Decimal @default(0)
   updatedAt            DateTime @updatedAt
 }
 

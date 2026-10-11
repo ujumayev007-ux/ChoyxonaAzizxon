@@ -170,6 +170,7 @@ function loadHandlers(harness) {
         '@prisma/client': { ...client, PrismaClient: function PrismaClient() { return harness.database; } },
         './socket': { initSocket() {}, emitSocketEvent: (name, data) => harness.events.push({ name, data: copy(data) }) },
         './middleware/auth': auth,
+        './utils/settings': { getSettings: async (_db, key) => ({ payments: { cash: true, card: true, electronic: true }, orders: { autoApprove: true, cancellation: true }, restaurant: { restaurantName: 'ChoyxonaAzizxon', serviceFeePercent: 0 } })[key] },
         './utils/password': { hashPassword: async () => 'test', verifyPassword: async () => true },
         './utils/kitchen-print': { queueKitchenPrint: async () => {} },
         './utils/order-packaging': { deductPackaging: async (tx, orderId) => tx._state().packaging.push(orderId) },

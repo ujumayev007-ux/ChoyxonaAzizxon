@@ -10,8 +10,40 @@ const password_1 = require("../utils/password");
 const order_packaging_1 = require("../utils/order-packaging");
 const order_recipes_1 = require("../utils/order-recipes");
 const telegram_1 = require("../utils/telegram");
+const settings_1 = require("../utils/settings");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, auth_1.requireCashierAccess);
+router.use(async (req, res, next) => {
+    if (req.method !== 'POST' || !(['/payments', '/refunds'].includes(req.path) || /^\/debts\/[^/]+\/payments$/.test(req.path))) {
+        next();
+        return;
+    }
+    try {
+        const settings = await (0, settings_1.getSettings)(db_1.prisma, 'payments');
+        if (req.path === '/refunds' && !settings.refunds) {
+            res.status(403).json({ message: 'Qaytarish admin sozlamalarida o‘chirilgan' });
+            return;
+        }
+        const lines = Array.isArray(req.body?.payments) ? req.body.payments : [{ method: req.body?.method || 'NAQD' }];
+        if (!settings.split && lines.length > 1) {
+            res.status(403).json({ message: 'Aralash to‘lov o‘chirilgan' });
+            return;
+        }
+        const allowed = { NAQD: settings.cash, PLASTIK: settings.card, ELEKTRON: settings.electronic };
+        if (lines.some((p) => parseMethod(p?.method) && Object.hasOwn(allowed, parseMethod(p?.method)) && !allowed[parseMethod(p?.method)])) {
+            res.status(403).json({ message: 'Bu to‘lov usuli o‘chirilgan' });
+            return;
+        }
+        if (settings.requireOpenShift && !await db_1.prisma.cashSession.findFirst({ where: { cashierId: req.user.id, closedAt: null } })) {
+            res.status(403).json({ message: 'Avval kassa smenasini oching' });
+            return;
+        }
+        next();
+    }
+    catch {
+        res.status(503).json({ message: 'To‘lov sozlamalarini tekshirib bo‘lmadi' });
+    }
+});
 const activeStatuses = [
     client_1.OrderStatus.YANGI,
     client_1.OrderStatus.KUTILMOQDA,
@@ -282,7 +314,7 @@ router.get('/orders', async (req, res) => {
             },
             select: {
                 id: true, orderNumber: true, orderType: true, source: true, status: true,
-                subtotal: true, discount: true, totalAmount: true, customerName: true, customerPhone: true,
+                subtotal: true, serviceCharge: true, serviceFeePercent: true, discount: true, totalAmount: true, customerName: true, customerPhone: true,
                 createdAt: true, paidAt: true, processingAt: true,
                 takeawayVerification: { select: { expiresAt: true, attempts: true, usedAt: true } },
                 table: { select: { id: true, number: true, room: { select: { name: true } } } },
@@ -393,6 +425,9 @@ router.post('/orders', async (req, res) => {
         });
         const subtotal = orderItems.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0))
             .plus(packagingItems.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0)));
+        const restaurant = await (0, settings_1.getSettings)(db_1.prisma, 'restaurant');
+        const serviceFeePercent = type === client_1.OrderType.DINE_IN ? restaurant.serviceFeePercent : 0;
+        const serviceCharge = subtotal.mul(serviceFeePercent).div(100).toDecimalPlaces(2);
         const code = type === client_1.OrderType.TAKEAWAY ? String((0, crypto_1.randomInt)(100000, 1000000)) : null;
         const order = await db_1.prisma.$transaction(async (tx) => {
             const created = await tx.order.create({
@@ -410,7 +445,8 @@ router.post('/orders', async (req, res) => {
                     createdById: req.user.id,
                     waiterId: null,
                     subtotal,
-                    totalAmount: subtotal,
+                    totalAmount: subtotal.plus(serviceCharge),
+                    serviceCharge, serviceFeePercent,
                     approvedAt: new Date(),
                     sentToKitchenAt: new Date(),
                     items: { create: orderItems },
@@ -567,7 +603,7 @@ router.post('/payments', async (req, res) => {
                 where: { id: orderId },
                 select: {
                     id: true, orderNumber: true, totalAmount: true, status: true, orderType: true, tableId: true,
-                    customerId: true, customerName: true, customerPhone: true, processingById: true, discount: true,
+                    customerId: true, customerName: true, customerPhone: true, processingById: true, serviceCharge: true, discount: true,
                     items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true, menuItem: { select: { name: true } } } },
                     packagingItems: { select: { quantity: true, unitPrice: true, totalPrice: true, inventory: { select: { name: true, unit: true } } } },
                     payments: { select: { amount: true } },
@@ -584,6 +620,9 @@ router.post('/payments', async (req, res) => {
             }
             if (order.processingById && order.processingById !== req.user.id)
                 throw new Error('ORDER_LOCKED');
+            const policy = await (0, settings_1.getSettings)(tx, 'payments');
+            if ((!policy.split && rows.length > 1) || rows.some(row => (row.method === client_1.PaymentMethod.NAQD && !policy.cash) || (row.method === client_1.PaymentMethod.PLASTIK && !policy.card) || (row.method === client_1.PaymentMethod.ELEKTRON && !policy.electronic)))
+                throw new Error('PAYMENT_DISABLED');
             const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
             const existingDebt = order.debt?.amount || new client_1.Prisma.Decimal(0);
             const remaining = new client_1.Prisma.Decimal(order.totalAmount).minus(paid).minus(existingDebt);
@@ -600,6 +639,12 @@ router.post('/payments', async (req, res) => {
             if (debtAmount.greaterThan(0) && !customerId && !order.customerId)
                 throw new Error('CUSTOMER_REQUIRED');
             const debtCustomerId = customerId || order.customerId;
+            if (debtAmount.greaterThan(0) && debtCustomerId && policy.debtLimit > 0) {
+                await tx.$queryRaw `SELECT "id" FROM "Customer" WHERE "id"=${debtCustomerId} FOR UPDATE`;
+                const existing = await tx.customerDebt.aggregate({ where: { customerId: debtCustomerId }, _sum: { remaining: true } });
+                if (new client_1.Prisma.Decimal(existing._sum.remaining || 0).plus(debtAmount).greaterThan(policy.debtLimit))
+                    throw new Error('DEBT_LIMIT');
+            }
             if (debtAmount.greaterThan(0) && debtCustomerId &&
                 !await tx.customer.findFirst({ where: { id: debtCustomerId, isActive: true }, select: { id: true } })) {
                 throw new Error('CUSTOMER_REQUIRED');
@@ -671,7 +716,7 @@ router.post('/payments', async (req, res) => {
                 data: { orderId, receiptNumber, qrHash: (0, crypto_1.createHash)('sha256').update((0, crypto_1.randomBytes)(32)).digest('hex') }
             });
             const printPayload = {
-                restaurantName: 'ChoyxonaAzizxon',
+                restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
                 receiptNumber,
                 orderNumber: order.orderNumber,
                 orderType: order.orderType,
@@ -687,6 +732,7 @@ router.post('/payments', async (req, res) => {
                 packaging: order.packagingItems.map(item => ({ name: item.inventory.name, quantity: item.quantity.toString(), unit: item.inventory.unit, amount: item.totalPrice.toString() })),
                 total: order.totalAmount.toString(),
                 discount: order.discount.toString(),
+                serviceCharge: order.serviceCharge.toString(),
                 payments: createdPayments.map(payment => ({ method: payment.method, amount: payment.amount.toString() })),
                 debt: existingDebt.plus(debtAmount).toString(),
                 change: change.toString()
@@ -738,6 +784,8 @@ router.post('/payments', async (req, res) => {
             return;
         }
         const knownErrors = {
+            PAYMENT_DISABLED: { status: 403, message: 'Bu to‘lov turi admin tomonidan o‘chirilgan' },
+            DEBT_LIMIT: { status: 409, message: 'Mijozning qarz limiti oshib ketadi' },
             ORDER_NOT_FOUND: { status: 404, message: 'Buyurtma topilmadi' },
             ORDER_NOT_PAYABLE: { status: 409, message: 'Buyurtmani to‘lab bo‘lmaydi' },
             ORDER_LOCKED: { status: 409, message: 'Buyurtma boshqa xodim tomonidan qayta ishlanmoqda' },
@@ -1009,7 +1057,7 @@ router.post('/debts/:id/payments', async (req, res) => {
                 data: { orderId: order.id, receiptNumber, qrHash: (0, crypto_1.createHash)('sha256').update((0, crypto_1.randomBytes)(32)).digest('hex') }
             });
             const printPayload = {
-                restaurantName: 'ChoyxonaAzizxon',
+                restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
                 receiptNumber,
                 orderNumber: order.orderNumber,
                 customer: order.customer
@@ -1356,6 +1404,9 @@ router.post('/register/close', async (req, res) => {
             });
             const expectedCash = new client_1.Prisma.Decimal(aggregate._sum.amount || 0);
             const difference = actualCash.minus(expectedCash);
+            const closePolicy = await (0, settings_1.getSettings)(tx, 'payments');
+            if (closePolicy.cashDifferenceLimit > 0 && difference.abs().greaterThan(closePolicy.cashDifferenceLimit) && req.user.role !== 'ADMIN')
+                throw new Error('CASH_DIFFERENCE_LIMIT');
             const closed = await tx.cashSession.update({
                 where: { id: session.id },
                 data: {
@@ -1387,6 +1438,10 @@ router.post('/register/close', async (req, res) => {
         res.json({ success: true, data: result });
     }
     catch (error) {
+        if (error instanceof Error && error.message === 'CASH_DIFFERENCE_LIMIT') {
+            res.status(403).json({ message: 'Kassa farqi belgilangan limitdan oshdi. Admin tasdig?i kerak' });
+            return;
+        }
         if (error instanceof Error && error.message === 'REGISTER_NOT_OPEN') {
             res.status(409).json({ success: false, message: 'Ochiq kassa smenasi topilmadi' });
             return;

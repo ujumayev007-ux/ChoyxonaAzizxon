@@ -8,7 +8,7 @@ const decimal = value => new client.Prisma.Decimal(value);
 
 function setup(overrides = {}) {
     const order = { id: 'order-1', waiterId: 'waiter-1', tableId: 'table-1', status: 'STOLGA_YETKAZILDI',
-        payments: [], debt: null, processingById: null, subtotal: decimal(66000), totalAmount: decimal(65000), ...overrides };
+        payments: [], debt: null, serviceCharge: decimal(0), serviceFeePercent: decimal(0), processingById: null, subtotal: decimal(66000), totalAmount: decimal(65000), ...overrides };
     let handler, saved, writes = 0, oldItemsStatus;
     const events = [], lines = [];
     const tx = {
@@ -118,4 +118,10 @@ test('Ofitsant oynasi qo‘shimchani kerakli buyurtmaga yuboradi va tarmoq xatos
     assert.deepEqual(calls[0], calls[1]);
     assert.equal(context.cartItems.length, 0);
     assert.equal(fields['submit-waiter-order'].disabled, false);
+});
+
+test('Xizmat haqi qo‘shimcha taomlarda saqlangan stavka bilan hisoblanadi', async () => {
+ const h = setup({ serviceFeePercent: decimal(10), serviceCharge: decimal(6600), totalAmount: decimal(71600) });
+ assert.equal((await h.send()).status, 200);
+ assert.equal(h.order.totalAmount.toString(), '120000.55');
 });

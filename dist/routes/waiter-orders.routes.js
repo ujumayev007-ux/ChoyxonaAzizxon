@@ -50,6 +50,9 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
                     notes: `Qo‘shimcha${item.note?.trim() ? ': ' + item.note.trim() : ''}` };
             });
             const addedTotal = lines.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
+            const nextSubtotal = order.subtotal.plus(addedTotal);
+            const nextServiceCharge = nextSubtotal.mul(order.serviceFeePercent).div(100).toDecimalPlaces(2);
+            const serviceDelta = nextServiceCharge.minus(order.serviceCharge);
             // Previously finished dishes must not be prepared again when this order returns to the kitchen.
             if (['TAYYOR', 'STOLGA_YETKAZILDI', 'TOLOV_KUTILMOQDA'].includes(order.status)) {
                 await tx.orderItem.updateMany({ where: { orderId: order.id }, data: { status: 'TAYYOR' } });
@@ -57,12 +60,13 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
             const status = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA', 'TAYYORLANMOQDA'].includes(order.status)
                 ? order.status : client_1.OrderStatus.TASDIQLANDI;
             const updated = await tx.order.update({ where: { id: order.id }, data: {
-                    subtotal: { increment: addedTotal }, totalAmount: { increment: addedTotal },
+                    subtotal: { increment: addedTotal }, totalAmount: { increment: addedTotal.plus(serviceDelta) }, serviceCharge: nextServiceCharge,
                     processingById: null, processingAt: null, status, completedAt: null,
                     items: { create: lines },
                     statusHistory: { create: { status, userId: req.user.id, comment: `Qo‘shimcha taomlar: ${addedTotal} so‘m` } }
                 }, select: { id: true, tableId: true, status: true, totalAmount: true } });
-            await (0, kitchen_print_1.queueKitchenPrint)(tx, order.id, idempotencyKey, lines.map(line => line.id));
+            if (!['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(status))
+                await (0, kitchen_print_1.queueKitchenPrint)(tx, order.id, idempotencyKey, lines.map(line => line.id));
             await tx.idempotencyRecord.create({ data: {
                     key: idempotencyKey, userId: req.user.id, operation: 'WAITER_ADD_ITEMS', requestHash,
                     responseJson: JSON.stringify(updated)

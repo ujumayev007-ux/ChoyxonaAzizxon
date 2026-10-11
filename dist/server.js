@@ -31,6 +31,9 @@ const print_agent_routes_1 = __importDefault(require("./routes/print-agent.route
 const employees_routes_1 = __importDefault(require("./routes/employees.routes"));
 const attendance_routes_1 = __importDefault(require("./routes/attendance.routes"));
 const admin_security_routes_1 = __importDefault(require("./routes/admin-security.routes"));
+const admin_settings_routes_1 = __importDefault(require("./routes/admin-settings.routes"));
+const admin_order_control_routes_1 = __importDefault(require("./routes/admin-order-control.routes"));
+const settings_1 = require("./utils/settings");
 const kitchen_print_1 = require("./utils/kitchen-print");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -104,6 +107,8 @@ app.use('/api/print-agent', print_agent_routes_1.default);
 app.use('/api/employees', employees_routes_1.default);
 app.use('/api/attendance', attendance_routes_1.default);
 app.use('/api/admin/security', admin_security_routes_1.default);
+app.use('/api/admin/settings', admin_settings_routes_1.default);
+app.use('/api/admin/order-control', admin_order_control_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;
@@ -748,7 +753,8 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
             where.tableId = tableId;
         if (status === 'PENDING') {
             where.status = { in: ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'] };
-            where.source = { not: 'WAITER' };
+            if ((await (0, settings_1.getSettings)(prisma, 'orders')).autoApprove)
+                where.source = { not: 'WAITER' };
         }
         else if (status && Object.values(client_1.OrderStatus).includes(status)) {
             where.status = status;
@@ -910,6 +916,9 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
             };
         });
         const totalAmount = orderItems.reduce((total, item) => total.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
+        const [restaurant, rules] = await Promise.all([(0, settings_1.getSettings)(prisma, 'restaurant'), (0, settings_1.getSettings)(prisma, 'orders')]);
+        const serviceCharge = totalAmount.mul(restaurant.serviceFeePercent).div(100).toDecimalPlaces(2);
+        const initialStatus = rules.autoApprove ? client_1.OrderStatus.TASDIQLANDI : client_1.OrderStatus.YANGI;
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const orderNumber = `${date}-${(0, crypto_1.randomBytes)(4).toString('hex').toUpperCase()}`;
         const order = await prisma.$transaction(async (tx) => {
@@ -919,16 +928,17 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
                     tableId: table.id,
                     waiterId: req.user.id,
                     guestCount: guestCount === undefined ? 1 : Number(guestCount),
-                    status: client_1.OrderStatus.TASDIQLANDI,
+                    status: initialStatus,
                     source: 'WAITER',
-                    approvedAt: new Date(),
+                    approvedAt: rules.autoApprove ? new Date() : null,
                     notes: typeof note === 'string' ? note.trim() : null,
                     createdById: req.user.id,
                     subtotal: totalAmount,
-                    totalAmount,
+                    totalAmount: totalAmount.plus(serviceCharge),
+                    serviceCharge, serviceFeePercent: restaurant.serviceFeePercent,
                     items: { create: orderItems },
                     statusHistory: { create: {
-                            status: client_1.OrderStatus.TASDIQLANDI,
+                            status: initialStatus,
                             userId: req.user.id,
                             ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
                         } }
@@ -939,7 +949,8 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
                     items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
                 }
             });
-            await (0, kitchen_print_1.queueKitchenPrint)(tx, created.id, 'initial');
+            if (rules.autoApprove)
+                await (0, kitchen_print_1.queueKitchenPrint)(tx, created.id, 'initial');
             return created;
         }, { maxWait: 10000, timeout: 30000 });
         (0, socket_1.emitSocketEvent)('order_status_updated', { orderId: order.id, status: order.status });
@@ -999,6 +1010,10 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
 });
 app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), async (req, res) => {
     try {
+        if (!(await (0, settings_1.getSettings)(prisma, 'orders')).cancellation) {
+            res.status(403).json({ message: 'Buyurtmalarni bekor qilish o‘chirilgan' });
+            return;
+        }
         const order = await prisma.order.findUnique({ where: { id: req.params.id } });
         if (!order) {
             res.status(404).json({ success: false, error: 'Buyurtma topilmadi' });
@@ -1060,6 +1075,12 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
         method
     })).digest('hex');
     try {
+        const policy = await (0, settings_1.getSettings)(prisma, 'payments');
+        if (!(method === 'NAQD' ? policy.cash : method === 'PLASTIK' ? policy.card : policy.electronic) ||
+            (policy.requireOpenShift && !await prisma.cashSession.findFirst({ where: { cashierId: req.user.id, closedAt: null } }))) {
+            res.status(403).json({ message: 'To‘lov usuli o‘chirilgan yoki kassa smenasi ochilmagan' });
+            return;
+        }
         const previous = await prisma.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user.id || previous.operation !== 'TABLE_PAYMENT' || previous.requestHash !== hash) {
@@ -1134,7 +1155,7 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
                         orderId: order.id,
                         jobType: 'RECEIPT',
                         payload: JSON.stringify({
-                            restaurantName: 'ChoyxonaAzizxon',
+                            restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
                             receiptNumber,
                             orderNumber: order.orderNumber,
                             cashier: req.user.fullName,
