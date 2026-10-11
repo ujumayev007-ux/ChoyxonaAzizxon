@@ -640,6 +640,7 @@
 
                 <!-- 9. SOZLAMALAR -->
                 <div id="section-sozlamalar" class="tab-content hidden space-y-6">
+                    <div id="operations-settings" class="space-y-6"></div>
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <h2 class="text-lg font-bold text-gray-800 mb-4">Tizim Sozlamalari</h2>
                         <p class="text-gray-500 text-sm">Restoran ma’lumotlari, rejim va xavfsizlik sozlamalari.</p>
@@ -724,6 +725,7 @@
             const pageTitle = document.getElementById('page-title');
             if (pageTitle) pageTitle.innerText = titles[tabId] || 'Boshqaruv paneli';
             if (tabId === 'hisobotlar' && adminCurrentUser) initializeReports();
+            if (tabId === 'sozlamalar' && adminCurrentUser) loadOperationsSettings();
         }
 
         const adminData = { menu: [], inventory: [], employees: [], orders: [], rooms: [], purchases: [] };
@@ -2828,5 +2830,7 @@
             }
         });
     </script>
+<script src="/admin-operations.js"></script>
+<script src="/pin-login.js" data-role="ADMIN"></script>
 </body>
 </html>

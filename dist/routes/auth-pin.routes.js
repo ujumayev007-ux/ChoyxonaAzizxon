@@ -35,13 +35,16 @@ router.post('/pin-login', async (req, res) => {
         const users = await db_1.prisma.user.findMany({
             where: {
                 pinCodeHash: { not: null },
-                role: { in: [client_1.RoleType.WAITER, client_1.RoleType.CASHIER] },
+                role: { in: [client_1.RoleType.ADMIN, client_1.RoleType.WAITER, client_1.RoleType.CASHIER] },
                 isActive: true
             },
             select: { id: true, username: true, fullName: true, role: true, pinCodeHash: true, updatedAt: true }
         });
         for (const user of users) {
             if (user.pinCodeHash && (await (0, pin_1.verifyPin)(pin, user.pinCodeHash))) {
+                if (req.body.role && req.body.role !== user.role)
+                    continue;
+                rateLimitMap.delete(ip);
                 (0, auth_1.setAuthCookie)(res, { id: user.id, role: user.role, updatedAt: user.updatedAt });
                 res.json({
                     success: true,

@@ -4,7 +4,7 @@ exports.hashPin = hashPin;
 exports.verifyPin = verifyPin;
 const crypto_1 = require("crypto");
 function hashPin(pin) {
-    const salt = 'pin';
+    const salt = (0, crypto_1.randomBytes)(16).toString('hex');
     return new Promise((resolve, reject) => {
         (0, crypto_1.scrypt)(pin, salt, 64, (error, derivedKey) => {
             if (error) {

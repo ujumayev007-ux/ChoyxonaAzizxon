@@ -1,7 +1,7 @@
-import { scrypt as scryptCallback, timingSafeEqual } from 'crypto';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'crypto';
 
 export function hashPin(pin: string): Promise<string> {
-  const salt = 'pin';
+  const salt = randomBytes(16).toString('hex');
   return new Promise((resolve, reject) => {
     scryptCallback(pin, salt, 64, (error, derivedKey) => {
       if (error) {

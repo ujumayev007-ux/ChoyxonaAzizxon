@@ -1,0 +1,14 @@
+<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Printerni ulash</title><style>body{font:16px/1.6 system-ui;background:#f1f5f9;color:#0f172a;margin:0;padding:24px}main{max-width:760px;margin:auto;background:white;padding:32px;border-radius:20px}pre{white-space:pre-wrap;background:#0f172a;color:#e2e8f0;padding:18px;border-radius:12px}a{color:#0369a1}</style></head><body><main>
+<h1>Restoran printerlarini ulash</h1>
+<ol><li>Printer ulangan kompyuterga Node.js o‘rnating. Bu kompyuter ishlayotgan paytda cheklar chiqadi.</li>
+<li>Admin → Sozlamalar’da printer qo‘shing. IP printer uchun mahalliy IP va portni (odatda 9100) kiriting. USB uchun “Windows printeri”ni tanlab, Windows’dagi printer nomini aynan kiriting. Windows drayverini avval o‘rnating.</li>
+<li>Menyu kategoriyalarini mos printerga belgilang: masalan Kaboblar → Kabobxona, Baliqlar → Baliqxona. Qog‘oz enini tanlang. IP rejimi ESC/POS bilan mos printerlar uchun; boshqa modellarni Windows drayveri orqali ulang.</li>
+<li><a href="/printer-agent.cjs" download="print-agent.cjs">Ulash dasturini yuklab oling</a> va alohida papkaga joylashtiring.</li>
+<li>Admin → Sozlamalar → Printer kompyuterini ulash bo‘limida kalit yarating. Kalitni boshqa odamlarga bermang.</li>
+<li>Shu papkada PowerShell ochib quyidagilarni bajaring:</li></ol>
+<pre>$env:PRINT_SERVER_URL = 'https://choyxonaazizxon.onrender.com'
+$env:PRINT_AGENT_TOKEN = 'ADMIN_YARATGAN_KALIT'
+node .\print-agent.cjs</pre>
+<p>Bir restoran uchun ulash dasturining bitta nusxasini ishlating. Barcha sozlamalar admin panelidan olinadi. IP printer shu kompyuterdan tarmoq orqali ko‘rinishi kerak. Windows rejimida qog‘oz va drayver sozlamalarini Windows’dan ham tanlang.</p>
+<p>Admin panelidagi “Cheklar navbati”dan holatni kuzating. “Yuborildi” holati qurilma yoki Windows navbatiga topshirilganini bildiradi, qog‘oz chiqqanini printerda tekshiring. Kompyuter o‘chib qolsa, uzilgan ishlar avtomatik qayta chop etilmaydi: avval qog‘ozni tekshirib, keyin admin panelidan qayta yuboring.</p>
+<p><a href="/admin/">Admin paneliga qaytish</a></p></main></body></html>

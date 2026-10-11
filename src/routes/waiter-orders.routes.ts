@@ -4,6 +4,8 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { prisma } from '../utils/db';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import { emitSocketEvent } from '../socket';
+import { queueKitchenPrint } from '../utils/kitchen-print';
+import { randomUUID } from 'crypto';
 
 const router = Router();
 router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req, res) => {
@@ -37,7 +39,7 @@ router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req
                 const product = menu.find(entry => entry.id === item.productId);
                 if (!product) throw new Error('MENU_INVALID');
                 const quantity = new Prisma.Decimal(String(item.quantity));
-                return { menuItemId: product.id, quantity, unitPrice: product.sellingPrice,
+                return { id: randomUUID(), menuItemId: product.id, quantity, unitPrice: product.sellingPrice,
                     totalPrice: product.sellingPrice.mul(quantity).toDecimalPlaces(2), status: 'YANGI',
                     notes: `Qo‘shimcha${item.note?.trim() ? ': ' + item.note.trim() : ''}` };
             });
@@ -54,6 +56,7 @@ router.post('/:id/items', authenticateToken, requireRole(['WAITER']), async (req
                 items: { create: lines },
                 statusHistory: { create: { status, userId: req.user!.id, comment: `Qo‘shimcha taomlar: ${addedTotal} so‘m` } }
             }, select: { id: true, tableId: true, status: true, totalAmount: true } });
+            await queueKitchenPrint(tx, order.id, idempotencyKey, lines.map(line => line.id));
             await tx.idempotencyRecord.create({ data: {
                 key: idempotencyKey, userId: req.user!.id, operation: 'WAITER_ADD_ITEMS', requestHash,
                 responseJson: JSON.stringify(updated)

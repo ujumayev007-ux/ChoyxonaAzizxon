@@ -26,8 +26,13 @@ const admin_telegram_routes_1 = __importDefault(require("./routes/admin-telegram
 const admin_role_permissions_routes_1 = __importDefault(require("./routes/admin-role-permissions.routes"));
 const auth_pin_routes_1 = __importDefault(require("./routes/auth-pin.routes"));
 const waiter_orders_routes_1 = __importDefault(require("./routes/waiter-orders.routes"));
+const admin_operations_routes_1 = __importDefault(require("./routes/admin-operations.routes"));
+const print_agent_routes_1 = __importDefault(require("./routes/print-agent.routes"));
+const kitchen_print_1 = require("./utils/kitchen-print");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
+if (process.env.RENDER === 'true')
+    app.set('trust proxy', 1);
 const server = http_1.default.createServer(app);
 const prisma = new client_1.PrismaClient();
 async function ensureInitialAdmin() {
@@ -67,6 +72,7 @@ app.use((0, cors_1.default)({
     methods: ["GET", "POST", "PUT", "DELETE"]
 }));
 app.use(express_1.default.json());
+app.get('/printer-agent.cjs', (_req, res) => res.download(path_1.default.join(__dirname, '..', 'scripts', 'print-agent.cjs')));
 app.use(express_1.default.static(path_1.default.join(__dirname, '..', 'public')));
 app.get('/kitchen/tv', (_req, res) => {
     res.sendFile(path_1.default.join(__dirname, '..', 'public', 'kitchen-tv.html'));
@@ -90,6 +96,8 @@ app.use('/api/admin/telegram', admin_telegram_routes_1.default);
 app.use('/api/admin', admin_role_permissions_routes_1.default);
 app.use('/api/auth', auth_pin_routes_1.default);
 app.use('/api/waiter/orders', waiter_orders_routes_1.default);
+app.use('/api/admin', admin_operations_routes_1.default);
+app.use('/api/print-agent', print_agent_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;
@@ -780,6 +788,7 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
             where.tableId = tableId;
         if (status === 'PENDING') {
             where.status = { in: ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'] };
+            where.source = { not: 'WAITER' };
         }
         else if (status && Object.values(client_1.OrderStatus).includes(status)) {
             where.status = status;
@@ -943,30 +952,37 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
         const totalAmount = orderItems.reduce((total, item) => total.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const orderNumber = `${date}-${(0, crypto_1.randomBytes)(4).toString('hex').toUpperCase()}`;
-        const order = await prisma.order.create({
-            data: {
-                orderNumber,
-                tableId: table.id,
-                waiterId: req.user.id,
-                guestCount: guestCount === undefined ? 1 : Number(guestCount),
-                status: client_1.OrderStatus.YANGI,
-                source: 'WAITER',
-                createdById: req.user.id,
-                subtotal: totalAmount,
-                totalAmount,
-                items: { create: orderItems },
-                statusHistory: { create: {
-                        status: client_1.OrderStatus.YANGI,
-                        userId: req.user.id,
-                        ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
-                    } }
-            },
-            include: {
-                table: { include: { room: true } },
-                waiter: { select: { id: true, username: true, fullName: true } },
-                items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
-            }
-        });
+        const order = await prisma.$transaction(async (tx) => {
+            const created = await tx.order.create({
+                data: {
+                    orderNumber,
+                    tableId: table.id,
+                    waiterId: req.user.id,
+                    guestCount: guestCount === undefined ? 1 : Number(guestCount),
+                    status: client_1.OrderStatus.TASDIQLANDI,
+                    source: 'WAITER',
+                    approvedAt: new Date(),
+                    notes: typeof note === 'string' ? note.trim() : null,
+                    createdById: req.user.id,
+                    subtotal: totalAmount,
+                    totalAmount,
+                    items: { create: orderItems },
+                    statusHistory: { create: {
+                            status: client_1.OrderStatus.TASDIQLANDI,
+                            userId: req.user.id,
+                            ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
+                        } }
+                },
+                include: {
+                    table: { include: { room: true } },
+                    waiter: { select: { id: true, username: true, fullName: true } },
+                    items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
+                }
+            });
+            await (0, kitchen_print_1.queueKitchenPrint)(tx, created.id, 'initial');
+            return created;
+        }, { maxWait: 10000, timeout: 30000 });
+        (0, socket_1.emitSocketEvent)('order_status_updated', { orderId: order.id, status: order.status });
         (0, socket_1.emitSocketEvent)('orderUpdate', { orderId: order.id, tableId: table.id, roomId: table.roomId, status: order.status });
         (0, socket_1.emitSocketEvent)('table_status_updated', { tableId: table.id, roomId: table.roomId });
         res.status(201).json({ success: true, message: 'Buyurtma muvaffaqiyatli yaratildi', data: order });
@@ -1005,6 +1021,7 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
             if (!changed.count)
                 return null;
             await tx.orderStatusHistory.create({ data: { orderId: order.id, status: client_1.OrderStatus.TASDIQLANDI, userId: req.user.id } });
+            await (0, kitchen_print_1.queueKitchenPrint)(tx, order.id, 'initial');
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {

@@ -1,0 +1,61 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const crypto_1 = require("crypto");
+const db_1 = require("../utils/db");
+const router = (0, express_1.Router)();
+router.use(async (req, res, next) => {
+    try {
+        const config = await db_1.prisma.printConfig.findUnique({ where: { id: 'default' } });
+        const token = req.headers.authorization?.replace(/^Bearer /, '') || '';
+        const hash = (0, crypto_1.createHash)('sha256').update(token).digest('hex');
+        if (!token || !config?.agentTokenHash || !(0, crypto_1.timingSafeEqual)(Buffer.from(hash), Buffer.from(config.agentTokenHash))) {
+            res.status(401).json({ message: 'Printer ulash kaliti noto‘g‘ri' });
+            return;
+        }
+        next();
+    }
+    catch {
+        res.status(503).json({ message: 'Printer xizmati vaqtincha ishlamayapti' });
+    }
+});
+router.post('/claim', async (_req, res) => {
+    try {
+        const job = await db_1.prisma.$transaction(async (tx) => {
+            const rows = await tx.$queryRaw `SELECT "id" FROM "PrintJob" WHERE "jobType"='KITCHEN' AND "status"='KUTILMOQDA' ORDER BY "createdAt" LIMIT 50 FOR UPDATE SKIP LOCKED`;
+            for (const row of rows) {
+                const candidate = await tx.printJob.findUniqueOrThrow({ where: { id: row.id } });
+                const payload = JSON.parse(candidate.payload);
+                const printer = candidate.printerId
+                    ? await tx.printer.findFirst({ where: { id: candidate.printerId, isActive: true } })
+                    : await tx.printer.findFirst({ where: { isActive: true, OR: [
+                                { categoryIds: { hasSome: payload.categoryIds || [] } },
+                                { department: payload.department || '', categoryIds: { isEmpty: true } }
+                            ] } });
+                if (!printer)
+                    continue;
+                await tx.printJob.update({ where: { id: candidate.id }, data: { status: 'CHOP_ETILMOQDA', printerId: printer.id } });
+                return { id: candidate.id, payload, printer };
+            }
+            return null;
+        }, { maxWait: 10000, timeout: 30000 });
+        res.json({ job });
+    }
+    catch {
+        res.status(500).json({ message: 'Chop etish navbatini olib bo‘lmadi' });
+    }
+});
+router.post('/:id/result', async (req, res) => {
+    if (!['YUBORILDI', 'XATOLIK'].includes(req.body?.status)) {
+        res.status(400).json({ message: 'Holat noto‘g‘ri' });
+        return;
+    }
+    try {
+        await db_1.prisma.printJob.updateMany({ where: { id: req.params.id, jobType: 'KITCHEN', status: 'CHOP_ETILMOQDA' }, data: { status: req.body.status } });
+        res.json({ success: true });
+    }
+    catch {
+        res.status(500).json({ message: 'Chek holati saqlanmadi' });
+    }
+});
+exports.default = router;

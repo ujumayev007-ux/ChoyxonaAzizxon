@@ -623,8 +623,17 @@ model Printer {
   port       Int      @default(9100)
   paperWidth Int      @default(80) // mm
   isActive   Boolean  @default(true)
+  categoryIds String[] @default([])
+  connectionType String @default("TCP")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model PrintConfig {
+  id String @id @default("default")
+  header String @default("ChoyxonaAzizxon")
+  footer String @default("Yoqimli ishtaha!")
+  agentTokenHash String?
 }
 
 model PrintJob {

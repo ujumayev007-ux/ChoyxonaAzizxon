@@ -171,6 +171,7 @@ function loadHandlers(harness) {
         './socket': { initSocket() {}, emitSocketEvent: (name, data) => harness.events.push({ name, data: copy(data) }) },
         './middleware/auth': auth,
         './utils/password': { hashPassword: async () => 'test', verifyPassword: async () => true },
+        './utils/kitchen-print': { queueKitchenPrint: async () => {} },
         './utils/order-packaging': { deductPackaging: async (tx, orderId) => tx._state().packaging.push(orderId) },
         './utils/order-recipes': { deductOrderRecipes: async (tx, orderId) => { tx._state().recipes.push(orderId); return ['stock-1']; } }
     };
@@ -243,7 +244,7 @@ async function main() {
         const order = response.body.data;
         assert.equal(order.source, 'WAITER');
         assert.equal(order.waiterId, waiter.id);
-        assert.equal(order.status, OrderStatus.YANGI);
+        assert.equal(order.status, OrderStatus.TASDIQLANDI);
         assert.equal(order.items[0].unitPrice, '123.45');
         assert.equal(order.items[0].totalPrice, '41.15');
         assert.equal(order.items[1].totalPrice, '20.1');
@@ -251,7 +252,7 @@ async function main() {
         assert.equal(order.subtotal, '61.25');
         const listed = await invoke(harness, 'GET /api/orders', null, { user: waiter, query: { active: 'true' } });
         assert.equal(listed.body[0].totalAmount, '61.25');
-        assert.equal(listed.body[0].status, OrderStatus.YANGI);
+        assert.equal(listed.body[0].status, OrderStatus.TASDIQLANDI);
         assert.ok(harness.events.some(event => event.name === 'orderUpdate' && event.data.orderId === order.id));
         const payment = await pay(harness, 'PLASTIK');
         assert.equal(payment.code, 200);

@@ -6,6 +6,8 @@ const client_1 = require("@prisma/client");
 const db_1 = require("../utils/db");
 const auth_1 = require("../middleware/auth");
 const socket_1 = require("../socket");
+const kitchen_print_1 = require("../utils/kitchen-print");
+const crypto_2 = require("crypto");
 const router = (0, express_1.Router)();
 router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER']), async (req, res) => {
     const { items, idempotencyKey } = req.body || {};
@@ -43,7 +45,7 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
                 if (!product)
                     throw new Error('MENU_INVALID');
                 const quantity = new client_1.Prisma.Decimal(String(item.quantity));
-                return { menuItemId: product.id, quantity, unitPrice: product.sellingPrice,
+                return { id: (0, crypto_2.randomUUID)(), menuItemId: product.id, quantity, unitPrice: product.sellingPrice,
                     totalPrice: product.sellingPrice.mul(quantity).toDecimalPlaces(2), status: 'YANGI',
                     notes: `Qo‘shimcha${item.note?.trim() ? ': ' + item.note.trim() : ''}` };
             });
@@ -60,6 +62,7 @@ router.post('/:id/items', auth_1.authenticateToken, (0, auth_1.requireRole)(['WA
                     items: { create: lines },
                     statusHistory: { create: { status, userId: req.user.id, comment: `Qo‘shimcha taomlar: ${addedTotal} so‘m` } }
                 }, select: { id: true, tableId: true, status: true, totalAmount: true } });
+            await (0, kitchen_print_1.queueKitchenPrint)(tx, order.id, idempotencyKey, lines.map(line => line.id));
             await tx.idempotencyRecord.create({ data: {
                     key: idempotencyKey, userId: req.user.id, operation: 'WAITER_ADD_ITEMS', requestHash,
                     responseJson: JSON.stringify(updated)

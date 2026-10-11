@@ -32,6 +32,7 @@ function setup(overrides = {}) {
     const context = vm.createContext({ exports: {}, console, Date, require(name) {
         if (name === 'express') return { Router: () => ({ post: (_path, ...callbacks) => { handler = callbacks.at(-1); } }) };
         if (name === '../utils/db') return { prisma };
+        if (name === '../utils/kitchen-print') return { queueKitchenPrint: async () => {} };
         if (name === '../middleware/auth') return { authenticateToken() {}, requireRole: () => () => {} };
         if (name === '../socket') return { emitSocketEvent: (...args) => events.push(args) };
         return require(name);

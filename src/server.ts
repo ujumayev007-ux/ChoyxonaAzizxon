@@ -21,10 +21,14 @@ import adminTelegramRoutes from './routes/admin-telegram.routes';
 import adminRolePermissionsRoutes from './routes/admin-role-permissions.routes';
 import authPinRoutes from './routes/auth-pin.routes';
 import waiterOrderRoutes from './routes/waiter-orders.routes';
+import adminOperationsRoutes from './routes/admin-operations.routes';
+import printAgentRoutes from './routes/print-agent.routes';
+import { queueKitchenPrint } from './utils/kitchen-print';
 
 dotenv.config();
 
 const app = express();
+if (process.env.RENDER === 'true') app.set('trust proxy', 1);
 const server = http.createServer(app);
 const prisma = new PrismaClient();
 
@@ -67,6 +71,7 @@ app.use(cors({
     methods: ["GET", "POST", "PUT", "DELETE"]
 }));
 app.use(express.json());
+app.get('/printer-agent.cjs', (_req, res) => res.download(path.join(__dirname, '..', 'scripts', 'print-agent.cjs')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/kitchen/tv', (_req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'kitchen-tv.html'));
@@ -92,6 +97,8 @@ app.use('/api/admin/telegram', adminTelegramRoutes);
 app.use('/api/admin', adminRolePermissionsRoutes);
 app.use('/api/auth', authPinRoutes);
 app.use('/api/waiter/orders', waiterOrderRoutes);
+app.use('/api/admin', adminOperationsRoutes);
+app.use('/api/print-agent', printAgentRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
@@ -800,6 +807,7 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         if (tableId) where.tableId = tableId;
         if (status === 'PENDING') {
             where.status = { in: ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'] };
+            where.source = { not: 'WAITER' };
         } else if (status && Object.values(OrderStatus).includes(status as OrderStatus)) {
             where.status = status as OrderStatus;
         }
@@ -962,20 +970,23 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
         const totalAmount = orderItems.reduce((total, item) => total.plus(item.totalPrice), new Prisma.Decimal(0));
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const orderNumber = `${date}-${randomBytes(4).toString('hex').toUpperCase()}`;
-        const order = await prisma.order.create({
+        const order = await prisma.$transaction(async tx => {
+        const created = await tx.order.create({
             data: {
                 orderNumber,
                 tableId: table.id,
                 waiterId: req.user!.id,
                 guestCount: guestCount === undefined ? 1 : Number(guestCount),
-                status: OrderStatus.YANGI,
+                status: OrderStatus.TASDIQLANDI,
                 source: 'WAITER',
+                approvedAt: new Date(),
+                notes: typeof note === 'string' ? note.trim() : null,
                 createdById: req.user!.id,
                 subtotal: totalAmount,
                 totalAmount,
                 items: { create: orderItems },
                 statusHistory: { create: {
-                    status: OrderStatus.YANGI,
+                    status: OrderStatus.TASDIQLANDI,
                     userId: req.user!.id,
                     ...(typeof note === 'string' && note.trim() ? { comment: note.trim() } : {})
                 } }
@@ -987,6 +998,10 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
             }
         });
 
+        await queueKitchenPrint(tx, created.id, 'initial');
+        return created;
+        }, { maxWait: 10000, timeout: 30000 });
+        emitSocketEvent('order_status_updated', { orderId: order.id, status: order.status });
         emitSocketEvent('orderUpdate', { orderId: order.id, tableId: table.id, roomId: table.roomId, status: order.status });
         emitSocketEvent('table_status_updated', { tableId: table.id, roomId: table.roomId });
         res.status(201).json({ success: true, message: 'Buyurtma muvaffaqiyatli yaratildi', data: order });
@@ -1024,6 +1039,7 @@ app.post('/api/orders/:id/approve', authenticateToken, requireRole(['WAITER', 'A
             });
             if (!changed.count) return null;
             await tx.orderStatusHistory.create({ data: { orderId: order.id, status: OrderStatus.TASDIQLANDI, userId: req.user!.id } });
+            await queueKitchenPrint(tx, order.id, 'initial');
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {

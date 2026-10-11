@@ -2,6 +2,8 @@
 
 ## Render deployment
 
+Admin → Sozlamalar’da xodimlarning 4 raqamli PINlari, printer ulanishlari, kategoriya yo‘nalishlari va chek matnlari boshqariladi. Restoran kompyuteridagi chop etish dasturi uchun `/printer-setup.html` yo‘riqnomasidan foydalaning. Printerlar sozlanmaguncha cheklar bazada navbatda saqlanadi. PIN yoki printer kalitini repozitoriyga yozmang.
+
 `npm run migrate:deploy` migratsiyalar uchun `DIRECT_URL` qiymatidan foydalanadi. U berilmagan bo‘lsa, Neon `DATABASE_URL` manzilidagi `-pooler` qismini faqat migratsiya jarayoni uchun olib tashlaydi. Ilova pooled ulanishda ishlashda davom etadi. Migratsiya qulfi o‘chirilmaydi; bir vaqtning o‘zida bitta deploy bajaring.
 
 Build uchun TypeScript va `@types/*` paketlari kerak. Loyihadagi `.npmrc` fayli `include=dev` orqali `NODE_ENV=production` holatida ham ularning o‘rnatilishini ta’minlaydi.
