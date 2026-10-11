@@ -1,5 +1,9 @@
 # ChoyxonaAzizxon
 
+## Bosqichni tekshirish
+
+`npm run verify` Prisma validatsiyasi, klient yaratish, TypeScript build, to‘lovlar, ofitsant amallari, printer/PIN va regressiya testlarini bajaradi. Xato chiqsa darhol to‘xtaydi. Bu buyruq migratsiya, seed yoki ishlab turgan bazadagi yozuvlarni o‘zgartirishni bajarmaydi. Git commit va push faqat tekshiruv muvaffaqiyatli tugagach amalga oshiriladi.
+
 ## Render deployment
 
 Admin → Sozlamalar’da xodimlarning 4 raqamli PINlari, printer ulanishlari, kategoriya yo‘nalishlari va chek matnlari boshqariladi. Restoran kompyuteridagi chop etish dasturi uchun `/printer-setup.html` yo‘riqnomasidan foydalaning. Printerlar sozlanmaguncha cheklar bazada navbatda saqlanadi. PIN yoki printer kalitini repozitoriyga yozmang.

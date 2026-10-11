@@ -78,6 +78,17 @@ test('Barcha HTML sahifalarining ichki JavaScript sintaksisi', () => {
     }
 });
 
+test('Ommaviy JavaScript fayllari sintaksisi', () => {
+    function checkDirectory(directory) {
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+            const filename = `${directory}/${entry.name}`;
+            if (entry.isDirectory()) checkDirectory(filename);
+            else if (entry.name.endsWith('.js')) new vm.Script(fs.readFileSync(filename, 'utf8'), { filename });
+        }
+    }
+    checkDirectory('public');
+});
+
 test('Oshxona holati o‘zgarganda kartadagi tugma va ma’lumot yangilanadi', () => {
     const source = fs.readFileSync('public/kitchen/index.html', 'utf8');
     const code = source.slice(source.indexOf('function getGridColumns('), source.indexOf('async function updateOrderStatus('));

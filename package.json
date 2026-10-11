@@ -6,6 +6,7 @@
 "scripts": {
     "postinstall": "node node_modules/prisma/build/index.js generate",
     "build": "node node_modules/typescript/bin/tsc",
+    "verify": "node scripts/verify-phase.cjs",
     "test:payments": "node scripts/verify-cashier-payments.js && node scripts/verify-waiter-payment-flow.js",
     "test:payments:database": "node scripts/verify-cashier-database.js",
     "migrate:deploy": "node scripts/migrate-deploy.cjs",
