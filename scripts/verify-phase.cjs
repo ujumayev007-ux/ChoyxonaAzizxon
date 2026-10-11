@@ -10,7 +10,7 @@ const steps = [
     ['Ofitsant va stol to‘lovlari', ['scripts/verify-waiter-payment-flow.js']],
     ['Buyurtmalar, printerlar, PIN va regressiya', ['--test',
         'scripts/verify-waiter-actions.cjs', 'scripts/verify-waiter-additions.cjs',
-        'scripts/verify-printer-pin.cjs', 'scripts/verify-employees.cjs', 'scripts/verify-attendance.cjs', 'scripts/verify-sessions.cjs', 'scripts/verify-telegram-security.cjs', 'scripts/verify-inventory-settings.cjs', 'scripts/test-agent-regressions.cjs']],
+        'scripts/verify-printer-pin.cjs', 'scripts/verify-employees.cjs', 'scripts/verify-attendance.cjs', 'scripts/verify-sessions.cjs', 'scripts/verify-telegram-security.cjs', 'scripts/verify-inventory-settings.cjs', 'scripts/verify-backups.cjs', 'scripts/test-agent-regressions.cjs']],
     ['Printer ulash dasturi sintaksisi', ['--check', 'scripts/print-agent.cjs']]
 ];
 

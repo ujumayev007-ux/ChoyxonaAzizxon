@@ -1,3 +1,4 @@
+import adminDataRoutes from './routes/admin-data.routes';
 import { startAlertMonitor } from './utils/alerts';
 import adminInventoryRoutes from './routes/admin-inventory.routes';
 import { startReportSchedule } from './utils/telegram-reports';
@@ -113,6 +114,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/admin/inventory', adminInventoryRoutes);
+app.use('/api/admin/data', adminDataRoutes);
 app.use('/api/admin/order-control', adminOrderControlRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
@@ -771,6 +773,7 @@ app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), asyn
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
         const where: Prisma.OrderWhereInput = {};
+        if (req.user!.role === RoleType.ADMIN && req.query.archived !== 'true') where.archivedAt = null;
         if (tableId) where.tableId = tableId;
         if (status === 'PENDING') {
             where.status = { in: ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'] };

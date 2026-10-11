@@ -330,6 +330,7 @@ enum OrderSource {
 model Order {
   id                  String      @id @default(uuid())
   orderNumber         String      @unique // Masalan: 20260929-001
+  archivedAt DateTime?
   tableId             String?
   table               Table?      @relation(fields: [tableId], references: [id])
   waiterId            String?
@@ -803,6 +804,16 @@ model SystemAlert {
   createdAt DateTime @default(now())
   resolvedAt DateTime?
   @@index([resolvedAt, createdAt])
+}
+
+model DataBackup {
+  id String @id @default(uuid())
+  actorId String
+  createdAt DateTime @default(now())
+  status String @default("ISHLANMOQDA")
+  encryptedData String?
+  manifest Json?
+  @@index([createdAt])
 }
 
 model RolePermission {

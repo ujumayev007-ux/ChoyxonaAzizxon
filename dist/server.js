@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const admin_data_routes_1 = __importDefault(require("./routes/admin-data.routes"));
 const alerts_1 = require("./utils/alerts");
 const admin_inventory_routes_1 = __importDefault(require("./routes/admin-inventory.routes"));
 const telegram_reports_1 = require("./utils/telegram-reports");
@@ -112,6 +113,7 @@ app.use('/api/attendance', attendance_routes_1.default);
 app.use('/api/admin/security', admin_security_routes_1.default);
 app.use('/api/admin/settings', admin_settings_routes_1.default);
 app.use('/api/admin/inventory', admin_inventory_routes_1.default);
+app.use('/api/admin/data', admin_data_routes_1.default);
 app.use('/api/admin/order-control', admin_order_control_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
@@ -753,6 +755,8 @@ app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
         const where = {};
+        if (req.user.role === client_1.RoleType.ADMIN && req.query.archived !== 'true')
+            where.archivedAt = null;
         if (tableId)
             where.tableId = tableId;
         if (status === 'PENDING') {
