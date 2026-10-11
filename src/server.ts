@@ -376,7 +376,7 @@ app.get('/api/rooms', authenticateToken, requireRole(['ADMIN', 'WAITER', 'CASHIE
             tables: room.tables.map(table => {
                 const statuses = table.orders.map(order => order.status);
                 const status = statuses.length === 0
-                    ? 'AVAILABLE'
+                    ? (table.assignedWaiterId ? 'OCCUPIED' : 'AVAILABLE')
                     : statuses.some(value => ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'].includes(value))
                         ? 'PENDING'
                         : statuses.includes('TOLOV_KUTILMOQDA') || statuses.includes('QISMAN_TOLANDI')

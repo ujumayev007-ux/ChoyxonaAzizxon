@@ -12,6 +12,7 @@ const settings_1 = require("../utils/settings");
 const kitchen_print_1 = require("../utils/kitchen-print");
 const service_policy_1 = require("../utils/service-policy");
 const service_finance_1 = require("../utils/service-finance");
+const advisory_lock_1 = require("../utils/advisory-lock");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'CASHIER', 'KITCHEN', 'ADMIN']));
 exports.serviceLegacyRouter = (0, express_1.Router)();
@@ -72,7 +73,7 @@ async function lockOrder(tx, id) {
 }
 async function lockWaiters(tx, ids) {
     for (const id of [...new Set(ids.filter(Boolean))].sort())
-        await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${'waiter:' + id}))`;
+        await (0, advisory_lock_1.lockTransaction)(tx, 'waiter:' + id);
 }
 // Advisory key lock serializes even the first create, before an Order row exists.
 async function serviceMutation(req, operation, work) {
@@ -83,7 +84,7 @@ async function serviceMutation(req, operation, work) {
         (0, service_policy_1.fail)(400, 'So‘rov identifikatori kerak');
     const hash = (0, crypto_1.createHash)('sha256').update(JSON.stringify({ path: req.path, body: req.body })).digest('hex');
     return db_1.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+        await (0, advisory_lock_1.lockTransaction)(tx, key);
         const previous = await tx.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user.id || previous.operation !== operation || previous.requestHash !== hash)

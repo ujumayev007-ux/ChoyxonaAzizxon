@@ -121,7 +121,7 @@
             const items = cartItems.map(i => ({ productId: i.id, quantity: i.quantity, note: appendOrder ? [i.note, note].filter(Boolean).join('; ') : i.note || '' }));
             let savedTable = tableId;
             if (appendOrder) {
-                if (!appendRequest) appendRequest = { items, updatedAt: appendOrder.updatedAt, idempotencyKey: crypto.randomUUID() };
+                if (!appendRequest) appendRequest = { items, updatedAt: appendOrder.updatedAt, idempotencyKey: client.requestId() };
                 const storageKey = `waiter-append:${currentWaiter.id}`;
                 localStorage.setItem(storageKey, JSON.stringify({ order: appendOrder, request: appendRequest }));
                 const response = await fetch(`/api/waiter/orders/${appendOrder.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(appendRequest) });
@@ -221,7 +221,14 @@
         if (type === 'call-accept') return acceptCall(target.dataset.call);
         if (type === 'call-complete') return completeCall(target.dataset.call);
         if (type === 'append') return openAppendOrder(id);
-        if (type === 'table-assign') { await client.post(`/tables/${target.dataset.table}/assign`, {}); showNotification('Stol biriktirildi'); return; }
+        if (type === 'table-assign') {
+            const tableId = target.dataset.table;
+            await client.post(`/tables/${tableId}/assign`, {});
+            await loadRoomsAndTables();
+            const table = allRooms.flatMap(room => room.tables).find(entry => entry.id === tableId);
+            if (selectedTableForModal === tableId && table) await openTableModal(table.id, table.number, table.status);
+            showNotification('Stol sizga biriktirildi'); return;
+        }
         if (type === 'retry-new-order') return submitWaiterOrder();
         if (type === 'handover') {
             let orders = [], page = 1, result;

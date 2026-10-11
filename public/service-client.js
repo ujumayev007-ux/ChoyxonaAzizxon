@@ -1,6 +1,15 @@
 /* Shared durable mutations: retries reuse the original payload and identifier. */
 window.ServiceClient = (() => {
     let user;
+    function requestId() {
+        if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+        // getRandomValues also works on LAN HTTP pages, where randomUUID is unavailable.
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
     const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
     async function get(path) {
         const response = await fetch('/api/service' + path, { credentials: 'same-origin' });
@@ -16,7 +25,7 @@ window.ServiceClient = (() => {
         const key = keyFor(slot);
         let saved = pending(slot);
         if (!saved) {
-            saved = { path, body: { ...body, actorId: user.id, idempotencyKey: crypto.randomUUID() } };
+            saved = { path, body: { ...body, actorId: user.id, idempotencyKey: requestId() } };
             localStorage.setItem(key, JSON.stringify(saved));
         }
         // Once sent, never replace an uncertain request with edited form values.
@@ -34,5 +43,5 @@ window.ServiceClient = (() => {
             throw error;
         }
     }
-    return { get, post, init, pending, esc, get user() { return user; } };
+    return { get, post, init, pending, esc, requestId, get user() { return user; } };
 })();

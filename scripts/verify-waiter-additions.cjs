@@ -102,7 +102,7 @@ test('Ofitsant oynasi qo‘shimchani kerakli buyurtmaga yuboradi va tarmoq xatos
     };
     const calls = [];
     const context = vm.createContext({
-        console: { error() {} }, crypto: { randomUUID: () => 'same-retry-key-12345' },
+        window: {}, console: { error() {} }, crypto: { randomUUID: () => 'same-retry-key-12345' },
         appendOrder: { id: 'order-1' }, appendRequest: null, cartItems: [{ id: 'food-1', quantity: 2, note: '' }],
         document: { getElementById: id => fields[id] }, alert() {}, showNotification() {}, renderCart() {}, switchTab() {},
         cancelAppendOrder() { context.appendOrder = null; context.appendRequest = null; },
@@ -112,6 +112,8 @@ test('Ofitsant oynasi qo‘shimchani kerakli buyurtmaga yuboradi va tarmoq xatos
             return { ok: true, json: async () => ({ success: true }) };
         }
     });
+    vm.runInContext(fs.readFileSync('public/service-client.js', 'utf8'), context);
+    context.ServiceClient = context.window.ServiceClient;
     vm.runInContext(html.slice(html.indexOf('async function submitWaiterOrder('), html.indexOf('async function loadTableDropdowns(')), context);
     await context.submitWaiterOrder();
     assert.equal(context.cartItems.length, 1);

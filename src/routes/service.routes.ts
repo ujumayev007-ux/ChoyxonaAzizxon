@@ -8,6 +8,7 @@ import { getSettings } from '../utils/settings';
 import { queueKitchenPrint } from '../utils/kitchen-print';
 import { authorizeService, servicePolicy, assertEditable, assertOrderFresh, aggregateItemStatus, closedServiceStatuses, ServiceError, fail } from '../utils/service-policy';
 import { decimalSum, orderBalance, refundServiceLine } from '../utils/service-finance';
+import { lockTransaction } from '../utils/advisory-lock';
 
 const router = Router();
 router.use(authenticateToken, requireRole(['WAITER', 'CASHIER', 'KITCHEN', 'ADMIN']));
@@ -55,7 +56,7 @@ async function lockOrder(tx: Prisma.TransactionClient, id: string) {
     return order!;
 }
 async function lockWaiters(tx: Prisma.TransactionClient, ids: string[]) {
-    for (const id of [...new Set(ids.filter(Boolean))].sort()) await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'waiter:' + id}))`;
+    for (const id of [...new Set(ids.filter(Boolean))].sort()) await lockTransaction(tx, 'waiter:' + id);
 }
 // Advisory key lock serializes even the first create, before an Order row exists.
 export async function serviceMutation(req: Request, operation: string, work: (tx: Prisma.TransactionClient) => Promise<any>) {
@@ -64,7 +65,7 @@ export async function serviceMutation(req: Request, operation: string, work: (tx
     if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]{16,100}$/.test(key)) fail(400, 'So‘rov identifikatori kerak');
     const hash = createHash('sha256').update(JSON.stringify({ path: req.path, body: req.body })).digest('hex');
     return prisma.$transaction(async tx => {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+        await lockTransaction(tx, key);
         const previous = await tx.idempotencyRecord.findUnique({ where: { key } });
         if (previous) {
             if (previous.userId !== req.user!.id || previous.operation !== operation || previous.requestHash !== hash) fail(409, 'Bu identifikator boshqa so‘rovga tegishli');

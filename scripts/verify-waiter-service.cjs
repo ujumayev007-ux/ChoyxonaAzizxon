@@ -31,7 +31,12 @@ function fixture(options = {}) {
             serviceRequests: copy(get().requests.filter(r => r.orderId === o.id)), statusHistory: copy(get().history.filter(h => h.orderId === o.id)) };
         const set = (obj, data) => { for (const [k, val] of Object.entries(data)) { if (k === 'statusHistory' || k === 'items') continue; obj[k] = copy(val); } obj.updatedAt = new Date(new Date(obj.updatedAt || stamp).getTime() + 1); return copy(obj); };
         return {
-            $queryRaw: async (strings, ...values) => { get().queryLog.push({ sql: strings.join('?'), values }); return []; },
+            $queryRaw: async (strings, ...values) => {
+                const sql = strings.join('?');
+                if (sql.includes('pg_advisory_xact_lock')) throw new Error('Failed to deserialize column of type void');
+                get().queryLog.push({ sql, values }); return [];
+            },
+            $executeRaw: async (strings, ...values) => { get().queryLog.push({ sql: strings.join('?'), values }); return 1; },
             appSetting: { findUnique: async ({ where }) => get().settings[where.key] ? { value: get().settings[where.key] } : null }, restaurantSetting: { findFirst: async () => null },
             idempotencyRecord: { findUnique: async ({ where }) => copy(get().records.find(r => r.key === where.key) || null), create: async ({ data }) => { get().records.push(copy(data)); return copy(data); } },
             user: { findFirst: async ({ where }) => ['waiter-1','waiter-2'].includes(where.id) ? { id: where.id, role: 'WAITER', isActive: true } : null, findMany: async () => [{ id: 'waiter-1', fullName: 'Ofitsant' }, { id: 'waiter-2', fullName: 'Ikkinchi' }] },
@@ -105,6 +110,30 @@ function fixture(options = {}) {
 }
 const body = (h, extra = {}) => ({ updatedAt: h.state.orders[0].updatedAt.toISOString(), idempotencyKey: 'operation-test-' + Math.random().toString(36).slice(2), ...extra });
 function tracked(t, options) { const h = fixture(options); t.after(() => h.close()); return h; }
+test('HTTP panelda randomUUID bo‘lmasa ham buyurtma yuboriladi va qayta yuborish asl so‘rovni saqlaydi', async () => {
+    const saved = new Map(), calls = [];
+    let offline = true;
+    function client() {
+        const context = { window: {}, crypto: { getRandomValues: values => require('node:crypto').webcrypto.getRandomValues(values) },
+            localStorage: { getItem: key => saved.get(key) || null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) },
+            fetch: async (_url, request) => {
+                if (!request?.body) return { ok: true, json: async () => ({ user: { id: 'waiter-1' }, data: {} }) };
+                calls.push(JSON.parse(request.body));
+                if (offline) throw new Error('offline');
+                return { ok: true, json: async () => ({ success: true, data: { id: 'created' } }) };
+            } };
+        vm.runInNewContext(fs.readFileSync('public/service-client.js', 'utf8'), context);
+        return context.window.ServiceClient;
+    }
+    await assert.rejects(() => client().post('/orders', { items: [1] }, 'new-order'), /Natijani/);
+    assert.equal(calls.length, 1, 'HTTP panel so‘rovni serverga yuborishi kerak');
+    assert.match(calls[0].idempotencyKey, /^[a-zA-Z0-9_-]{16,100}$/);
+    offline = false;
+    await client().post('/orders', { items: [2] }, 'new-order');
+    assert.deepEqual(calls[1], calls[0]);
+    assert.equal(saved.size, 0);
+});
+
 test('Yangi buyurtma server narxida hisoblanadi; parallel va uzilgan javobdan keyingi retry bitta buyurtma yaratadi', async t => {
     const h = tracked(t), payload = { tableId: 'table-1', guestCount: 4, items: [{ productId: 'food-1', quantity: 2 }], idempotencyKey: 'new-order-retry-123456' };
     const results = await Promise.all([h.send('/api/orders', payload), h.send('/api/orders', payload)]);
@@ -119,6 +148,22 @@ test('Stop-list va OWN doirasi yangi buyurtmani serverda cheklaydi', async t => 
     assert.equal((await h.send('/api/service/orders', payload, 'WAITER','waiter-2')).status, 403);
     h.state.menu[0].available = false;
     assert.equal((await h.send('/api/service/orders', payload)).status, 409); assert.equal(h.state.orders.length,1);
+});
+test('Stolni band qilish: takroriy so‘rov bitta biriktirish, boshqa ofitsantga rad javobi va egasiga bo‘shatish', async t => {
+    const h = tracked(t), path = '/api/service/tables/table-2';
+    const payload = { idempotencyKey: 'reserve-table-retry-12345' };
+    const results = await Promise.all([
+        h.send(path + '/assign', payload),
+        h.send(path + '/assign', { idempotencyKey: 'reserve-other-waiter-12345' }, 'WAITER', 'waiter-2')
+    ]);
+    assert.equal(results[0].status, 200);
+    assert.equal(results[1].status, 409);
+    assert.equal(h.state.tables[1].assignedWaiterId, 'waiter-1');
+    assert.deepEqual((await h.send(path + '/assign', payload)).body, results[0].body);
+    assert.equal(h.state.audits.filter(a => a.action === 'TABLE_ASSIGNED').length, 1);
+    assert.equal((await h.send(path + '/release', { idempotencyKey: 'release-other-waiter-12345' }, 'WAITER', 'waiter-2')).status, 403);
+    assert.equal((await h.send(path + '/release', { idempotencyKey: 'release-owner-waiter-12345' })).status, 200);
+    assert.equal(h.state.tables[1].assignedWaiterId, null);
 });
 test('Ikki ofitsant bir mijoz buyurtmasini parallel tasdiqlasa faqat bittasi biriktiriladi', async t => {
     const h = tracked(t, { order: { status: 'YANGI', waiterId: null } });

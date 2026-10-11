@@ -11,6 +11,7 @@
     "test:payments": "node scripts/verify-cashier-payments.js && node scripts/verify-waiter-payment-flow.js",
     "test:payments:database": "node scripts/verify-cashier-database.js",
     "test:waiter:ui": "node scripts/verify-waiter-ui.cjs",
+    "test:service:database": "node scripts/verify-service-lock-database.cjs",
     "test:kitchen:tv": "node scripts/verify-kitchen-tv.cjs",
     "test:admin:settings": "node --test scripts/verify-admin-settings.cjs",
     "test:admin:settings:ui": "node scripts/verify-admin-settings-ui.cjs",

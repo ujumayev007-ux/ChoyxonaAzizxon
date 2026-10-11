@@ -14,6 +14,7 @@ const date = new Date(Date.now()-5*60000).toISOString();
 const waiter = { id:'waiter-1', name:'Sinov ofitsanti', fullName:'Sinov ofitsanti', role:'WAITER', login:'sinov' };
 const menu = [{id:'food-1',name:'Osh',sellingPrice:'30000',available:true,unit:'dona',category:{id:'cat-1',name:'Taomlar'}},{id:'food-2',name:'Choy',sellingPrice:'10000',available:false,unavailableReason:'Tugagan',unit:'dona',category:{id:'cat-1',name:'Taomlar'}}];
 const table = {id:'table-1',number:1,status:'OCCUPIED',assignedWaiterId:waiter.id,assignedWaiter:{id:waiter.id,fullName:waiter.name},room:{id:'room-1',name:'Asosiy xona'}};
+const spareTable = {...table,id:'table-2',number:2,status:'AVAILABLE',assignedWaiterId:null,assignedWaiter:null};
 const order = {id:'order-1',orderNumber:'TEST-001',tableId:table.id,table,waiterId:waiter.id,waiter:{id:waiter.id,fullName:waiter.name},guestCount:3,status:'TAYYOR',updatedAt:date,createdAt:date,totalAmount:'90000',subtotal:'90000',serviceCharge:'0',discount:'0',payments:[],refunds:[],debt:null,items:[{id:'item-1',menuItemId:'food-1',menuItem:menu[0],quantity:'3',cancelledQuantity:'0',totalPrice:'90000',unitPrice:'30000',status:'TAYYOR',createdAt:date,notes:'Piyozsiz'}],balance:{paid:'0',remaining:'90000',debtRemaining:'0',refunds:'0'},statusHistory:[{user:{fullName:waiter.name},createdAt:date,status:'TAYYOR',comment:'Taom tayyor'}]};
 const summary = {activeTables:1,activeOrders:1,activeOwnOrders:1,createdOrders:1,createdTotal:'90000',receiptTotal:'0',commission:'0',date:'2026-10-11',guests:3,servedTables:0,unfinishedCalls:1};
 let postBodies = [], failNextCreate = false, role = 'WAITER', calls = [{id:'call-1',table,tableId:table.id,kind:'CUSTOMER',status:'YANGI',createdAt:date}], requests = [];
@@ -26,11 +27,12 @@ async function api(route) {
         if(p.endsWith('/accept'))calls[0]={...calls[0],status:'QABUL_QILINDI',acceptedById:waiter.id,acceptedBy:{fullName:waiter.name},acceptedAt:new Date().toISOString()};
         if(p.endsWith('/complete'))calls=[];
         if(p.endsWith('/status'))order.items[0].status=body.status;
+        if(p==='/api/service/tables/table-2/assign') Object.assign(spareTable,{status:'OCCUPIED',assignedWaiterId:waiter.id,assignedWaiter:{id:waiter.id,fullName:waiter.name}});
         return send({success:true,data:{id:'created-1',...body}});
     }
     if(p==='/api/service/config')return send({success:true,data:{scope:'ALL',assign:true,deliver:true,requestReturn:true,requestCancel:true,transfer:true,reassign:true,delayMinutes:20},user:{...waiter,role}});
     if(p==='/api/waiter/me')return send({success:true,waiter});
-    if(p==='/api/rooms')return send([{id:'room-1',name:'Asosiy xona',tables:[table,{...table,id:'table-2',number:2,status:'AVAILABLE'}]}]);
+    if(p==='/api/rooms')return send([{id:'room-1',name:'Asosiy xona',tables:[table,spareTable]}]);
     if(p==='/api/menu')return send(menu);
     if(p==='/api/menu/categories/public')return send([{id:'cat-1',name:'Taomlar'}]);
     if(p==='/api/restaurant')return send({restaurantName:'ChoyxonaAzizxon',serviceFeePercent:0});
@@ -44,20 +46,24 @@ async function api(route) {
     if(p==='/api/service/calls')return send({success:true,data:calls});
     if(p==='/api/service/requests')return send({success:true,data:requests});
     if(p==='/api/service/tables/table-1/bill')return send({success:true,data:{table,guests:3,orders:[order],calls:[],totals:{total:'90000',subtotal:'90000',serviceCharge:'0',discount:'0',paid:'0',refunds:'0',debt:'0',debtRemaining:'0',remaining:'90000'}}});
+    if(p==='/api/service/tables/table-2/bill')return send({success:true,data:{table:spareTable,guests:0,orders:[],calls:[],totals:{}}});
     if(p==='/api/admin/settings')return send({waiterService:{scope:'ALL',delayMinutes:20,assign:true,deliver:true,requestReturn:true,requestCancel:true,transfer:false,reassign:false,takePayment:false,cashierReview:true,kitchenCancel:true}});
     if(p==='/api/inventory')return send([{id:'inventory-1',name:'Yaroqli mahsulot',unit:'dona'}]);
     return send({success:true,data:[]});
 }
 (async()=>{
     const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
-    const browser=await chromium.launch({channel:'chrome',headless:true});
-    const base=`http://127.0.0.1:${server.address().port}`;
+    // A non-loopback HTTP origin reproduces how waiters open the panel over the LAN.
+    const browser=await chromium.launch({channel:'chrome',headless:true,args:['--host-resolver-rules=MAP waiter-http.test 127.0.0.1','--no-proxy-server']});
+    const base=`http://waiter-http.test:${server.address().port}`;
     const errors=[];
     try{
         const context=await browser.newContext({viewport:{width:1440,height:1000}}), page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
         await page.route('**/api/**',api);
         await page.route('**/socket.io/**',route=>route.fulfill({contentType:'application/javascript',body:'window.io=()=>({connected:false,on(){},removeAllListeners(){}})'}));
         await page.goto(base+'/waiter/',{waitUntil:'networkidle'});
+        assert.equal(await page.evaluate(() => window.isSecureContext), false);
+        assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
         await page.waitForFunction(()=>document.getElementById('service-shift')?.textContent.includes('Bugungi smena'));
         await page.evaluate(()=>switchTab('orders'));await page.getByText('Olib ketdim',{exact:true}).first().waitFor();
         await page.screenshot({path:path.join(output,'desktop-orders.png'),fullPage:true});
@@ -75,6 +81,23 @@ async function api(route) {
         await context.setOffline(false);await page.click('#submit-waiter-order');await page.waitForFunction(()=>document.getElementById('service-draft-state').textContent.includes('Saqlandi'));
         const sent=postBodies.find(p=>p.path==='/api/service/orders');assert.equal(sent.body.guestCount,5);assert.equal(sent.body.items[0].note,'Kam tuzli');
         assert.deepEqual(postBodies.filter(p=>p.path==='/api/service/orders')[0].body,postBodies.filter(p=>p.path==='/api/service/orders')[1].body);
+        await page.evaluate(() => openAppendOrder('order-1'));
+        await page.locator('[data-add-menu-item="food-1"]').click();
+        await page.click('#submit-waiter-order');
+        await page.waitForFunction(() => document.getElementById('service-draft-state').textContent.includes('Saqlandi') && !document.getElementById('submit-waiter-order').disabled);
+        const appended = postBodies.find(p => p.path === '/api/waiter/orders/order-1/items');
+        assert.ok(appended, 'HTTP panelda qo‘shimcha taom serverga yuboriladi');
+        assert.match(appended.body.idempotencyKey, /^[a-zA-Z0-9_-]{16,100}$/);
+        assert.notEqual(appended.body.idempotencyKey, sent.body.idempotencyKey);
+        assert.equal(appended.body.updatedAt, date);
+        assert.equal(await page.locator('#builder-table-select').isDisabled(), false);
+        await page.evaluate(() => { switchTab('tables'); enterRoom('room-1'); return openTableModal('table-2', 2, 'AVAILABLE'); });
+        await page.locator('[data-service-action="table-assign"]').click();
+        await page.waitForFunction(() => document.getElementById('modal-table-waiter').textContent === 'Sinov ofitsanti' && !document.querySelector('[data-service-action="table-assign"]'));
+        assert.equal(await page.locator('#modal-table-status').textContent(), 'Band');
+        assert.ok((await page.locator('#waiter-rooms-container').textContent()).includes('Sizga biriktirilgan'));
+        assert.ok(postBodies.some(p => p.path === '/api/service/tables/table-2/assign'));
+        await page.evaluate(() => closeTableModal());
         await page.evaluate(()=>openTableModal('table-1',1,'OCCUPIED'));await page.waitForFunction(()=>document.getElementById('modal-table-guests').textContent==='3 mehmon (faol buyurtmalar)');
         assert.ok((await page.locator('#modal-table-waiter').textContent()).includes(waiter.name));await page.evaluate(()=>goToBillForCurrentTable());
         assert.equal(await page.inputValue('#service-history-filters [name="tableId"]'),'table-1');
@@ -87,6 +110,6 @@ async function api(route) {
         await page.screenshot({path:path.join(output,'mobile-cashier.png'),fullPage:true});assert.ok(postBodies.some(p=>p.path==='/api/service/requests/request-1/decision'));
         role='ADMIN';await page.setViewportSize({width:1440,height:1000});await page.goto(base+'/service.html',{waitUntil:'networkidle'});await page.getByText('Ruxsatlar va biriktirish',{exact:true}).click();await page.locator('#settings-form [name="delayMinutes"]').waitFor();await page.screenshot({path:path.join(output,'admin-settings.png'),fullPage:true});
         assert.deepEqual(errors,[], 'Brauzerda bajarilish xatolari bo‘lmasligi kerak');
-        console.log('Browser QA passed: desktop/mobile, delivery, draft restoration, notes, stop-list, offline retry, table billing/history, calls, cashier decisions, admin settings.');
+        console.log('Browser QA passed: LAN HTTP without randomUUID, new orders, appended dishes, table assignment and immediate refresh without sockets, desktop/mobile, delivery, draft restoration, notes, stop-list, offline retry, table billing/history, calls, cashier decisions, admin settings.');
     }finally{await browser.close();server.closeAllConnections();server.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});
