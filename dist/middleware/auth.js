@@ -121,12 +121,26 @@ function readSession(req) {
             id: session.sub,
             role: session.role,
             issuedAt: session.issuedAt,
+            sessionId: (0, crypto_1.createHash)('sha256').update(cookie).digest('hex'),
+            expiresAt: new Date(session.exp * 1000),
             ...(typeof session.terminalAccessId === 'string' ? { terminalAccessId: session.terminalAccessId } : {})
         };
     }
     catch {
         return null;
     }
+}
+async function sessionActive(req, session) {
+    const existing = await db_1.prisma.authSession.findUnique({ where: { id: session.sessionId } });
+    if (existing?.revokedAt)
+        return false;
+    if (existing && Date.now() - existing.lastSeenAt.getTime() < 60000)
+        return true;
+    const saved = await db_1.prisma.authSession.upsert({ where: { id: session.sessionId }, create: {
+            id: session.sessionId, userId: session.id, expiresAt: session.expiresAt, userAgent: req.headers['user-agent']?.slice(0, 250)
+        }, update: { lastSeenAt: new Date() } });
+    // A concurrent admin revocation must win over a session refresh.
+    return !saved.revokedAt;
 }
 const authenticateToken = async (req, res, next) => {
     const session = readSession(req);
@@ -152,6 +166,10 @@ const authenticateToken = async (req, res, next) => {
                 res.status(401).json({ success: false, message: 'Admin sessiyasi yakunlangan' });
                 return;
             }
+        }
+        if (!await sessionActive(req, session)) {
+            res.status(401).json({ success: false, message: 'Sessiya yakunlangan. Qayta kiring' });
+            return;
         }
         req.user = {
             id: user.id,
@@ -193,6 +211,10 @@ const optionalAuthenticateToken = async (req, res, next) => {
                 next();
                 return;
             }
+        }
+        if (!await sessionActive(req, session)) {
+            res.status(401).json({ success: false, message: 'Sessiya yakunlangan. Qayta kiring' });
+            return;
         }
         req.user = {
             id: user.id,

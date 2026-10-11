@@ -33,16 +33,20 @@ router.get('/role-permissions', async (_req, res) => {
 router.put('/role-permissions/:role/:permissionKey', async (req, res) => {
     const role = req.params.role;
     const permissionKey = req.params.permissionKey;
-    const enabled = Boolean(req.body?.enabled);
-    if (!Object.values(client_1.RoleType).includes(role) || !PERMISSIONS.find(p => p.role === role && p.key === permissionKey)) {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean' || !Object.values(client_1.RoleType).includes(role) || !PERMISSIONS.find(p => p.role === role && p.key === permissionKey)) {
         res.status(400).json({ success: false, message: 'Noto\'g\'ri parametr' });
         return;
     }
     try {
-        await db_1.prisma.rolePermission.upsert({
-            where: { role_permissionKey: { role, permissionKey } },
-            create: { role, permissionKey, enabled },
-            update: { enabled }
+        await db_1.prisma.$transaction(async (tx) => {
+            const old = await tx.rolePermission.findUnique({ where: { role_permissionKey: { role, permissionKey } } });
+            await tx.rolePermission.upsert({
+                where: { role_permissionKey: { role, permissionKey } },
+                create: { role, permissionKey, enabled },
+                update: { enabled }
+            });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'ROLE_PERMISSION_UPDATED', entity: 'RolePermission', entityId: `${role}:${permissionKey}`, oldValue: JSON.stringify({ enabled: old?.enabled ?? false }), newValue: JSON.stringify({ enabled }) } });
         });
         res.json({ success: true, message: 'Rol huquqi yangilandi.' });
     }

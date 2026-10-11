@@ -1,4 +1,4 @@
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes, createHmac, createHash, timingSafeEqual } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { RoleType } from '@prisma/client';
 import { prisma } from '../utils/db';
@@ -102,7 +102,7 @@ export function clearAuthCookie(res: Response): void {
     ]);
 }
 
-function readSession(req: Request): { id: string; role: RoleType; issuedAt: number; terminalAccessId?: string } | null {
+function readSession(req: Request): { id: string; role: RoleType; issuedAt: number; sessionId: string; expiresAt: Date; terminalAccessId?: string } | null {
     const cookieHeader = req.headers.cookie;
     if (!cookieHeader) return null;
     const cookies = cookieHeader.split(';').map(part => part.trim());
@@ -146,11 +146,24 @@ function readSession(req: Request): { id: string; role: RoleType; issuedAt: numb
             id: session.sub,
             role: session.role as RoleType,
             issuedAt: session.issuedAt,
+            sessionId: createHash('sha256').update(cookie).digest('hex'),
+            expiresAt: new Date(session.exp * 1000),
             ...(typeof session.terminalAccessId === 'string' ? { terminalAccessId: session.terminalAccessId } : {})
         };
     } catch {
         return null;
     }
+}
+
+async function sessionActive(req: Request, session: NonNullable<ReturnType<typeof readSession>>) {
+    const existing = await prisma.authSession.findUnique({ where: { id: session.sessionId } });
+    if (existing?.revokedAt) return false;
+    if (existing && Date.now() - existing.lastSeenAt.getTime() < 60000) return true;
+    const saved = await prisma.authSession.upsert({ where: { id: session.sessionId }, create: {
+        id: session.sessionId, userId: session.id, expiresAt: session.expiresAt, userAgent: req.headers['user-agent']?.slice(0, 250)
+    }, update: { lastSeenAt: new Date() } });
+    // A concurrent admin revocation must win over a session refresh.
+    return !saved.revokedAt;
 }
 
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
@@ -177,6 +190,10 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
                 res.status(401).json({ success: false, message: 'Admin sessiyasi yakunlangan' });
                 return;
             }
+        }
+        if (!await sessionActive(req, session)) {
+            res.status(401).json({ success: false, message: 'Sessiya yakunlangan. Qayta kiring' });
+            return;
         }
         req.user = {
             id: user.id,
@@ -217,6 +234,10 @@ export const optionalAuthenticateToken = async (req: Request, res: Response, nex
                 next();
                 return;
             }
+        }
+        if (!await sessionActive(req, session)) {
+            res.status(401).json({ success: false, message: 'Sessiya yakunlangan. Qayta kiring' });
+            return;
         }
         req.user = {
             id: user.id,

@@ -30,6 +30,7 @@ const admin_operations_routes_1 = __importDefault(require("./routes/admin-operat
 const print_agent_routes_1 = __importDefault(require("./routes/print-agent.routes"));
 const employees_routes_1 = __importDefault(require("./routes/employees.routes"));
 const attendance_routes_1 = __importDefault(require("./routes/attendance.routes"));
+const admin_security_routes_1 = __importDefault(require("./routes/admin-security.routes"));
 const kitchen_print_1 = require("./utils/kitchen-print");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -102,6 +103,7 @@ app.use('/api/admin', admin_operations_routes_1.default);
 app.use('/api/print-agent', print_agent_routes_1.default);
 app.use('/api/employees', employees_routes_1.default);
 app.use('/api/attendance', attendance_routes_1.default);
+app.use('/api/admin/security', admin_security_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;

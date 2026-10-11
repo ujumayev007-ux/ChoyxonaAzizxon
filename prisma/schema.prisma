@@ -31,6 +31,7 @@ model User {
   updatedAt    DateTime @updatedAt
   pinCodeHash  String?
   avatar       String?
+  sessions     AuthSession[]
 
   // Aloqalar
   waiterProfile           WaiterProfile?
@@ -58,6 +59,34 @@ model User {
   waiterShifts            WaiterShift[] @relation("WaiterShifts")
 
   @@index([username])
+}
+
+model AuthSession {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  @@index([userId, expiresAt])
+}
+
+model AppSetting {
+  key String @id
+  value Json
+  updatedAt DateTime @updatedAt
+}
+
+model SettingRevision {
+  id String @id @default(uuid())
+  key String
+  actorId String
+  previous Json
+  value Json
+  createdAt DateTime @default(now())
+  @@index([key, createdAt])
 }
 model WaiterShift {
   id            String   @id @default(uuid())
