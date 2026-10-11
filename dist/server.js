@@ -28,6 +28,7 @@ const auth_pin_routes_1 = __importDefault(require("./routes/auth-pin.routes"));
 const waiter_orders_routes_1 = __importDefault(require("./routes/waiter-orders.routes"));
 const admin_operations_routes_1 = __importDefault(require("./routes/admin-operations.routes"));
 const print_agent_routes_1 = __importDefault(require("./routes/print-agent.routes"));
+const employees_routes_1 = __importDefault(require("./routes/employees.routes"));
 const kitchen_print_1 = require("./utils/kitchen-print");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -98,6 +99,7 @@ app.use('/api/auth', auth_pin_routes_1.default);
 app.use('/api/waiter/orders', waiter_orders_routes_1.default);
 app.use('/api/admin', admin_operations_routes_1.default);
 app.use('/api/print-agent', print_agent_routes_1.default);
+app.use('/api/employees', employees_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
         return null;
@@ -716,6 +718,7 @@ app.get('/api/users', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN'
                 id: true,
                 username: true,
                 fullName: true,
+                avatar: true,
                 phone: true,
                 role: true,
                 isActive: true,
@@ -729,53 +732,6 @@ app.get('/api/users', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN'
     catch (error) {
         console.error('Xodimlarni olishda xatolik:', error);
         res.status(500).json({ success: false, message: "Xodimlarni olishda xatolik" });
-    }
-});
-app.post('/api/employees', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), async (req, res) => {
-    const { username, password, fullName, role, phone, commissionPercent } = req.body || {};
-    const roles = {
-        ADMIN: 'ADMIN',
-        CASHIER: 'CASHIER',
-        WAITER: 'WAITER',
-        KITCHEN: 'KITCHEN'
-    };
-    const isEmployeeRole = (value) => typeof value === 'string' && Object.hasOwn(roles, value);
-    if (typeof username !== 'string' || !username.trim() || username.trim().length > 50 ||
-        typeof password !== 'string' || password.length < 8 ||
-        typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length > 100 ||
-        typeof phone !== 'string' || !phone.trim() || phone.trim().length > 50 || !isEmployeeRole(role) ||
-        (commissionPercent !== undefined && (!Number.isFinite(Number(commissionPercent)) || Number(commissionPercent) < 0 || Number(commissionPercent) > 100))) {
-        res.status(400).json({ success: false, message: 'Xodim ma’lumotlari noto‘g‘ri' });
-        return;
-    }
-    try {
-        const prismaRole = roles[role];
-        const passwordHash = await (0, password_1.hashPassword)(password);
-        const user = await prisma.user.create({
-            data: {
-                username: username.trim(),
-                passwordHash,
-                fullName: fullName.trim(),
-                phone: phone.trim(),
-                role: prismaRole,
-                ...(role === 'WAITER'
-                    ? { waiterProfile: { create: {
-                                phone: phone.trim(),
-                                ...(commissionPercent !== undefined ? { commissionPercent: Number(commissionPercent) } : {})
-                            } } }
-                    : role === 'CASHIER' ? { cashierProfile: { create: {} } } : {})
-            },
-            select: { id: true, username: true, fullName: true, phone: true, role: true, isActive: true, createdAt: true }
-        });
-        res.status(201).json({ success: true, data: user });
-    }
-    catch (error) {
-        if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            res.status(409).json({ success: false, message: 'Bu login allaqachon mavjud' });
-            return;
-        }
-        console.error('Xodim qo‘shishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xodim qo‘shilmadi' });
     }
 });
 // Buyurtmalar

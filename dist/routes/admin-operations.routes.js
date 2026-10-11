@@ -41,7 +41,10 @@ router.put('/users/:id/pin', async (req, res) => {
                     if (await (0, pin_1.verifyPin)(pin, other.pinCodeHash))
                         throw new Error('DUPLICATE');
             }
-            return tx.user.update({ where: { id: current.id }, data: { pinCodeHash: pin === null ? null : await (0, pin_1.hashPin)(pin) }, select: { id: true, role: true, updatedAt: true } });
+            const updated = await tx.user.update({ where: { id: current.id }, data: { pinCodeHash: pin === null ? null : await (0, pin_1.hashPin)(pin) }, select: { id: true, role: true, updatedAt: true } });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'EMPLOYEE_PIN_UPDATED', entity: 'User', entityId: current.id,
+                    newValue: JSON.stringify({ pinEnabled: pin !== null }) } });
+            return updated;
         }, { maxWait: 10000, timeout: 30000 });
         if (user.id === req.user.id)
             (0, auth_1.setAuthCookie)(res, user);

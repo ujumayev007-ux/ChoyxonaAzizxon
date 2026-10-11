@@ -23,6 +23,7 @@ import authPinRoutes from './routes/auth-pin.routes';
 import waiterOrderRoutes from './routes/waiter-orders.routes';
 import adminOperationsRoutes from './routes/admin-operations.routes';
 import printAgentRoutes from './routes/print-agent.routes';
+import employeeRoutes from './routes/employees.routes';
 import { queueKitchenPrint } from './utils/kitchen-print';
 
 dotenv.config();
@@ -99,6 +100,7 @@ app.use('/api/auth', authPinRoutes);
 app.use('/api/waiter/orders', waiterOrderRoutes);
 app.use('/api/admin', adminOperationsRoutes);
 app.use('/api/print-agent', printAgentRoutes);
+app.use('/api/employees', employeeRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
@@ -734,6 +736,7 @@ app.get('/api/users', authenticateToken, requireRole(['ADMIN']), async (req, res
                 id: true,
                 username: true,
                 fullName: true,
+                avatar: true,
                 phone: true,
                 role: true,
                 isActive: true,
@@ -746,55 +749,6 @@ app.get('/api/users', authenticateToken, requireRole(['ADMIN']), async (req, res
     } catch (error) {
         console.error('Xodimlarni olishda xatolik:', error);
         res.status(500).json({ success: false, message: "Xodimlarni olishda xatolik" });
-    }
-});
-
-app.post('/api/employees', authenticateToken, requireRole(['ADMIN']), async (req, res) => {
-    const { username, password, fullName, role, phone, commissionPercent } = req.body || {};
-    const roles = {
-        ADMIN: 'ADMIN',
-        CASHIER: 'CASHIER',
-        WAITER: 'WAITER',
-        KITCHEN: 'KITCHEN'
-    } as const;
-    const isEmployeeRole = (value: unknown): value is keyof typeof roles =>
-        typeof value === 'string' && Object.hasOwn(roles, value);
-    if (typeof username !== 'string' || !username.trim() || username.trim().length > 50 ||
-        typeof password !== 'string' || password.length < 8 ||
-        typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length > 100 ||
-        typeof phone !== 'string' || !phone.trim() || phone.trim().length > 50 || !isEmployeeRole(role) ||
-        (commissionPercent !== undefined && (!Number.isFinite(Number(commissionPercent)) || Number(commissionPercent) < 0 || Number(commissionPercent) > 100))) {
-        res.status(400).json({ success: false, message: 'Xodim ma’lumotlari noto‘g‘ri' });
-        return;
-    }
-
-    try {
-        const prismaRole = roles[role];
-        const passwordHash = await hashPassword(password);
-        const user = await prisma.user.create({
-            data: {
-                username: username.trim(),
-                passwordHash,
-                fullName: fullName.trim(),
-                phone: phone.trim(),
-                role: prismaRole,
-                ...(role === 'WAITER'
-                    ? { waiterProfile: { create: {
-                        phone: phone.trim(),
-                        ...(commissionPercent !== undefined ? { commissionPercent: Number(commissionPercent) } : {})
-                    } } }
-                    : role === 'CASHIER' ? { cashierProfile: { create: {} } } : {})
-            },
-            select: { id: true, username: true, fullName: true, phone: true, role: true, isActive: true, createdAt: true }
-        });
-        res.status(201).json({ success: true, data: user });
-    } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            res.status(409).json({ success: false, message: 'Bu login allaqachon mavjud' });
-            return;
-        }
-        console.error('Xodim qo‘shishda xatolik:', error);
-        res.status(500).json({ success: false, message: 'Xodim qo‘shilmadi' });
     }
 });
 
