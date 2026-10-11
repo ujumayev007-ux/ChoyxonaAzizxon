@@ -67,9 +67,33 @@ model WaiterShift {
   checkOutTime  DateTime?
   totalHours    Float?
   date          DateTime
+  checkInMethod String @default("MANUAL")
+  checkOutMethod String?
+  scheduledStart DateTime?
+  scheduledEnd DateTime?
+  lateMinutes Int @default(0)
+  earlyMinutes Int @default(0)
+  correctionReason String?
+  scheduleGrace Int @default(0)
 
   @@index([waiterId, date])
   @@index([waiterId, checkInTime])
+}
+
+model AttendanceConfig {
+  id String @id @default("default")
+  enabled Boolean @default(false)
+  methods String[] @default(["PIN", "QR"])
+  startTime String @default("09:00")
+  endTime String @default("18:00")
+  timezone String @default("Asia/Tashkent")
+  graceMinutes Int @default(10)
+}
+
+model AttendanceChallenge {
+  id String @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 

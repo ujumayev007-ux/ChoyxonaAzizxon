@@ -24,6 +24,7 @@ import waiterOrderRoutes from './routes/waiter-orders.routes';
 import adminOperationsRoutes from './routes/admin-operations.routes';
 import printAgentRoutes from './routes/print-agent.routes';
 import employeeRoutes from './routes/employees.routes';
+import attendanceRoutes from './routes/attendance.routes';
 import { queueKitchenPrint } from './utils/kitchen-print';
 
 dotenv.config();
@@ -101,6 +102,7 @@ app.use('/api/waiter/orders', waiterOrderRoutes);
 app.use('/api/admin', adminOperationsRoutes);
 app.use('/api/print-agent', printAgentRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/attendance', attendanceRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
     const user = await prisma.user.findUnique({ where: { username: username.trim() } });
