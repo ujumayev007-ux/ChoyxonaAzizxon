@@ -471,7 +471,7 @@ router.post('/orders', async (req, res) => {
         let telegramSent = false;
         if (code && customerId) {
             const customer = await db_1.prisma.customer.findUnique({ where: { id: customerId }, select: { telegramId: true } });
-            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            const botToken = await (0, telegram_1.telegramToken)();
             if (customer?.telegramId && botToken) {
                 const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                     method: 'POST',
@@ -483,7 +483,7 @@ router.post('/orders', async (req, res) => {
                 });
                 telegramSent = telegramResponse.ok;
                 if (!telegramSent)
-                    console.error('Telegram verification code delivery failed:', await telegramResponse.text());
+                    console.error('Telegram verification code delivery failed');
             }
         }
         res.status(201).json({
@@ -1879,7 +1879,7 @@ router.post('/orders/:id/verification/renew', (0, auth_1.requireRole)(['ADMIN'])
             return { updated, telegramId: verification.order.customer?.telegramId };
         }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         let telegramSent = false;
-        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const token = await (0, telegram_1.telegramToken)();
         if (renewed.telegramId && token) {
             const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',

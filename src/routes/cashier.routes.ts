@@ -7,7 +7,7 @@ import { emitSocketEvent } from '../socket';
 import { verifyPassword } from '../utils/password';
 import { deductPackaging } from '../utils/order-packaging';
 import { deductOrderRecipes } from '../utils/order-recipes';
-import { formatTelegramMessage, sendToActiveSubscribers } from '../utils/telegram';
+import { formatTelegramMessage, sendToActiveSubscribers, telegramToken } from '../utils/telegram';
 import { getSettings } from '../utils/settings';
 const router = Router();
 router.use(authenticateToken, requireCashierAccess);
@@ -486,7 +486,7 @@ router.post('/orders', async (req, res) => {
         let telegramSent = false;
         if (code && customerId) {
             const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { telegramId: true } });
-            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            const botToken = await telegramToken();
             if (customer?.telegramId && botToken) {
                 const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                     method: 'POST',
@@ -497,7 +497,7 @@ router.post('/orders', async (req, res) => {
                     })
                 });
                 telegramSent = telegramResponse.ok;
-                if (!telegramSent) console.error('Telegram verification code delivery failed:', await telegramResponse.text());
+                if (!telegramSent) console.error('Telegram verification code delivery failed');
             }
         }
         res.status(201).json({
@@ -1852,7 +1852,7 @@ router.post('/orders/:id/verification/renew', requireRole(['ADMIN']), async (req
             return { updated, telegramId: verification.order.customer?.telegramId };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         let telegramSent = false;
-        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const token = await telegramToken();
         if (renewed.telegramId && token) {
             const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',

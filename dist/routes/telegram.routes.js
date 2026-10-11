@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const telegram_1 = require("../utils/telegram");
 const settings_1 = require("../utils/settings");
 const crypto_1 = require("crypto");
 const client_1 = require("@prisma/client");
@@ -46,8 +47,11 @@ router.post('/webhook', async (req, res) => {
         const { message } = req.body;
         if (!message || !message.text)
             return res.sendStatus(200);
-        if (!process.env.TELEGRAM_BOT_TOKEN)
+        const token = await (0, telegram_1.telegramToken)();
+        if (!token)
             return res.sendStatus(503);
+        if (process.env.TELEGRAM_WEBHOOK_SECRET && req.get('x-telegram-bot-api-secret-token') !== process.env.TELEGRAM_WEBHOOK_SECRET)
+            return res.sendStatus(403);
         const chatId = message.chat.id;
         const webAppUrl = process.env.CUSTOMER_WEB_APP_URL;
         if (typeof webAppUrl !== 'string' || !webAppUrl) {
@@ -59,7 +63,7 @@ router.post('/webhook', async (req, res) => {
             const appUrl = new URL(webAppUrl);
             if (startParam.startsWith('table_'))
                 appUrl.searchParams.set('table', startParam.slice('table_'.length));
-            const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            const telegramResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -69,7 +73,7 @@ router.post('/webhook', async (req, res) => {
                 })
             });
             if (!telegramResponse.ok) {
-                console.error('Telegram /start javobi yuborilmadi:', await telegramResponse.text());
+                console.error('Telegram /start javobi yuborilmadi');
                 res.sendStatus(502);
                 return;
             }
@@ -84,7 +88,7 @@ router.post('/webhook', async (req, res) => {
 router.post('/customer/telegram/auth', async (req, res) => {
     const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
     const tableId = typeof req.body?.tableId === 'string' ? req.body.tableId : '';
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const botToken = await (0, telegram_1.telegramToken)();
     if (!initData || !botToken || !tableId) {
         res.status(400).json({ success: false, message: 'Telegram sessiyasi yoki stol ma’lumoti yetishmaydi' });
         return;

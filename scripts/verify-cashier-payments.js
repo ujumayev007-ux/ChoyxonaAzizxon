@@ -200,7 +200,7 @@ stub('utils/order-recipes.ts', {
         return ['inventory-1'];
     }
 });
-stub('utils/telegram.ts', { formatTelegramMessage() { return ''; }, async sendToActiveSubscribers() {} });
+stub('utils/telegram.ts', { async telegramToken() { return undefined; }, formatTelegramMessage() { return ''; }, async sendToActiveSubscribers() {} });
 
 const router = require(path.join(root, 'src/routes/cashier.routes.ts')).default;
 const app = express();
