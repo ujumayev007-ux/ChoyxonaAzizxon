@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const alerts_1 = require("./utils/alerts");
+const admin_inventory_routes_1 = __importDefault(require("./routes/admin-inventory.routes"));
 const telegram_reports_1 = require("./utils/telegram-reports");
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
@@ -109,6 +111,7 @@ app.use('/api/employees', employees_routes_1.default);
 app.use('/api/attendance', attendance_routes_1.default);
 app.use('/api/admin/security', admin_security_routes_1.default);
 app.use('/api/admin/settings', admin_settings_routes_1.default);
+app.use('/api/admin/inventory', admin_inventory_routes_1.default);
 app.use('/api/admin/order-control', admin_order_control_routes_1.default);
 async function loginUser(username, password, allowedRoles) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password)
@@ -1371,6 +1374,7 @@ Promise.resolve().then(() => {
 }).then(() => {
     server.listen(PORT, () => {
         (0, telegram_reports_1.startReportSchedule)();
+        (0, alerts_1.startAlertMonitor)();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

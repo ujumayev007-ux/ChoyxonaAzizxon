@@ -22,9 +22,13 @@ router.use(async (req, res, next) => {
 router.post('/claim', async (_req, res) => {
     try {
         const job = await db_1.prisma.$transaction(async (tx) => {
-            const rows = await tx.$queryRaw `SELECT "id" FROM "PrintJob" WHERE "jobType"='KITCHEN' AND "status"='KUTILMOQDA' ORDER BY "createdAt" LIMIT 50 FOR UPDATE SKIP LOCKED`;
+            const rows = await tx.$queryRaw `SELECT "id" FROM "PrintJob" WHERE "jobType" IN ('KITCHEN','TEST') AND "status"='KUTILMOQDA' ORDER BY "createdAt" LIMIT 50 FOR UPDATE SKIP LOCKED`;
             for (const row of rows) {
                 const candidate = await tx.printJob.findUniqueOrThrow({ where: { id: row.id } });
+                if (candidate.orderId && (await tx.order.findUnique({ where: { id: candidate.orderId }, select: { status: true } }))?.status === 'BEKOR_QILINDI') {
+                    await tx.printJob.update({ where: { id: candidate.id }, data: { status: 'BEKOR_QILINDI' } });
+                    continue;
+                }
                 const payload = JSON.parse(candidate.payload);
                 const printer = candidate.printerId
                     ? await tx.printer.findFirst({ where: { id: candidate.printerId, isActive: true } })
@@ -51,7 +55,7 @@ router.post('/:id/result', async (req, res) => {
         return;
     }
     try {
-        await db_1.prisma.printJob.updateMany({ where: { id: req.params.id, jobType: 'KITCHEN', status: 'CHOP_ETILMOQDA' }, data: { status: req.body.status } });
+        await db_1.prisma.printJob.updateMany({ where: { id: req.params.id, jobType: { in: ['KITCHEN', 'TEST'] }, status: 'CHOP_ETILMOQDA' }, data: { status: req.body.status } });
         res.json({ success: true });
     }
     catch {

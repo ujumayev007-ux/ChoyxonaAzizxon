@@ -11,6 +11,7 @@ const order_packaging_1 = require("../utils/order-packaging");
 const order_recipes_1 = require("../utils/order-recipes");
 const telegram_1 = require("../utils/telegram");
 const settings_1 = require("../utils/settings");
+const alerts_1 = require("../utils/alerts");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, auth_1.requireCashierAccess);
 router.use(async (req, res, next) => {
@@ -808,6 +809,7 @@ router.post('/payments', async (req, res) => {
             res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
+        await (0, alerts_1.recordFailure)('failedPayments');
         console.error('Kassir to‘lovini yozishda xatolik:', error);
         res.status(500).json({ success: false, message: 'To‘lovni amalga oshirib bo‘lmadi' });
     }

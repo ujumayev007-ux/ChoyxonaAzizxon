@@ -5,6 +5,18 @@ import { defaults, getSettings, saveSettings, SettingKey } from '../utils/settin
 import { emitSocketEvent } from '../socket';
 const router = Router();
 router.use(authenticateToken, requireRole(['ADMIN']));
+router.get('/alerts', async (_req, res) => {
+    try { res.json(await prisma.systemAlert.findMany({ where: { resolvedAt: null }, take: 100, orderBy: { createdAt: 'desc' } })); }
+    catch { res.status(500).json({ message: 'Ogohlantirishlar yuklanmadi' }); }
+});
+router.post('/alerts/:id/resolve', async (req, res) => {
+    try {
+        await prisma.$transaction(async tx => {
+            await tx.systemAlert.update({ where: { id: req.params.id }, data: { resolvedAt: new Date() } });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'ALERT_ACKNOWLEDGED', entity: 'SystemAlert', entityId: req.params.id } });
+        }); res.json({ success: true });
+    } catch { res.status(400).json({ message: 'Ogohlantirish yopilmadi' }); }
+});
 router.get('/', async (_req, res) => {
     try { res.json(Object.fromEntries(await Promise.all((Object.keys(defaults) as SettingKey[]).map(async key => [key, await getSettings(prisma, key)])))); }
     catch { res.status(500).json({ message: 'Sozlamalar yuklanmadi' }); }

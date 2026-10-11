@@ -187,6 +187,7 @@ function stub(relative, exports) {
 
 const next = (_req, _res, proceed) => proceed();
 stub('utils/db.ts', { prisma });
+stub('utils/alerts.ts', { async recordFailure() {} });
 stub('middleware/auth.ts', {
     authenticateToken(req, _res, proceed) { req.user = user; proceed(); },
     requireCashierAccess: next, requireRole: () => next,

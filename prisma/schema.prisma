@@ -690,12 +690,13 @@ model PrintConfig {
   header String @default("ChoyxonaAzizxon")
   footer String @default("Yoqimli ishtaha!")
   agentTokenHash String?
+  autoPrint Boolean @default(true)
 }
 
 model PrintJob {
   id        String   @id @default(uuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String?
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   printerId String?
   payload   String // Chop etiladigan ma'lumot JSON formatida
   status    String   @default("KUTILMOQDA") // "KUTILMOQDA", "YUBORILDI", "XATOLIK"
@@ -793,6 +794,15 @@ model ScheduledReport {
   key String @id
   createdAt DateTime @default(now())
   status String @default("ISHLANMOQDA")
+}
+
+model SystemAlert {
+  id String @id
+  kind String
+  message String
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  @@index([resolvedAt, createdAt])
 }
 
 model RolePermission {

@@ -12,10 +12,10 @@ router.get('/operations', async (_req, res) => {
             prisma.printer.findMany({ orderBy: { name: 'asc' } }), prisma.menuCategory.findMany({ orderBy: { name: 'asc' } }),
             prisma.user.findMany({ where: { role: { in: ['ADMIN', 'WAITER', 'CASHIER'] } }, select: { id: true, fullName: true, username: true, role: true, pinCodeHash: true } }),
             prisma.printConfig.findUnique({ where: { id: 'default' } }),
-            prisma.printJob.findMany({ where: { jobType: 'KITCHEN' }, take: 30, orderBy: { createdAt: 'desc' }, select: { id: true, printerId: true, status: true, createdAt: true, order: { select: { orderNumber: true } } } })
+            prisma.printJob.findMany({ where: { jobType: { in: ['KITCHEN', 'TEST'] } }, take: 30, orderBy: { createdAt: 'desc' }, select: { id: true, printerId: true, status: true, createdAt: true, order: { select: { orderNumber: true } } } })
         ]);
         res.json({ printers, categories, users: users.map(({ pinCodeHash, ...user }) => ({ ...user, hasPin: Boolean(pinCodeHash) })),
-            config: { header: config?.header || 'ChoyxonaAzizxon', footer: config?.footer || '', agentConfigured: Boolean(config?.agentTokenHash) }, jobs });
+            config: { header: config?.header || 'ChoyxonaAzizxon', footer: config?.footer || '', autoPrint: config?.autoPrint !== false, agentConfigured: Boolean(config?.agentTokenHash) }, jobs });
     } catch { res.status(500).json({ message: 'Sozlamalarni yuklab bo‘lmadi' }); }
 });
 router.put('/users/:id/pin', async (req, res) => {
@@ -59,22 +59,39 @@ router.put('/printers/:id', async (req, res) => {
             const data = { name: name.trim(), department: department.trim(), ipAddress: ipAddress.trim(), port, paperWidth, isActive, categoryIds: ids, connectionType };
             if (req.params.id === 'new') await tx.printer.create({ data });
             else await tx.printer.update({ where: { id: req.params.id }, data });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'PRINTER_UPDATED', entity: 'Printer', entityId: req.params.id, newValue: JSON.stringify(data) } });
         }, { maxWait: 10000, timeout: 30000 });
         res.json({ success: true });
     } catch (error) { res.status(400).json({ message: error instanceof Error && error.message === 'CONFLICT' ? 'Kategoriya boshqa faol printerga biriktirilgan' : 'Printer saqlanmadi' }); }
 });
 router.put('/print-config', async (req, res) => {
-    const { header, footer } = req.body || {};
+    const { header, footer, autoPrint } = req.body || {};
     if (typeof header !== 'string' || typeof footer !== 'string' || header.length > 150 || footer.length > 250) { res.status(400).json({ message: 'Chek matni noto‘g‘ri' }); return; }
-    try { await prisma.printConfig.upsert({ where: { id: 'default' }, create: { id: 'default', header, footer }, update: { header, footer } }); res.json({ success: true }); }
+    if (typeof autoPrint !== 'boolean') { res.status(400).json({ message: 'Avtomatik chop etish holatini belgilang' }); return; }
+    try {
+        await prisma.$transaction(async tx => {
+            const old = await tx.printConfig.findUnique({ where: { id: 'default' }, select: { header: true, footer: true, autoPrint: true } });
+            await tx.printConfig.upsert({ where: { id: 'default' }, create: { id: 'default', header, footer, autoPrint }, update: { header, footer, autoPrint } });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'PRINT_CONFIG_UPDATED', entity: 'PrintConfig', entityId: 'default', oldValue: JSON.stringify(old), newValue: JSON.stringify({ header, footer, autoPrint }) } });
+        }); res.json({ success: true });
+    }
     catch { res.status(500).json({ message: 'Chek sozlamalari saqlanmadi' }); }
 });
-router.post('/print-agent-token', async (_req, res) => {
+router.post('/print-agent-token', async (req, res) => {
     try {
         const token = randomBytes(32).toString('hex'), agentTokenHash = createHash('sha256').update(token).digest('hex');
         await prisma.printConfig.upsert({ where: { id: 'default' }, create: { id: 'default', agentTokenHash }, update: { agentTokenHash } });
+        await prisma.auditLog.create({ data: { userId: req.user!.id, action: 'PRINT_AGENT_KEY_CHANGED', entity: 'PrintConfig', entityId: 'default' } });
         res.json({ token });
     } catch { res.status(500).json({ message: 'Ulash kaliti yaratilmadi' }); }
+});
+router.post('/printers/:id/test', async (req, res) => {
+    try {
+        const printer = await prisma.printer.findFirstOrThrow({ where: { id: req.params.id, isActive: true } });
+        const config = await prisma.printConfig.findUnique({ where: { id: 'default' } });
+        const job = await prisma.printJob.create({ data: { printerId: printer.id, jobType: 'TEST', payload: JSON.stringify({ restaurantName: config?.header || 'Restoran', department: printer.department, orderNumber: 'SINOV', table: 'Sinov cheki', waiter: req.user!.fullName, createdAt: new Date().toISOString(), items: [{ name: 'Printer ulanishini tekshirish', quantity: '1' }], footer: config?.footer || '' }) } });
+        res.json({ success: true, id: job.id });
+    } catch { res.status(400).json({ message: 'Sinov cheki navbatga qo‘yilmadi. Faol printerni tanlang' }); }
 });
 router.post('/print-jobs/:id/retry', async (req, res) => {
     try {

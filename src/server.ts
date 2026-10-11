@@ -1,3 +1,5 @@
+import { startAlertMonitor } from './utils/alerts';
+import adminInventoryRoutes from './routes/admin-inventory.routes';
 import { startReportSchedule } from './utils/telegram-reports';
 import express from 'express';
 import http from 'http';
@@ -110,6 +112,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
+app.use('/api/admin/inventory', adminInventoryRoutes);
 app.use('/api/admin/order-control', adminOrderControlRoutes);
 async function loginUser(username: unknown, password: unknown, allowedRoles: RoleType[]) {
     if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password) return null;
@@ -1376,6 +1379,7 @@ Promise.resolve().then(() => {
 }).then(() => {
     server.listen(PORT, () => {
         startReportSchedule();
+        startAlertMonitor();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

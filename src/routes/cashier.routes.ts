@@ -9,6 +9,7 @@ import { deductPackaging } from '../utils/order-packaging';
 import { deductOrderRecipes } from '../utils/order-recipes';
 import { telegramToken } from '../utils/telegram';
 import { getSettings } from '../utils/settings';
+import { recordFailure } from '../utils/alerts';
 const router = Router();
 router.use(authenticateToken, requireCashierAccess);
 router.use(async (req, res, next) => {
@@ -809,6 +810,7 @@ router.post('/payments', async (req, res) => {
             res.status(409).json({ success: false, message: 'Qadoqlash mahsuloti qoldig‘i yetarli emas' });
             return;
         }
+        await recordFailure('failedPayments');
         console.error('Kassir to‘lovini yozishda xatolik:', error);
         res.status(500).json({ success: false, message: 'To‘lovni amalga oshirib bo‘lmadi' });
     }

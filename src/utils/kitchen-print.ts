@@ -10,6 +10,7 @@ export async function queueKitchenPrint(tx: Prisma.TransactionClient, orderId: s
         tx.printer.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } }),
         tx.printConfig.findUnique({ where: { id: 'default' } })
     ]);
+    if (config?.autoPrint === false) return;
     const groups = new Map<string, { printerId: string | null; department: string; categoryIds: string[]; items: typeof order.items }>();
     for (const item of order.items) {
         const category = item.menuItem.category;

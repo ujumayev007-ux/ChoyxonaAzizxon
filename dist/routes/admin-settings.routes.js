@@ -7,6 +7,26 @@ const settings_1 = require("../utils/settings");
 const socket_1 = require("../socket");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']));
+router.get('/alerts', async (_req, res) => {
+    try {
+        res.json(await db_1.prisma.systemAlert.findMany({ where: { resolvedAt: null }, take: 100, orderBy: { createdAt: 'desc' } }));
+    }
+    catch {
+        res.status(500).json({ message: 'Ogohlantirishlar yuklanmadi' });
+    }
+});
+router.post('/alerts/:id/resolve', async (req, res) => {
+    try {
+        await db_1.prisma.$transaction(async (tx) => {
+            await tx.systemAlert.update({ where: { id: req.params.id }, data: { resolvedAt: new Date() } });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'ALERT_ACKNOWLEDGED', entity: 'SystemAlert', entityId: req.params.id } });
+        });
+        res.json({ success: true });
+    }
+    catch {
+        res.status(400).json({ message: 'Ogohlantirish yopilmadi' });
+    }
+});
 router.get('/', async (_req, res) => {
     try {
         res.json(Object.fromEntries(await Promise.all(Object.keys(settings_1.defaults).map(async (key) => [key, await (0, settings_1.getSettings)(db_1.prisma, key)]))));

@@ -11,6 +11,8 @@ async function queueKitchenPrint(tx, orderId, batch, itemIds) {
         tx.printer.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } }),
         tx.printConfig.findUnique({ where: { id: 'default' } })
     ]);
+    if (config?.autoPrint === false)
+        return;
     const groups = new Map();
     for (const item of order.items) {
         const category = item.menuItem.category;
