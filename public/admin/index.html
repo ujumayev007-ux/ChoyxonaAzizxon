@@ -78,7 +78,7 @@
                     <span>⚙️</span> Sozlamalar
                 </button>
             </nav>
-            <div class="p-4 border-t border-slate-800 text-xs text-slate-400">
+            <div data-restaurant-name class="p-4 border-t border-slate-800 text-xs text-slate-400">
                 Azamatjon & Umidjon Restarani
             </div>
         </aside>
@@ -664,7 +664,7 @@
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                if (response.status === 401 || response.status === 403) lockAdminPanel(data.message || 'Administrator sifatida qayta kiring.');
+                if (response.status === 401 || (response.status === 403 && !options.headers?.['x-admin-pin'])) lockAdminPanel(data.message || 'Administrator sifatida qayta kiring.');
                 throw new Error(data.error || data.message || `So'rov bajarilmadi: ${response.status}`);
             }
             return data;
@@ -2850,5 +2850,6 @@
 <script src="/data-settings.js"></script>
 <script src="/telegram-settings.js"></script>
 <script src="/pin-login.js" data-role="ADMIN"></script>
+<script src="/restaurant.js"></script>
 </body>
 </html>

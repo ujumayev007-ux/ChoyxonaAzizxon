@@ -49,6 +49,7 @@ export async function dispatchReport(key: string, from: Date, to: Date, title: s
     } catch { await prisma.scheduledReport.update({ where: { key }, data: { status: 'XATOLIK' } }); }
 }
 export async function runReportSchedule(now = new Date()) {
+    await prisma.scheduledReport.updateMany({ where: { status: 'ISHLANMOQDA', createdAt: { lt: new Date(now.getTime() - 600000) } }, data: { status: 'XATOLIK' } });
     const [config, restaurant] = await Promise.all([getSettings(prisma, 'telegramReport'), getSettings(prisma, 'restaurant')]);
     if (!config.enabled) return;
     const slot = reportSlot(now, restaurant.timezone, config.hourly, config.daily, config.times);

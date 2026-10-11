@@ -7,6 +7,7 @@ import { encryptSecret } from '../utils/secrets';
 import { sendTelegramMessage, telegramToken } from '../utils/telegram';
 import { getSettings, saveSettings } from '../utils/settings';
 import { buildTelegramReport } from '../utils/telegram-reports';
+import { refreshTelegramBot } from '../utils/telegram-bot';
 const router = Router();
 router.use(authenticateToken, requireRole(['ADMIN']), requireAdminPin);
 const safeSubscriber = { id: true, name: true, username: true, chatId: true, isActive: true, verifiedAt: true, createdAt: true };
@@ -48,7 +49,7 @@ router.put('/config', async (req, res) => {
             await tx.appSetting.upsert({ where: { key: 'telegramSecret' }, create: { key: 'telegramSecret', value: encrypted }, update: { value: encrypted } });
             await tx.telegramSubscriber.updateMany({ data: { verifiedAt: null, verificationHash: null, verificationExpiresAt: null } });
             await tx.auditLog.create({ data: { userId: req.user!.id, action: 'TELEGRAM_BOT_UPDATED', entity: 'AppSetting', entityId: 'telegram', newValue: JSON.stringify({ tokenChanged: true }) } });
-        }); res.json({ success: true });
+        }); await refreshTelegramBot(); res.json({ success: true });
     } catch { res.status(400).json({ message: 'Bot tokenini tekshirish yoki saqlash bajarilmadi. Serverda kamida 32 belgili barqaror shifrlash kaliti kerak' }); }
 });
 router.get('/subscribers', async (_req, res) => {

@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const audit_mutation_1 = require("./utils/audit-mutation");
 const admin_data_routes_1 = __importDefault(require("./routes/admin-data.routes"));
 const alerts_1 = require("./utils/alerts");
 const admin_inventory_routes_1 = __importDefault(require("./routes/admin-inventory.routes"));
@@ -14,7 +15,7 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const client_1 = require("@prisma/client");
 const path_1 = __importDefault(require("path"));
-const telegraf_1 = require("telegraf");
+const telegram_bot_1 = require("./utils/telegram-bot");
 const kitchen_routes_1 = __importDefault(require("./routes/kitchen.routes"));
 const socket_1 = require("./socket");
 const crypto_1 = require("crypto");
@@ -146,6 +147,7 @@ app.post('/api/auth/logout', auth_1.optionalAuthenticateToken, async (req, res) 
     if (req.user) {
         try {
             await prisma.$transaction(async (tx) => {
+                await tx.authSession.updateMany({ where: { userId: req.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
                 if (req.user.terminalAccessId) {
                     const access = await tx.adminTerminalAccess.update({
                         where: { id: req.user.terminalAccessId },
@@ -238,6 +240,7 @@ app.get('/api/kitchen/me', auth_1.authenticateToken, (0, auth_1.requireRole)(['K
 });
 app.post('/api/kitchen/logout', auth_1.authenticateToken, (0, auth_1.requireRole)(['KITCHEN']), async (req, res) => {
     try {
+        await (0, auth_1.revokeCurrentSession)(req);
         await prisma.user.update({
             where: { id: req.user.id },
             data: { updatedAt: new Date(Math.max(Date.now(), (req.user.sessionIssuedAt || 0) + 1)) },
@@ -324,41 +327,19 @@ app.post('/api/cashier/login', async (req, res) => {
     }
 });
 app.use('/api/cashier', cashier_routes_1.default);
-app.post('/api/waiter/logout', (_req, res) => {
-    (0, auth_1.clearAuthCookie)(res);
-    res.json({ success: true });
+app.post('/api/waiter/logout', auth_1.optionalAuthenticateToken, async (req, res) => {
+    try {
+        await (0, auth_1.revokeCurrentSession)(req);
+        (0, auth_1.clearAuthCookie)(res);
+        res.json({ success: true });
+    }
+    catch {
+        res.status(500).json({ message: 'Sessiyani yakunlab bo‘lmadi. Qayta urinib ko‘ring' });
+    }
 });
 // ==========================================
 // 2. TELEGRAM BOT (Telegraf)
 // ==========================================
-const botToken = process.env.TELEGRAM_BOT_TOKEN;
-const bot = botToken ? new telegraf_1.Telegraf(botToken) : null;
-bot?.start((ctx) => {
-    const startPayload = ctx.startPayload;
-    const webAppUrl = new URL(process.env.CUSTOMER_WEB_APP_URL || 'https://choyxonaazizxon.onrender.com/customer/');
-    if (startPayload?.startsWith('table_')) {
-        webAppUrl.searchParams.set('table', startPayload.slice('table_'.length));
-    }
-    ctx.reply('Assalomu alaykum! "ChoyxonaAzizxon" restoraniga xush kelibsiz. Marhamat, quyidagi tugmani bosib menyuni oching:', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🍽 Menyuni ochish', web_app: { url: webAppUrl.toString() } }]
-            ]
-        }
-    });
-});
-if (bot) {
-    bot.launch().then(() => {
-        console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
-    }).catch((err) => {
-        console.error('Botni ishga tushirishda xatolik:', err);
-    });
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
-}
-else {
-    console.warn('TELEGRAM_BOT_TOKEN is not set; Telegram bot is disabled.');
-}
 // ==========================================
 // 3. ADMIN PANEL VA API ROUTELARI
 // ==========================================
@@ -587,14 +568,14 @@ const createInventoryProduct = async (req, res) => {
         return;
     }
     try {
-        const product = await prisma.inventoryProduct.create({
+        const product = await (0, audit_mutation_1.auditMutation)(req.user.id, 'InventoryProduct', 'INVENTORY_PRODUCT_CREATED', tx => tx.inventoryProduct.create({
             data: {
                 name: name.trim(),
                 unit: unit.trim(),
                 ...(quantity !== undefined ? { quantity: Number(quantity) } : {}),
                 ...(minQuantity !== undefined ? { minQuantity: Number(minQuantity) } : {})
             }
-        });
+        }));
         res.status(201).json({ success: true, data: product });
     }
     catch (error) {
@@ -708,6 +689,7 @@ app.post('/api/purchases', auth_1.authenticateToken, (0, auth_1.requireRole)(['A
                     }
                 });
             }
+            await transaction.auditLog.create({ data: { userId: req.user.id, action: 'INVENTORY_PURCHASED', entity: 'Purchase', entityId: createdPurchase.id } });
             return createdPurchase;
         }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         res.status(201).json({ success: true, data: purchase });
@@ -750,6 +732,14 @@ app.get('/api/users', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN'
     }
 });
 // Buyurtmalar
+app.get('/api/restaurant', async (_req, res) => {
+    try {
+        res.json(await (0, settings_1.getSettings)(prisma, 'restaurant'));
+    }
+    catch {
+        res.status(503).json({ message: 'Restoran ma’lumotlari yuklanmadi' });
+    }
+});
 app.get('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN', 'WAITER']), async (req, res) => {
     try {
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
@@ -957,6 +947,7 @@ app.post('/api/orders', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAIT
                     items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true } } } }
                 }
             });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'ORDER_CREATED', entity: 'Order', entityId: created.id } });
             if (rules.autoApprove)
                 await (0, kitchen_print_1.queueKitchenPrint)(tx, created.id, 'initial');
             return created;
@@ -1000,6 +991,7 @@ app.post('/api/orders/:id/approve', auth_1.authenticateToken, (0, auth_1.require
             if (!changed.count)
                 return null;
             await tx.orderStatusHistory.create({ data: { orderId: order.id, status: client_1.OrderStatus.TASDIQLANDI, userId: req.user.id } });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'ORDER_APPROVED', entity: 'Order', entityId: order.id } });
             await (0, kitchen_print_1.queueKitchenPrint)(tx, order.id, 'initial');
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
@@ -1049,6 +1041,7 @@ app.post('/api/orders/:id/reject', auth_1.authenticateToken, (0, auth_1.requireR
                     orderId: order.id, status: client_1.OrderStatus.BEKOR_QILINDI, userId: req.user.id,
                     ...(reason ? { comment: reason } : {})
                 } });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'ORDER_REJECTED', entity: 'Order', entityId: order.id, newValue: JSON.stringify({ reason }) } });
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {
@@ -1163,7 +1156,7 @@ app.post('/api/tables/:tableId/pay', auth_1.authenticateToken, (0, auth_1.requir
                         orderId: order.id,
                         jobType: 'RECEIPT',
                         payload: JSON.stringify({
-                            restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
+                            ...(await (0, settings_1.getSettings)(tx, 'restaurant')),
                             receiptNumber,
                             orderNumber: order.orderNumber,
                             cashier: req.user.fullName,
@@ -1379,6 +1372,7 @@ Promise.resolve().then(() => {
     server.listen(PORT, () => {
         (0, telegram_reports_1.startReportSchedule)();
         (0, alerts_1.startAlertMonitor)();
+        (0, telegram_bot_1.startTelegramBot)();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

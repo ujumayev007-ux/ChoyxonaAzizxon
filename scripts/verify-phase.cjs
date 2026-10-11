@@ -11,7 +11,8 @@ const steps = [
     ['Buyurtmalar, printerlar, PIN va regressiya', ['--test',
         'scripts/verify-waiter-actions.cjs', 'scripts/verify-waiter-additions.cjs',
         'scripts/verify-printer-pin.cjs', 'scripts/verify-employees.cjs', 'scripts/verify-attendance.cjs', 'scripts/verify-sessions.cjs', 'scripts/verify-telegram-security.cjs', 'scripts/verify-inventory-settings.cjs', 'scripts/verify-backups.cjs', 'scripts/test-agent-regressions.cjs']],
-    ['Printer ulash dasturi sintaksisi', ['--check', 'scripts/print-agent.cjs']]
+    ['Printer ulash dasturi sintaksisi', ['--check', 'scripts/print-agent.cjs']],
+    ['Nusxa o‘qish dasturi sintaksisi', ['--check', 'scripts/read-business-backup.cjs']]
 ];
 
 for (const [label, args] of steps) {

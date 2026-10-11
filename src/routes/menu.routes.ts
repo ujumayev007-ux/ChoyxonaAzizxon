@@ -1,3 +1,4 @@
+import { auditMutation } from '../utils/audit-mutation';
 import { Prisma, RoleType } from '@prisma/client';
 import express from 'express';
 import { authenticateToken, optionalAuthenticateToken, requireRole } from '../middleware/auth';
@@ -68,9 +69,9 @@ router.post('/categories', authenticateToken, requireRole(['ADMIN']), async (req
             return;
         }
         const highest = await prisma.menuCategory.aggregate({ _max: { sortOrder: true } });
-        const category = await prisma.menuCategory.create({
+        const category = await auditMutation(req.user!.id, 'MenuCategory', 'MENU_CATEGORY_CREATED', tx => tx.menuCategory.create({
             data: { name, sortOrder: sortOrder ?? (highest._max.sortOrder || 0) + 10 }
-        });
+        }));
         emitSocketEvent('menu_updated', { kind: 'category', categoryId: category.id });
         res.status(201).json({ success: true, data: category });
     } catch (error) {
@@ -120,7 +121,7 @@ router.patch('/categories/:id', authenticateToken, requireRole(['ADMIN']), async
                 return;
             }
         }
-        const category = await prisma.menuCategory.update({ where: { id: req.params.id }, data });
+        const category = await auditMutation(req.user!.id, 'MenuCategory', 'MENU_CATEGORY_UPDATED', tx => tx.menuCategory.update({ where: { id: req.params.id }, data }));
         emitSocketEvent('menu_updated', { kind: 'category', categoryId: category.id });
         res.json({ success: true, data: category });
     } catch (error) {
@@ -139,6 +140,7 @@ router.delete('/categories/:id', authenticateToken, requireRole(['ADMIN']), asyn
             if (!category) return { kind: 'missing' as const };
             if (category._count.menuItems > 0) return { kind: 'linked' as const };
             await tx.menuCategory.delete({ where: { id: category.id } });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'MENU_CATEGORY_DELETED', entity: 'MenuCategory', entityId: category.id } });
             return { kind: 'deleted' as const };
         });
         if (result.kind === 'missing') {
@@ -195,7 +197,7 @@ router.post('/', authenticateToken, requireRole(['ADMIN']), async (req, res) => 
             res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
             return;
         }
-        const menuItem = await prisma.menuItem.create({
+        const menuItem = await auditMutation(req.user!.id, 'MenuItem', 'MENU_ITEM_CREATED', tx => tx.menuItem.create({
             data: {
                 name: name.trim(),
                 categoryId,
@@ -208,7 +210,7 @@ router.post('/', authenticateToken, requireRole(['ADMIN']), async (req, res) => 
                 imageUrl
             },
             include: { category: true, recipes: { include: { inventory: true } } }
-        });
+        }));
         emitSocketEvent('menu_updated', { kind: 'item', menuItemId: menuItem.id });
         res.status(201).json({ success: true, data: menuItem });
     } catch (error) {
@@ -296,11 +298,11 @@ router.patch('/:id', authenticateToken, requireRole(['ADMIN']), async (req, res)
             res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
             return;
         }
-        const menuItem = await prisma.menuItem.update({
+        const menuItem = await auditMutation(req.user!.id, 'MenuItem', 'MENU_ITEM_UPDATED', tx => tx.menuItem.update({
             where: { id: req.params.id },
             data,
             include: { category: true, recipes: { include: { inventory: true } } }
-        });
+        }));
         emitSocketEvent('menu_updated', { kind: 'item', menuItemId: menuItem.id });
         res.json({ success: true, data: menuItem });
     } catch (error) {
@@ -368,6 +370,7 @@ router.put('/:id/recipes', authenticateToken, requireRole(['ADMIN']), async (req
             });
             await tx.recipe.deleteMany({ where: { menuItemId: menuItem.id } });
             if (recipeRows.length) await tx.recipe.createMany({ data: recipeRows });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'RECIPE_UPDATED', entity: 'MenuItem', entityId: menuItem.id, newValue: JSON.stringify({ ingredients: recipeRows.length }) } });
             return tx.recipe.findMany({
                 where: { menuItemId: menuItem.id },
                 include: { inventory: { select: { id: true, name: true, unit: true, isActive: true } } },

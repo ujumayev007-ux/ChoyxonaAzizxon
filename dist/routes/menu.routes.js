@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const audit_mutation_1 = require("../utils/audit-mutation");
 const client_1 = require("@prisma/client");
 const express_1 = __importDefault(require("express"));
 const auth_1 = require("../middleware/auth");
@@ -73,9 +74,9 @@ router.post('/categories', auth_1.authenticateToken, (0, auth_1.requireRole)(['A
             return;
         }
         const highest = await db_1.prisma.menuCategory.aggregate({ _max: { sortOrder: true } });
-        const category = await db_1.prisma.menuCategory.create({
+        const category = await (0, audit_mutation_1.auditMutation)(req.user.id, 'MenuCategory', 'MENU_CATEGORY_CREATED', tx => tx.menuCategory.create({
             data: { name, sortOrder: sortOrder ?? (highest._max.sortOrder || 0) + 10 }
-        });
+        }));
         (0, socket_1.emitSocketEvent)('menu_updated', { kind: 'category', categoryId: category.id });
         res.status(201).json({ success: true, data: category });
     }
@@ -125,7 +126,7 @@ router.patch('/categories/:id', auth_1.authenticateToken, (0, auth_1.requireRole
                 return;
             }
         }
-        const category = await db_1.prisma.menuCategory.update({ where: { id: req.params.id }, data });
+        const category = await (0, audit_mutation_1.auditMutation)(req.user.id, 'MenuCategory', 'MENU_CATEGORY_UPDATED', tx => tx.menuCategory.update({ where: { id: req.params.id }, data }));
         (0, socket_1.emitSocketEvent)('menu_updated', { kind: 'category', categoryId: category.id });
         res.json({ success: true, data: category });
     }
@@ -146,6 +147,7 @@ router.delete('/categories/:id', auth_1.authenticateToken, (0, auth_1.requireRol
             if (category._count.menuItems > 0)
                 return { kind: 'linked' };
             await tx.menuCategory.delete({ where: { id: category.id } });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'MENU_CATEGORY_DELETED', entity: 'MenuCategory', entityId: category.id } });
             return { kind: 'deleted' };
         });
         if (result.kind === 'missing') {
@@ -202,7 +204,7 @@ router.post('/', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), a
             res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
             return;
         }
-        const menuItem = await db_1.prisma.menuItem.create({
+        const menuItem = await (0, audit_mutation_1.auditMutation)(req.user.id, 'MenuItem', 'MENU_ITEM_CREATED', tx => tx.menuItem.create({
             data: {
                 name: name.trim(),
                 categoryId,
@@ -215,7 +217,7 @@ router.post('/', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), a
                 imageUrl
             },
             include: { category: true, recipes: { include: { inventory: true } } }
-        });
+        }));
         (0, socket_1.emitSocketEvent)('menu_updated', { kind: 'item', menuItemId: menuItem.id });
         res.status(201).json({ success: true, data: menuItem });
     }
@@ -304,11 +306,11 @@ router.patch('/:id', auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']
             res.status(400).json({ success: false, message: 'Menyu kategoriyasi topilmadi' });
             return;
         }
-        const menuItem = await db_1.prisma.menuItem.update({
+        const menuItem = await (0, audit_mutation_1.auditMutation)(req.user.id, 'MenuItem', 'MENU_ITEM_UPDATED', tx => tx.menuItem.update({
             where: { id: req.params.id },
             data,
             include: { category: true, recipes: { include: { inventory: true } } }
-        });
+        }));
         (0, socket_1.emitSocketEvent)('menu_updated', { kind: 'item', menuItemId: menuItem.id });
         res.json({ success: true, data: menuItem });
     }
@@ -382,6 +384,7 @@ router.put('/:id/recipes', auth_1.authenticateToken, (0, auth_1.requireRole)(['A
             await tx.recipe.deleteMany({ where: { menuItemId: menuItem.id } });
             if (recipeRows.length)
                 await tx.recipe.createMany({ data: recipeRows });
+            await tx.auditLog.create({ data: { userId: req.user.id, action: 'RECIPE_UPDATED', entity: 'MenuItem', entityId: menuItem.id, newValue: JSON.stringify({ ingredients: recipeRows.length }) } });
             return tx.recipe.findMany({
                 where: { menuItemId: menuItem.id },
                 include: { inventory: { select: { id: true, name: true, unit: true, isActive: true } } },

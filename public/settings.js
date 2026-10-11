@@ -1,3 +1,4 @@
+function settingValueText(value) { return typeof value === 'boolean' ? (value ? 'Ha' : 'Yo‘q') : String(value ?? ''); }
 const settingLabels = {
     alerts: 'Avtomatik ogohlantirishlar', lowStock: 'Omborda kam qolgan mahsulotlar', delayedOrderMinutes: 'Buyurtma kechikishi (daqiqa; 0 — o‘chiq)', unclosedShiftHours: 'Yopilmagan smena (soat; 0 — o‘chiq)', printerFailures: 'Printer xatolari', backupFailures: 'Zaxira nusxa xatolari', failedPayments: 'To‘lov xatolari',
     restaurant: 'Restoran ma’lumotlari', payments: 'Kassir va to‘lovlar', orders: 'Ofitsant va buyurtmalar',
@@ -15,14 +16,14 @@ async function loadRestaurantSettings() {
     } catch (error) { root.textContent = error.message; }
 }
 async function loadSettingsHistory() {
-    const rows = await apiFetch('/api/admin/settings/history');
-    document.getElementById('settings-history').innerHTML = `<h2 class="font-bold text-lg">Sozlamalar tarixi</h2>${rows.map(row => `<details class="border-b py-3"><summary>${escapeHtml(settingLabels[row.key] || 'Sozlamalar')} · ${escapeHtml(new Date(row.createdAt).toLocaleString('uz-UZ'))}</summary><p class="text-sm">Xodim: ${escapeHtml(row.actorName || row.actorId)}</p>${Object.keys(row.value).filter(k => row.previous[k] !== row.value[k]).map(k => `<p class="text-sm">${escapeHtml(settingLabels[k] || k)}: ${escapeHtml(String(row.previous[k] ?? ''))} → ${escapeHtml(String(row.value[k]))}</p>`).join('')}<button data-restore-settings="${row.id}" class="text-blue-600">Oldingi qiymatlarga qaytarish</button></details>`).join('') || '<p>Hali o‘zgarishlar yo‘q</p>'}`;
+    const rows = (await apiFetch('/api/admin/settings/history')).filter(row => row.key !== 'telegramReport');
+    document.getElementById('settings-history').innerHTML = `<h2 class="font-bold text-lg">Sozlamalar tarixi</h2>${rows.map(row => `<details class="border-b py-3"><summary>${escapeHtml(settingLabels[row.key] || 'Sozlamalar')} · ${escapeHtml(new Date(row.createdAt).toLocaleString('uz-UZ'))}</summary><p class="text-sm">Xodim: ${escapeHtml(row.actorName || row.actorId)}</p>${Object.keys(row.value).filter(k => row.previous[k] !== row.value[k]).map(k => `<p class="text-sm">${escapeHtml(settingLabels[k] || k)}: ${escapeHtml(settingValueText(row.previous[k]))} → ${escapeHtml(settingValueText(row.value[k]))}</p>`).join('')}<button data-restore-settings="${row.id}" class="text-blue-600">Oldingi qiymatlarga qaytarish</button></details>`).join('') || '<p>Hali o‘zgarishlar yo‘q</p>'}`;
 }
 document.getElementById('restaurant-settings').onsubmit = async event => {
     event.preventDefault(); const form = event.target.closest('[data-settings]'); if (!form) return;
     const value = Object.fromEntries([...form.querySelectorAll('input')].map(input => [input.name, input.type === 'checkbox' ? input.checked : input.type === 'number' ? Number(input.value) : input.value]));
     const button = form.querySelector('button'); button.disabled = true;
-    try { await apiFetch(`/api/admin/settings/${form.dataset.settings}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }); form.querySelector('output').textContent = 'Saqlandi'; await loadSettingsHistory(); }
+    try { await apiFetch(`/api/admin/settings/${form.dataset.settings}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }); form.querySelector('output').textContent = 'Saqlandi'; window.dispatchEvent(new Event('restaurant-settings-saved')); await loadSettingsHistory(); }
     catch (error) { form.querySelector('output').textContent = error.message; } finally { button.disabled = false; }
 };
 async function loadOrderControls(root) {

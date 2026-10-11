@@ -9,6 +9,7 @@ const secrets_1 = require("../utils/secrets");
 const telegram_1 = require("../utils/telegram");
 const settings_1 = require("../utils/settings");
 const telegram_reports_1 = require("../utils/telegram-reports");
+const telegram_bot_1 = require("../utils/telegram-bot");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, (0, auth_1.requireRole)(['ADMIN']), admin_pin_1.requireAdminPin);
 const safeSubscriber = { id: true, name: true, username: true, chatId: true, isActive: true, verifiedAt: true, createdAt: true };
@@ -76,6 +77,7 @@ router.put('/config', async (req, res) => {
             await tx.telegramSubscriber.updateMany({ data: { verifiedAt: null, verificationHash: null, verificationExpiresAt: null } });
             await tx.auditLog.create({ data: { userId: req.user.id, action: 'TELEGRAM_BOT_UPDATED', entity: 'AppSetting', entityId: 'telegram', newValue: JSON.stringify({ tokenChanged: true }) } });
         });
+        await (0, telegram_bot_1.refreshTelegramBot)();
         res.json({ success: true });
     }
     catch {

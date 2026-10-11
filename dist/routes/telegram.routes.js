@@ -44,13 +44,17 @@ function orderNumber() {
 }
 router.post('/webhook', async (req, res) => {
     try {
+        if (process.env.TELEGRAM_MODE !== 'webhook')
+            return res.sendStatus(404);
+        if (!process.env.TELEGRAM_WEBHOOK_SECRET)
+            return res.sendStatus(503);
         const { message } = req.body;
         if (!message || !message.text)
             return res.sendStatus(200);
         const token = await (0, telegram_1.telegramToken)();
         if (!token)
             return res.sendStatus(503);
-        if (process.env.TELEGRAM_WEBHOOK_SECRET && req.get('x-telegram-bot-api-secret-token') !== process.env.TELEGRAM_WEBHOOK_SECRET)
+        if (req.get('x-telegram-bot-api-secret-token') !== process.env.TELEGRAM_WEBHOOK_SECRET)
             return res.sendStatus(403);
         const chatId = message.chat.id;
         const webAppUrl = process.env.CUSTOMER_WEB_APP_URL;

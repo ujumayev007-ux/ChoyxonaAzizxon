@@ -163,6 +163,8 @@ function loadHandlers(harness) {
     const middleware = () => {};
     const auth = new Proxy({}, { get: (_target, key) => key === 'requireRole' ? () => middleware : middleware });
     const mocks = {
+        './utils/telegram-bot': { startTelegramBot() {} },
+        './utils/audit-mutation': { auditMutation: async (_user, _entity, _action, fn) => fn(harness.database) },
         './utils/alerts': { startAlertMonitor() {} },
         './utils/telegram-reports': { startReportSchedule() {} },
         express,

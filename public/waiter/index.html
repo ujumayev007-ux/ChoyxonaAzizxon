@@ -24,7 +24,7 @@
         <!-- Sidebar Navigation (Desktop) -->
         <aside class="hidden md:flex w-64 bg-slate-900 text-white flex-col shadow-xl z-20">
             <div class="p-6 text-xl font-bold tracking-wider text-sky-400 border-b border-slate-800 flex items-center justify-between">
-                <span>ChoyxonaAzizxon</span>
+                <span data-restaurant-name>ChoyxonaAzizxon</span>
                 <span class="text-xs bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30">Ofitsiant</span>
             </div>
             <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
@@ -53,7 +53,7 @@
                 </button>
             </nav>
             <div class="p-4 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-                <span>Azamatjon & Umidjon</span>
+                <span data-restaurant-name>Azamatjon & Umidjon</span>
                 <span id="current-time-display" class="font-mono text-slate-300">00:00</span>
             </div>
         </aside>
@@ -1360,7 +1360,9 @@
                 `;
             }).join('');
 
-            document.getElementById('cart-total-amount').innerText = `${total} so'm`;
+            const serviceRate = Number(window.restaurantInfo?.serviceFeePercent || 0);
+            const serviceCharge = Math.round(total * serviceRate) / 100;
+            document.getElementById('cart-total-amount').innerText = `${(total + serviceCharge).toFixed(2)} so‘m${serviceRate ? ` (xizmat haqi ${serviceRate}%)` : ''}`;
         }
 
         function updateCartQty(idx, delta) {
@@ -1707,6 +1709,7 @@
     </script>
 <script src="/pin-login.js" data-role="WAITER"></script>
 <a href="/attendance.html" class="fixed bottom-20 right-4 z-40 rounded-xl bg-sky-700 text-white px-4 py-2 shadow-lg">Davomat</a>
+<script src="/restaurant.js"></script>
 </body>
 </html>
 ```[cite: 1, 2, 5]

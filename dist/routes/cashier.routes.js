@@ -717,7 +717,7 @@ router.post('/payments', async (req, res) => {
                 data: { orderId, receiptNumber, qrHash: (0, crypto_1.createHash)('sha256').update((0, crypto_1.randomBytes)(32)).digest('hex') }
             });
             const printPayload = {
-                restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
+                ...(await (0, settings_1.getSettings)(tx, 'restaurant')),
                 receiptNumber,
                 orderNumber: order.orderNumber,
                 orderType: order.orderType,
@@ -1059,7 +1059,7 @@ router.post('/debts/:id/payments', async (req, res) => {
                 data: { orderId: order.id, receiptNumber, qrHash: (0, crypto_1.createHash)('sha256').update((0, crypto_1.randomBytes)(32)).digest('hex') }
             });
             const printPayload = {
-                restaurantName: (await (0, settings_1.getSettings)(tx, 'restaurant')).restaurantName,
+                ...(await (0, settings_1.getSettings)(tx, 'restaurant')),
                 receiptNumber,
                 orderNumber: order.orderNumber,
                 customer: order.customer
@@ -1141,7 +1141,7 @@ router.post('/refunds', async (req, res) => {
             const order = await tx.order.findUnique({
                 where: { id: orderId },
                 select: {
-                    id: true, status: true, debt: { select: { remaining: true, payments: { select: { amount: true } } } },
+                    id: true, status: true, totalAmount: true, debt: { select: { remaining: true, payments: { select: { amount: true } } } },
                     payments: { select: { amount: true } },
                     items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true } },
                     refunds: { select: { amount: true } }
@@ -1156,6 +1156,20 @@ router.post('/refunds', async (req, res) => {
             if (orderItems.size !== new Set(selectedIds).size)
                 throw new Error('REFUND_ITEM_INVALID');
             const lineData = [];
+            const sortedLines = [...order.items].sort((a, b) => a.id.localeCompare(b.id));
+            const itemTotal = sortedLines.reduce((sum, item) => sum.plus(item.totalPrice), new client_1.Prisma.Decimal(0));
+            if (!itemTotal.greaterThan(0))
+                throw new Error('REFUND_ITEM_INVALID');
+            // Allocate the saved order total, including discounts and service charges,
+            // across lines with cumulative rounding so a complete return is exact.
+            const budgets = new Map();
+            let cumulativeBase = new client_1.Prisma.Decimal(0), allocated = new client_1.Prisma.Decimal(0);
+            for (const line of sortedLines) {
+                cumulativeBase = cumulativeBase.plus(line.totalPrice);
+                const next = new client_1.Prisma.Decimal(order.totalAmount).mul(cumulativeBase).div(itemTotal).toDecimalPlaces(2);
+                budgets.set(line.id, next.minus(allocated));
+                allocated = next;
+            }
             let total = new client_1.Prisma.Decimal(0);
             for (const item of items) {
                 const orderItem = orderItems.get(item.orderItemId);
@@ -1170,10 +1184,12 @@ router.post('/refunds', async (req, res) => {
                 }
                 // Allocate the saved line total so partial returns add up to the
                 // exact amount charged, including rounding on fractional dishes.
-                const lineTotal = new client_1.Prisma.Decimal(orderItem.totalPrice);
+                const lineTotal = budgets.get(orderItem.id);
                 const cumulativeAmount = returnedQuantity.equals(orderItem.quantity)
                     ? lineTotal : lineTotal.mul(returnedQuantity).div(orderItem.quantity).toDecimalPlaces(2);
                 const amount = cumulativeAmount.minus(previouslyReturned._sum.amount || 0);
+                if (amount.lessThan(0))
+                    throw new Error('REFUND_AMOUNT_EXCEEDED');
                 total = total.plus(amount);
                 lineData.push({ orderItemId: orderItem.id, quantity, amount });
             }

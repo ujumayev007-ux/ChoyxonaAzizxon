@@ -155,6 +155,11 @@ function readSession(req: Request): { id: string; role: RoleType; issuedAt: numb
     }
 }
 
+export async function revokeCurrentSession(req: Request) {
+    const session = readSession(req);
+    if (session) await prisma.authSession.updateMany({ where: { id: session.sessionId, revokedAt: null }, data: { revokedAt: new Date() } });
+}
+
 async function sessionActive(req: Request, session: NonNullable<ReturnType<typeof readSession>>) {
     const existing = await prisma.authSession.findUnique({ where: { id: session.sessionId } });
     if (existing?.revokedAt) return false;

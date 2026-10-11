@@ -6,6 +6,7 @@ exports.setAuthCookie = setAuthCookie;
 exports.setTerminalAdminCookie = setTerminalAdminCookie;
 exports.clearTerminalAdminCookie = clearTerminalAdminCookie;
 exports.clearAuthCookie = clearAuthCookie;
+exports.revokeCurrentSession = revokeCurrentSession;
 const crypto_1 = require("crypto");
 const client_1 = require("@prisma/client");
 const db_1 = require("../utils/db");
@@ -129,6 +130,11 @@ function readSession(req) {
     catch {
         return null;
     }
+}
+async function revokeCurrentSession(req) {
+    const session = readSession(req);
+    if (session)
+        await db_1.prisma.authSession.updateMany({ where: { id: session.sessionId, revokedAt: null }, data: { revokedAt: new Date() } });
 }
 async function sessionActive(req, session) {
     const existing = await db_1.prisma.authSession.findUnique({ where: { id: session.sessionId } });

@@ -75,6 +75,7 @@ async function dispatchReport(key, from, to, title) {
     }
 }
 async function runReportSchedule(now = new Date()) {
+    await db_1.prisma.scheduledReport.updateMany({ where: { status: 'ISHLANMOQDA', createdAt: { lt: new Date(now.getTime() - 600000) } }, data: { status: 'XATOLIK' } });
     const [config, restaurant] = await Promise.all([(0, settings_1.getSettings)(db_1.prisma, 'telegramReport'), (0, settings_1.getSettings)(db_1.prisma, 'restaurant')]);
     if (!config.enabled)
         return;

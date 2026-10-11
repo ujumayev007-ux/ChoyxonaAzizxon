@@ -1,3 +1,4 @@
+import { auditMutation } from './utils/audit-mutation';
 import adminDataRoutes from './routes/admin-data.routes';
 import { startAlertMonitor } from './utils/alerts';
 import adminInventoryRoutes from './routes/admin-inventory.routes';
@@ -9,11 +10,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { OrderStatus, PaymentMethod, Prisma, PrismaClient, RoleType } from '@prisma/client';
 import path from 'path';
-import { Context, Telegraf } from 'telegraf';
+import { startTelegramBot } from './utils/telegram-bot';
 import kitchenRoutes from './routes/kitchen.routes';
 import { emitSocketEvent, initSocket } from './socket';
 import { createHash, randomBytes } from 'crypto';
-import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializeAuthSecret, optionalAuthenticateToken, requireCashierAccess, requireRole, setAuthCookie } from './middleware/auth';
+import { authenticateToken, clearAuthCookie, clearTerminalAdminCookie, initializeAuthSecret, optionalAuthenticateToken, requireCashierAccess, requireRole, setAuthCookie, revokeCurrentSession } from './middleware/auth';
 import { hashPassword, verifyPassword } from './utils/password';
 import cashierRoutes from './routes/cashier.routes';
 import menuRoutes from './routes/menu.routes';
@@ -148,6 +149,7 @@ app.post('/api/auth/logout', optionalAuthenticateToken, async (req, res) => {
     if (req.user) {
         try {
             await prisma.$transaction(async tx => {
+                await tx.authSession.updateMany({ where: { userId: req.user!.id, revokedAt: null }, data: { revokedAt: new Date() } });
                 if (req.user!.terminalAccessId) {
                     const access = await tx.adminTerminalAccess.update({
                         where: { id: req.user!.terminalAccessId },
@@ -243,6 +245,7 @@ app.get('/api/kitchen/me', authenticateToken, requireRole(['KITCHEN']), (req, re
 
 app.post('/api/kitchen/logout', authenticateToken, requireRole(['KITCHEN']), async (req, res) => {
     try {
+        await revokeCurrentSession(req);
         await prisma.user.update({
             where: { id: req.user!.id },
             data: { updatedAt: new Date(Math.max(Date.now(), (req.user!.sessionIssuedAt || 0) + 1)) },
@@ -330,46 +333,14 @@ app.post('/api/cashier/login', async (req, res) => {
 });
 app.use('/api/cashier', cashierRoutes);
 
-app.post('/api/waiter/logout', (_req, res) => {
-    clearAuthCookie(res);
-    res.json({ success: true });
+app.post('/api/waiter/logout', optionalAuthenticateToken, async (req, res) => {
+    try { await revokeCurrentSession(req); clearAuthCookie(res); res.json({ success: true }); }
+    catch { res.status(500).json({ message: 'Sessiyani yakunlab bo‘lmadi. Qayta urinib ko‘ring' }); }
 });
 
 // ==========================================
 // 2. TELEGRAM BOT (Telegraf)
 // ==========================================
-const botToken = process.env.TELEGRAM_BOT_TOKEN;
-const bot = botToken ? new Telegraf(botToken) : null;
-
-bot?.start((ctx: Context) => {
-    const startPayload = (ctx as Context & { startPayload?: string }).startPayload;
-    const webAppUrl = new URL(process.env.CUSTOMER_WEB_APP_URL || 'https://choyxonaazizxon.onrender.com/customer/');
-    if (startPayload?.startsWith('table_')) {
-        webAppUrl.searchParams.set('table', startPayload.slice('table_'.length));
-    }
-
-    ctx.reply('Assalomu alaykum! "ChoyxonaAzizxon" restoraniga xush kelibsiz. Marhamat, quyidagi tugmani bosib menyuni oching:', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '🍽 Menyuni ochish', web_app: { url: webAppUrl.toString() } }]
-            ]
-        }
-    });
-});
-
-if (bot) {
-    bot.launch().then(() => {
-        console.log('Telegram bot muvaffaqiyatli ishga tushdi!');
-    }).catch((err: unknown) => {
-        console.error('Botni ishga tushirishda xatolik:', err);
-    });
-
-    process.once('SIGINT', () => bot.stop('SIGINT'));
-    process.once('SIGTERM', () => bot.stop('SIGTERM'));
-} else {
-    console.warn('TELEGRAM_BOT_TOKEN is not set; Telegram bot is disabled.');
-}
-
 // ==========================================
 // 3. ADMIN PANEL VA API ROUTELARI
 // ==========================================
@@ -601,14 +572,14 @@ const createInventoryProduct = async (req: express.Request, res: express.Respons
     }
 
     try {
-        const product = await prisma.inventoryProduct.create({
+        const product = await auditMutation(req.user!.id, 'InventoryProduct', 'INVENTORY_PRODUCT_CREATED', tx => tx.inventoryProduct.create({
             data: {
                 name: name.trim(),
                 unit: unit.trim(),
                 ...(quantity !== undefined ? { quantity: Number(quantity) } : {}),
                 ...(minQuantity !== undefined ? { minQuantity: Number(minQuantity) } : {})
             }
-        });
+        }));
         res.status(201).json({ success: true, data: product });
     } catch (error) {
         console.error('Ombor mahsulotini qo‘shishda xatolik:', error);
@@ -726,6 +697,7 @@ app.post('/api/purchases', authenticateToken, requireRole(['ADMIN']), async (req
                     }
                 });
             }
+            await transaction.auditLog.create({ data: { userId: req.user!.id, action: 'INVENTORY_PURCHASED', entity: 'Purchase', entityId: createdPurchase.id } });
             return createdPurchase;
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         res.status(201).json({ success: true, data: purchase });
@@ -768,6 +740,10 @@ app.get('/api/users', authenticateToken, requireRole(['ADMIN']), async (req, res
 });
 
 // Buyurtmalar
+app.get('/api/restaurant', async (_req, res) => {
+    try { res.json(await getSettings(prisma, 'restaurant')); }
+    catch { res.status(503).json({ message: 'Restoran ma’lumotlari yuklanmadi' }); }
+});
 app.get('/api/orders', authenticateToken, requireRole(['ADMIN', 'WAITER']), async (req, res) => {
     try {
         const tableId = typeof req.query.tableId === 'string' ? req.query.tableId : undefined;
@@ -972,6 +948,7 @@ app.post('/api/orders', authenticateToken, requireRole(['WAITER', 'ADMIN']), asy
             }
         });
 
+        await tx.auditLog.create({ data: { userId: req.user!.id, action: 'ORDER_CREATED', entity: 'Order', entityId: created.id } });
         if (rules.autoApprove) await queueKitchenPrint(tx, created.id, 'initial');
         return created;
         }, { maxWait: 10000, timeout: 30000 });
@@ -1013,6 +990,7 @@ app.post('/api/orders/:id/approve', authenticateToken, requireRole(['WAITER', 'A
             });
             if (!changed.count) return null;
             await tx.orderStatusHistory.create({ data: { orderId: order.id, status: OrderStatus.TASDIQLANDI, userId: req.user!.id } });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'ORDER_APPROVED', entity: 'Order', entityId: order.id } });
             await queueKitchenPrint(tx, order.id, 'initial');
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
@@ -1058,6 +1036,7 @@ app.post('/api/orders/:id/reject', authenticateToken, requireRole(['WAITER', 'AD
                 orderId: order.id, status: OrderStatus.BEKOR_QILINDI, userId: req.user!.id,
                 ...(reason ? { comment: reason } : {})
             } });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'ORDER_REJECTED', entity: 'Order', entityId: order.id, newValue: JSON.stringify({ reason }) } });
             return tx.order.findUnique({ where: { id: order.id }, include: { table: { include: { room: true } } } });
         }, { maxWait: 10000, timeout: 30000 });
         if (!updated) {
@@ -1167,7 +1146,7 @@ app.post('/api/tables/:tableId/pay', authenticateToken, requireRole(['WAITER', '
                         orderId: order.id,
                         jobType: 'RECEIPT',
                         payload: JSON.stringify({
-                            restaurantName: (await getSettings(tx, 'restaurant')).restaurantName,
+                            ...(await getSettings(tx, 'restaurant')),
                             receiptNumber,
                             orderNumber: order.orderNumber,
                             cashier: req.user!.fullName,
@@ -1383,6 +1362,7 @@ Promise.resolve().then(() => {
     server.listen(PORT, () => {
         startReportSchedule();
         startAlertMonitor();
+        startTelegramBot();
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

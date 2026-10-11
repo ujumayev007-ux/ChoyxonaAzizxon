@@ -480,6 +480,20 @@ function refund(quantity) {
     };
 }
 
+for (const total of ['110', '90']) {
+    check(`Xizmat haqi va chegirma bilan ${total} summali qaytarish aniq saqlanadi`, async () => {
+        paidFractionalOrder(total, '2');
+        state.order[0].items[0].totalPrice = decimal(100);
+        state.order[0].subtotal = decimal(100);
+        state.order[0].serviceCharge = decimal(total === '110' ? 10 : 0);
+        state.order[0].discount = decimal(total === '90' ? 10 : 0);
+        assert.equal((await request('/refunds', refund('1'))).status, 201);
+        assert.equal((await request('/refunds', refund('1'))).status, 201);
+        assert.equal(state.refund.reduce((sum, row) => sum.plus(row.amount), decimal(0)).toString(), total);
+        assert.equal(state.order[0].status, OrderStatus.QAYTARILDI);
+    });
+}
+
 for (const [total, quantity] of [['0.33', '0.333333'], ['0.67', '0.666666']]) {
     check(`Yaxlitlangan ${total} summali taom to‘liq qaytariladi`, async () => {
         paidFractionalOrder(total, quantity);
