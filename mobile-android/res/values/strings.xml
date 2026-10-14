@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Choyxona Azizxon</string>
+    <string name="action_settings">Sozlamalar</string>
+    <string name="server_url_prompt">Server IP manzilini kiriting:</string>
+    <string name="save">Saqlash</string>
+    <string name="cancel">Bekor qilish</string>
+    <string name="connection_error">Serverga ulanib bo‘lmadi. Server manzili to‘g‘riligini va tarmoqni tekshiring.</string>
+    <string name="retry">Qayta urinish</string>
+    <string name="change_server">Serverni o‘zgartirish</string>
+</resources>
+

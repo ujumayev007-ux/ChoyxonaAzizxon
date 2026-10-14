@@ -10,3 +10,4 @@ Thumbs.db
 artifacts/
 *.tmp*
 .kilo/
+mobile-android/build/
