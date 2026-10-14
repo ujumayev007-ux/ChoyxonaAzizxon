@@ -174,6 +174,9 @@ function loadHandlers(harness) {
         '@prisma/client': { ...client, PrismaClient: function PrismaClient() { return harness.database; } },
         './socket': { initSocket() {}, emitSocketEvent: (name, data) => harness.events.push({ name, data: copy(data) }) },
         './middleware/auth': auth,
+        './middleware/subscription': { subscriptionGuard: (_req, _res, next) => next && next() },
+        './middleware/device-guard': { deviceGuard: (_req, _res, next) => next && next() },
+        './services/telegram-control.service': { initSuperOwnerTelegramBot: () => {} },
         './utils/settings': { getSettings: async (_db, key) => ({ waiterService: { scope: 'ALL' }, payments: { cash: true, card: true, electronic: true }, orders: { autoApprove: true, cancellation: true }, restaurant: { restaurantName: 'ChoyxonaAzizxon', serviceFeePercent: 0 } })[key] },
         // Service-policy authorization is covered by verify-waiter-service.cjs; these tests isolate legacy payment accounting.
         './utils/service-policy': { authorizeService: async () => {} },

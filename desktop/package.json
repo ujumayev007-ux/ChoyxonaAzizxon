@@ -1,0 +1,39 @@
+{
+  "name": "choyxona-azizxon-desktop",
+  "version": "2.1.0",
+  "description": "ChoyxonaAzizxon — POS Kassa, Ofitsiant va Admin Desktop Ilovalari",
+  "main": "main.js",
+  "scripts": {
+    "start:admin": "electron . --role=admin",
+    "start:cashier": "electron . --role=cashier",
+    "start:waiter": "electron . --role=waiter",
+    "build:admin": "electron-builder --win --config.extraMetadata.name=Azizxon-Admin",
+    "build:cashier": "electron-builder --win --config.extraMetadata.name=Azizxon-Kassa",
+    "build:waiter": "electron-builder --win --config.extraMetadata.name=Azizxon-Ofitsiant",
+    "build:all": "npm run build:admin && npm run build:cashier && npm run build:waiter"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^29.1.5",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.azizxon.pos",
+    "productName": "ChoyxonaAzizxon",
+    "directories": {
+      "output": "../dist-installers"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "../public/favicon.svg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ChoyxonaAzizxon"
+    }
+  }
+}
+

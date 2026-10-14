@@ -13,13 +13,15 @@ const kitchen_print_1 = require("../utils/kitchen-print");
 const service_policy_1 = require("../utils/service-policy");
 const service_finance_1 = require("../utils/service-finance");
 const advisory_lock_1 = require("../utils/advisory-lock");
+const order_returns_1 = require("../utils/order-returns");
+const kitchen_print_2 = require("../utils/kitchen-print");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'CASHIER', 'KITCHEN', 'ADMIN']));
 exports.serviceLegacyRouter = (0, express_1.Router)();
 const includeOrder = {
     table: { include: { room: true, assignedWaiter: { select: { id: true, fullName: true } } } },
     waiter: { select: { id: true, fullName: true } }, processingBy: { select: { id: true, fullName: true } },
-    items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true, available: true, unavailableReason: true, kitchenSection: true, category: { select: { id: true, name: true } } } } } }, payments: true, refunds: true, debt: { include: { payments: true } },
+    items: { include: { menuItem: { select: { id: true, name: true, unit: true, sellingPrice: true, available: true, unavailableReason: true, kitchenSection: true, category: { select: { id: true, name: true } } } } } }, payments: true, refunds: { include: { items: true } }, debt: { include: { payments: true } },
     serviceRequests: { include: { requestedBy: { select: { fullName: true } }, decidedBy: { select: { fullName: true } } } }
 };
 const pendingStatuses = ['YANGI', 'KUTILMOQDA', 'ADMIN_TASDIGINI_KUTMOQDA'];
@@ -147,7 +149,7 @@ router.get('/orders', wrap(async (req, res) => {
     if (Object.keys(dates).length)
         where.AND.push({ createdAt: dates });
     const [orders, count] = await db_1.prisma.$transaction([db_1.prisma.order.findMany({ where, include: includeOrder, orderBy: { createdAt: 'desc' }, skip: (page - 1) * take, take }), db_1.prisma.order.count({ where })]);
-    res.json({ success: true, data: orders.map(order => ({ ...order, balance: (0, service_finance_1.orderBalance)(order) })), page, pages: Math.ceil(count / take), count });
+    res.json({ success: true, data: orders.map(order => ({ ...(0, order_returns_1.withOrderReturnDetails)(order), balance: (0, service_finance_1.orderBalance)(order) })), page, pages: Math.ceil(count / take), count });
 }));
 router.get('/orders/:id', wrap(async (req, res) => {
     const order = await db_1.prisma.order.findUnique({ where: { id: req.params.id }, include: { ...includeOrder, statusHistory: { include: { user: { select: { fullName: true } } }, orderBy: { createdAt: 'asc' } } } });
@@ -156,7 +158,7 @@ router.get('/orders/:id', wrap(async (req, res) => {
     await (0, service_policy_1.authorizeService)(db_1.prisma, req.user, 'read', order);
     if (req.user.role === 'WAITER' && service_policy_1.closedServiceStatuses.includes(order.status) && order.waiterId !== req.user.id)
         (0, service_policy_1.fail)(403, 'Bu tarix boshqa ofitsantga tegishli');
-    res.json({ success: true, data: { ...order, balance: (0, service_finance_1.orderBalance)(order) } });
+    res.json({ success: true, data: { ...(0, order_returns_1.withOrderReturnDetails)(order), balance: (0, service_finance_1.orderBalance)(order) } });
 }));
 router.get('/tables/:id/bill', wrap(async (req, res) => {
     const table = await db_1.prisma.table.findUnique({ where: { id: req.params.id }, include: { assignedWaiter: { select: { id: true, fullName: true } } } });
@@ -172,7 +174,7 @@ router.get('/tables/:id/bill', wrap(async (req, res) => {
     totals.serviceCharge = (0, service_finance_1.decimalSum)(orders.map(o => o.serviceCharge));
     totals.discount = (0, service_finance_1.decimalSum)(orders.map(o => o.discount));
     const calls = await db_1.prisma.waiterCall.findMany({ where: { tableId: table.id, kind: 'CASHIER_ASSIST' }, include: { acceptedBy: { select: { fullName: true } } }, orderBy: { createdAt: 'desc' }, take: 5 });
-    res.json({ success: true, data: { table, orders, totals, guests: orders.reduce((sum, o) => sum + o.guestCount, 0), calls } });
+    res.json({ success: true, data: { table, orders: orders.map(order_returns_1.withOrderReturnDetails), totals, guests: orders.reduce((sum, o) => sum + o.guestCount, 0), calls } });
 }));
 const createOrder = wrap(async (req, res) => {
     const { tableId, items, guestCount, note } = req.body || {};
@@ -385,6 +387,66 @@ const requestReturn = wrap(async (req, res) => {
     changed({ orderId: result.orderId });
     res.status(201).json({ success: true, data: result });
 });
+const returnItem = wrap(async (req, res) => {
+    const orderItemId = stringValue(req.body?.orderItemId, 100), reason = stringValue(req.body?.reason);
+    if (!orderItemId || !reason)
+        (0, service_policy_1.fail)(400, 'Taom va qaytarish sababi kerak');
+    const quantity = qty(req.body.quantity), method = req.body.method || 'NAQD';
+    const result = await serviceMutation(req, 'WAITER_RETURN', async (tx) => {
+        const order = await lockOrder(tx, req.params.id);
+        await (0, service_policy_1.authorizeService)(tx, req.user, 'requestReturn', order);
+        (0, service_policy_1.assertOrderFresh)(order, req.body.updatedAt);
+        if (['BEKOR_QILINDI', 'QAYTARILDI'].includes(order.status))
+            (0, service_policy_1.fail)(409, 'Buyurtma yopilgan');
+        if (order.processingById && order.processingAt && Date.now() - order.processingAt.getTime() < 600000)
+            (0, service_policy_1.fail)(409, 'Kassir buyurtmani qayta ishlamoqda');
+        const item = order.items.find(entry => entry.id === orderItemId);
+        if (!item || item.status === 'BEKOR_QILINDI')
+            (0, service_policy_1.fail)(404, 'Faol taom topilmadi');
+        const received = (0, service_finance_1.decimalSum)(order.payments.map(payment => payment.amount))
+            .plus((0, service_finance_1.decimalSum)((order.debt?.payments || []).map(payment => payment.amount)));
+        const previous = await tx.refundItem.aggregate({ where: { orderItemId }, _sum: { quantity: true } });
+        const pending = await tx.serviceRequest.aggregate({ where: { orderItemId, kind: 'RETURN', status: 'KUTILMOQDA' }, _sum: { quantity: true } });
+        const alreadyReturned = new client_1.Prisma.Decimal(previous._sum.quantity || 0).plus(item.cancelledQuantity || 0);
+        if (alreadyReturned.plus(pending._sum.quantity || 0).plus(quantity).greaterThan(item.quantity))
+            (0, service_policy_1.fail)(409, 'Qaytarish miqdori qolgan taomdan oshdi');
+        let refund = null, amount = new client_1.Prisma.Decimal(0);
+        if (received.greaterThan(0)) {
+            refund = await (0, service_finance_1.refundServiceLine)(tx, order, item, quantity, req.user, reason, method, `${req.body.idempotencyKey}_refund`);
+            amount = refund.amount;
+        }
+        else {
+            (0, service_policy_1.assertEditable)(order);
+            const cancelledQuantity = item.cancelledQuantity.plus(quantity);
+            const cancelledAmount = item.unitPrice.mul(quantity).toDecimalPlaces(2);
+            const totalPrice = item.totalPrice.minus(cancelledAmount);
+            const itemStatus = cancelledQuantity.equals(item.quantity) ? 'BEKOR_QILINDI' : item.status;
+            await tx.orderItem.update({ where: { id: item.id }, data: { cancelledQuantity, totalPrice, status: itemStatus } });
+            const subtotal = order.subtotal.minus(cancelledAmount);
+            const serviceCharge = subtotal.mul(order.serviceFeePercent).div(100).toDecimalPlaces(2);
+            const discount = client_1.Prisma.Decimal.min(order.discount, subtotal.plus(serviceCharge));
+            const totalAmount = subtotal.plus(serviceCharge).minus(discount);
+            amount = order.totalAmount.minus(totalAmount).toDecimalPlaces(2);
+            await tx.order.update({ where: { id: order.id }, data: {
+                    subtotal, serviceCharge, discount, totalAmount,
+                    status: (0, service_policy_1.aggregateItemStatus)(order.items.map(entry => entry.id === item.id ? { ...entry, status: itemStatus } : entry), order.status)
+                } });
+        }
+        const updatedOrder = await tx.order.update({ where: { id: order.id }, data: { updatedAt: new Date() } });
+        await audit(tx, req.user.id, updatedOrder, 'WAITER_RETURNED_ITEM', {
+            name: item.menuItem.name, quantity, amount, reason, waiter: req.user.fullName, table: order.table?.number
+        });
+        await (0, kitchen_print_2.queueKitchenReturnPrint)(tx, order.id, `${req.body.idempotencyKey}_kitchen`, item.id, quantity.toString(), reason, req.user.fullName);
+        return { id: order.id, orderNumber: order.orderNumber, tableId: order.tableId, itemId: item.id,
+            itemName: item.menuItem.name, quantity: quantity.toString(), amount: amount.toString(), reason, waiter: req.user.fullName,
+            tableNumber: order.table?.number, roomName: order.table?.room?.name, refundId: refund?.id || null };
+    });
+    changed({ orderId: result.id, tableId: result.tableId });
+    (0, socket_1.emitSocketEvent)('return_alert', { ...result, alert: `! QAYTARILDI: ${result.itemName} × ${result.quantity}` });
+    res.status(201).json({ success: true, data: result });
+});
+router.post('/orders/:id/return', returnItem);
+exports.serviceLegacyRouter.post('/orders/:id/return', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), returnItem);
 router.post('/orders/:id/requests', requestReturn);
 exports.serviceLegacyRouter.post('/orders/:id/return-item', auth_1.authenticateToken, (0, auth_1.requireRole)(['WAITER', 'ADMIN']), requestReturn);
 router.get('/requests', wrap(async (req, res) => {

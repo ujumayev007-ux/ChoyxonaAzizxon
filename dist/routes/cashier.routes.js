@@ -12,6 +12,7 @@ const order_recipes_1 = require("../utils/order-recipes");
 const telegram_1 = require("../utils/telegram");
 const settings_1 = require("../utils/settings");
 const alerts_1 = require("../utils/alerts");
+const order_returns_1 = require("../utils/order-returns");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken, auth_1.requireCashierAccess);
 router.use(async (req, res, next) => {
@@ -324,7 +325,7 @@ router.get('/orders', async (req, res) => {
                 processingBy: { select: { id: true, fullName: true, role: true } },
                 customer: { select: { id: true, customerNumber: true, firstName: true, lastName: true, phone: true } },
                 items: { select: {
-                        id: true, menuItemId: true, quantity: true, unitPrice: true, totalPrice: true, notes: true,
+                        id: true, menuItemId: true, quantity: true, cancelledQuantity: true, unitPrice: true, totalPrice: true, notes: true,
                         menuItem: { select: { id: true, name: true, unit: true } }
                     } },
                 packagingItems: { select: {
@@ -332,13 +333,14 @@ router.get('/orders', async (req, res) => {
                         inventory: { select: { id: true, name: true, unit: true } }
                     } },
                 payments: { select: { id: true, amount: true, method: true, changeAmount: true, createdAt: true } },
-                refunds: { select: { items: { select: { orderItemId: true, quantity: true } } } },
+                refunds: { select: { amount: true, items: { select: { orderItemId: true, quantity: true } } } },
+                serviceRequests: { select: { orderItemId: true, quantity: true, kind: true, status: true, refundId: true } },
                 debt: { select: { amount: true } }
             },
             orderBy: { createdAt: req.query.closed === 'true' ? 'desc' : 'asc' },
             take: 100
         });
-        res.json({ success: true, data: orders });
+        res.json({ success: true, data: orders.map(order_returns_1.withOrderReturnDetails) });
     }
     catch (error) {
         console.error('Kassir buyurtmalarini olishda xatolik:', error);
@@ -605,9 +607,11 @@ router.post('/payments', async (req, res) => {
                 select: {
                     id: true, orderNumber: true, totalAmount: true, status: true, orderType: true, tableId: true,
                     customerId: true, customerName: true, customerPhone: true, processingById: true, serviceCharge: true, discount: true,
-                    items: { select: { id: true, quantity: true, unitPrice: true, totalPrice: true, menuItem: { select: { name: true } } } },
+                    items: { select: { id: true, quantity: true, cancelledQuantity: true, unitPrice: true, totalPrice: true, menuItem: { select: { name: true } } } },
                     packagingItems: { select: { quantity: true, unitPrice: true, totalPrice: true, inventory: { select: { name: true, unit: true } } } },
                     payments: { select: { amount: true } },
+                    refunds: { select: { amount: true, items: { select: { orderItemId: true, quantity: true } } } },
+                    serviceRequests: { select: { orderItemId: true, quantity: true, kind: true, status: true, refundId: true } },
                     debt: { select: { amount: true, remaining: true } },
                     table: { select: { number: true, roomId: true, room: { select: { name: true } } } },
                     waiter: { select: { fullName: true } },
@@ -626,7 +630,8 @@ router.post('/payments', async (req, res) => {
                 throw new Error('PAYMENT_DISABLED');
             const paid = order.payments.reduce((sum, payment) => sum.plus(payment.amount), new client_1.Prisma.Decimal(0));
             const existingDebt = order.debt?.amount || new client_1.Prisma.Decimal(0);
-            const remaining = new client_1.Prisma.Decimal(order.totalAmount).minus(paid).minus(existingDebt);
+            const orderWithReturns = (0, order_returns_1.withOrderReturnDetails)(order);
+            const remaining = orderWithReturns.netTotal.minus(paid).minus(existingDebt);
             if (expectedRemaining && !expectedRemaining.equals(remaining))
                 throw new Error('PAYMENT_TOTAL_CHANGED');
             const cashTotal = rows.filter(row => row.method === client_1.PaymentMethod.NAQD)
@@ -690,7 +695,7 @@ router.post('/payments', async (req, res) => {
                     });
             }
             const totalPaid = paid.plus(paidNow);
-            const fullySettled = totalPaid.plus(existingDebt).plus(debtAmount).greaterThanOrEqualTo(order.totalAmount);
+            const fullySettled = totalPaid.plus(existingDebt).plus(debtAmount).greaterThanOrEqualTo(orderWithReturns.netTotal);
             const status = fullySettled && (!order.debt || order.debt.remaining.isZero()) && debtAmount.isZero()
                 ? client_1.OrderStatus.TOLANDI : client_1.OrderStatus.QISMAN_TOLANDI;
             const updated = await tx.order.update({
@@ -729,9 +734,10 @@ router.post('/payments', async (req, res) => {
                 waiter: order.waiter?.fullName || null,
                 cashier: req.user.fullName,
                 createdAt: new Date().toISOString(),
-                items: order.items.map(item => ({ name: item.menuItem.name, quantity: item.quantity.toString(), amount: item.totalPrice.toString() })),
+                items: orderWithReturns.items.map(item => ({ name: item.menuItem.name, quantity: item.remainingQuantity.toString(), returnedQuantity: item.returnedQuantity.toString(), amount: item.remainingTotalPrice.toString() })),
                 packaging: order.packagingItems.map(item => ({ name: item.inventory.name, quantity: item.quantity.toString(), unit: item.inventory.unit, amount: item.totalPrice.toString() })),
-                total: order.totalAmount.toString(),
+                total: orderWithReturns.netTotal.toString(),
+                orderTotal: orderWithReturns.netTotal.toString(),
                 discount: order.discount.toString(),
                 serviceCharge: order.serviceCharge.toString(),
                 payments: createdPayments.map(payment => ({ method: payment.method, amount: payment.amount.toString() })),
@@ -1010,9 +1016,10 @@ router.post('/debts/:id/payments', async (req, res) => {
                     customerName: true, customerPhone: true,
                     customer: { select: { firstName: true, lastName: true, phone: true } },
                     table: { select: { number: true, room: { select: { name: true } } } },
-                    items: { select: { quantity: true, totalPrice: true, menuItem: { select: { name: true } } } },
+                    items: { select: { id: true, quantity: true, cancelledQuantity: true, totalPrice: true, menuItem: { select: { name: true } } } },
                     payments: { select: { amount: true } },
-                    refunds: { select: { amount: true } }
+                    refunds: { select: { amount: true, items: { select: { orderItemId: true, quantity: true } } } },
+                    serviceRequests: { select: { orderItemId: true, quantity: true, kind: true, status: true, refundId: true } }
                 }
             });
             if (!order)
@@ -1069,7 +1076,7 @@ router.post('/debts/:id/payments', async (req, res) => {
                 table: order.table ? `${order.table.room.name} / ${order.table.number}` : null,
                 cashier: req.user.fullName,
                 createdAt: new Date().toISOString(),
-                items: order.items.map(item => ({ name: item.menuItem.name, quantity: item.quantity.toString(), amount: item.totalPrice.toString() })),
+                items: (0, order_returns_1.withOrderReturnDetails)(order).items.map(item => ({ name: item.menuItem.name, quantity: item.remainingQuantity.toString(), returnedQuantity: item.returnedQuantity.toString(), amount: item.remainingTotalPrice.toString() })),
                 total: amount.toString(),
                 orderTotal: order.totalAmount.toString(),
                 payment: { method, amount: amount.toString() },
@@ -1714,8 +1721,12 @@ router.post('/receipts/:id/reprint', async (req, res) => {
                 orderId: true,
                 receiptNumber: true,
                 order: { select: {
+                        totalAmount: true,
                         payments: { select: { cashierId: true } },
                         debt: { select: { createdById: true, payments: { select: { cashierId: true } } } },
+                        items: { select: { id: true, quantity: true, cancelledQuantity: true, totalPrice: true, menuItem: { select: { name: true } } } },
+                        refunds: { select: { amount: true, items: { select: { orderItemId: true, quantity: true } } } },
+                        serviceRequests: { select: { orderItemId: true, quantity: true, kind: true, status: true, refundId: true } },
                         printJobs: { where: { jobType: 'RECEIPT' }, orderBy: { createdAt: 'desc' }, take: 1 }
                     } }
             }
@@ -1732,13 +1743,26 @@ router.post('/receipts/:id/reprint', async (req, res) => {
             res.status(409).json({ success: false, message: 'Chek uchun chop etish ma’lumoti topilmadi' });
             return;
         }
+        const orderWithReturns = (0, order_returns_1.withOrderReturnDetails)(receipt.order);
+        const savedPayload = JSON.parse(lastJob.payload);
+        const payload = {
+            ...savedPayload,
+            items: orderWithReturns.items.map(item => ({
+                name: item.menuItem.name,
+                quantity: item.remainingQuantity.toString(),
+                returnedQuantity: item.returnedQuantity.toString(),
+                amount: item.remainingTotalPrice.toString()
+            })),
+            ...(savedPayload.orderTotal !== undefined ? { orderTotal: orderWithReturns.netTotal.toString() } : {}),
+            ...(!savedPayload.payment ? { total: orderWithReturns.netTotal.toString() } : {})
+        };
         const job = await db_1.prisma.printJob.create({
-            data: { orderId: receipt.orderId, payload: lastJob.payload, status: 'KUTILMOQDA', jobType: 'RECEIPT' }
+            data: { orderId: receipt.orderId, payload: JSON.stringify(payload), status: 'KUTILMOQDA', jobType: 'RECEIPT' }
         });
         await db_1.prisma.auditLog.create({
             data: { userId: req.user.id, action: 'RECEIPT_REPRINT_QUEUED', entity: 'Receipt', entityId: receipt.id }
         });
-        res.status(201).json({ success: true, data: { jobId: job.id, payload: JSON.parse(job.payload), status: job.status } });
+        res.status(201).json({ success: true, data: { jobId: job.id, payload, status: job.status } });
     }
     catch (error) {
         console.error('Chekni qayta chop etish navbatiga qo‘yishda xatolik:', error);

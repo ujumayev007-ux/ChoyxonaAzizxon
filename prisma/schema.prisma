@@ -872,6 +872,168 @@ model RolePermission {
   @@index([role])
 }
 
+// ==========================================
+// 9. SUPER OWNER SAAS & TENANT ARCHITECTURE
+// ==========================================
+
+enum TenantStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  LOCKED
+  REJECTED
+}
+
+enum DeviceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+  REVOKED
+}
+
+enum DeviceType {
+  PC
+  TABLET
+  PHONE
+  POS
+  TV
+  OTHER
+}
+
+model Tenant {
+  id                  String         @id @default(uuid())
+  slug                String         @unique
+  name                String
+  ownerName           String
+  ownerPhone          String
+  status              TenantStatus   @default(PENDING_APPROVAL)
+  statusReason        String?
+  address             String?
+  timezone            String         @default("Asia/Tashkent")
+  
+  subscriptionPlan    String         @default("STANDART")
+  monthlyFee          Decimal        @default(500000)
+  subscriptionDueDay  Int            @default(1)
+  currentPeriodStart  DateTime       @default(now())
+  currentPeriodEnd    DateTime       @default(now())
+  gracePeriodDays     Int            @default(3)
+  isLocked            Boolean        @default(false)
+  lockReason          String?
+  
+  licenseKey          String?        @unique
+  licenseExpiresAt    DateTime?
+  
+  panelPermissions    Json?
+  
+  devices             DeviceAuthorization[]
+  payments            TenantPayment[]
+  auditLogs           OwnerAuditLog[]
+  
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([status])
+  @@index([slug])
+}
+
+model SuperOwner {
+  id             String          @id @default(uuid())
+  username       String          @unique
+  passwordHash   String
+  fullName       String          @default("Super Admin")
+  phone          String?
+  mfaSecret      String?
+  mfaEnabled     Boolean         @default(false)
+  telegramId     String?
+  telegramChatId String?
+  isActive       Boolean         @default(true)
+  auditLogs      OwnerAuditLog[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model DeviceAuthorization {
+  id              String       @id @default(uuid())
+  tenantId        String
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceId        String
+  deviceName      String
+  deviceType      DeviceType   @default(PC)
+  role            RoleType     @default(WAITER)
+  status          DeviceStatus @default(PENDING)
+  ipAddress       String?
+  userAgent       String?
+  fingerprint     String?
+  token           String?      @unique
+  isOnline        Boolean      @default(false)
+  lastSeenAt      DateTime?
+  requestedAt     DateTime     @default(now())
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectionReason String?
+  blockedReason   String?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([tenantId, deviceId])
+  @@index([tenantId, status])
+  @@index([deviceId])
+}
+
+model TenantPayment {
+  id             String       @id @default(uuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount         Decimal
+  currency       String       @default("UZS")
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         String       @default("TOLANDI")
+  paymentMethod  String       @default("BANK_TRANSFER")
+  transactionRef String?
+  notes          String?
+  confirmedById  String?
+  createdAt      DateTime     @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+model OwnerAuditLog {
+  id           String      @id @default(uuid())
+  superOwnerId String?
+  superOwner   SuperOwner? @relation(fields: [superOwnerId], references: [id], onDelete: SetNull)
+  tenantId     String?
+  tenant       Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  action       String
+  entity       String
+  entityId     String?
+  details      Json?
+  ipAddress    String?
+  createdAt    DateTime    @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([superOwnerId, createdAt])
+  @@index([action])
+}
+
+model TelegramBotConfig {
+  id                   String   @id @default("default")
+  botToken             String?
+  botUsername          String?
+  ownerChatIds         String[] @default([])
+  notifyOnDevice       Boolean  @default(true)
+  notifyOnRegistration Boolean  @default(true)
+  notifyOnUnpaid       Boolean  @default(true)
+  notifyOnExpiry       Boolean  @default(true)
+  secureApproveEnabled Boolean  @default(true)
+  webhookSecret        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+
 
 
 

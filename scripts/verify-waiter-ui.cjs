@@ -69,6 +69,11 @@ async function api(route) {
         await page.screenshot({path:path.join(output,'desktop-orders.png'),fullPage:true});
         await page.getByText('Olib ketdim',{exact:true}).first().click();await page.waitForFunction(()=>document.querySelector('[data-service-action="deliver"]')?.textContent==='Stolga yetkazdim');
         assert.ok(postBodies.some(p=>p.body.status==='OLIB_KETILDI'));
+        await page.getByText('Qisman qaytarish',{exact:true}).first().click();
+        await page.fill('#service-request-form [name="quantity"]','1');await page.fill('#service-request-form [name="reason"]','Mijoz qaytardi');
+        await page.locator('#service-request-form button').click();await page.waitForFunction(()=>!document.getElementById('service-dialog').open);
+        const returned=postBodies.find(p=>p.path==='/api/service/orders/order-1/return');
+        assert.equal(returned.body.orderItemId,'item-1');assert.equal(returned.body.quantity,'1');assert.equal(returned.body.reason,'Mijoz qaytardi');assert.equal(returned.body.updatedAt,date);
         await page.evaluate(()=>switchTab('menu'));
         await page.selectOption('#builder-table-select','table-1');await page.locator('[data-add-menu-item="food-1"]').click();
         await page.fill('#builder-guest-count','5');await page.fill('#order-general-note','Mehmon uchun izoh');await page.locator('#cart-items-container input').first().fill('Kam tuzli');await page.locator('#order-general-note').click();

@@ -75,6 +75,12 @@ const settings_1 = require("./utils/settings");
 const kitchen_print_1 = require("./utils/kitchen-print");
 const service_routes_1 = __importStar(require("./routes/service.routes"));
 const service_policy_1 = require("./utils/service-policy");
+const subscription_1 = require("./middleware/subscription");
+const device_guard_1 = require("./middleware/device-guard");
+const owner_routes_1 = __importDefault(require("./routes/owner.routes"));
+const super_owner_routes_1 = __importDefault(require("./routes/super-owner.routes"));
+const system_version_routes_1 = __importDefault(require("./routes/system-version.routes"));
+const telegram_control_service_1 = require("./services/telegram-control.service");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 if (process.env.RENDER === 'true')
@@ -135,6 +141,18 @@ const io = new socket_io_1.Server(server, {
     }
 });
 (0, socket_1.initSocket)(io);
+app.get('/owner', (_req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '..', 'public', 'owner', 'index.html'));
+});
+app.get('/super-owner', (_req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '..', 'public', 'super-owner', 'index.html'));
+});
+// Device Authorization Guard & SaaS Subscription Lock Guard
+app.use(device_guard_1.deviceGuard);
+app.use(subscription_1.subscriptionGuard);
+app.use('/api', super_owner_routes_1.default);
+app.use('/api', owner_routes_1.default);
+app.use('/api/system', system_version_routes_1.default);
 app.use('/api/service', service_routes_1.default);
 // Exact compatibility paths use the same guarded service handlers as the new panel.
 app.use('/api', service_routes_1.serviceLegacyRouter);
@@ -1416,6 +1434,7 @@ Promise.resolve().then(() => {
         (0, telegram_reports_1.startReportSchedule)();
         (0, alerts_1.startAlertMonitor)();
         (0, telegram_bot_1.startTelegramBot)();
+        (0, telegram_control_service_1.initSuperOwnerTelegramBot)().catch(() => { });
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {

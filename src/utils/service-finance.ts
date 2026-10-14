@@ -7,8 +7,9 @@ export function orderBalance(order: any) {
     const paid = decimalSum(order.payments.map((p: any) => p.amount));
     const debt = new Prisma.Decimal(order.debt?.amount || 0);
     const refunds = decimalSum((order.refunds || []).map((r: any) => r.amount));
-    return { total: order.totalAmount, paid, refunds, debt, debtRemaining: new Prisma.Decimal(order.debt?.remaining || 0),
-        remaining: Prisma.Decimal.max(0, new Prisma.Decimal(order.totalAmount).minus(paid).minus(debt)) };
+    const total = Prisma.Decimal.max(0, new Prisma.Decimal(order.totalAmount).minus(refunds));
+    return { total, paid, refunds, debt, debtRemaining: new Prisma.Decimal(order.debt?.remaining || 0),
+        remaining: Prisma.Decimal.max(0, total.minus(paid).minus(debt)) };
 }
 
 // The request decision and the actual monetary refund share the order row lock and transaction.

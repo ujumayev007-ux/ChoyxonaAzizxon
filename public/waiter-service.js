@@ -61,7 +61,8 @@
           <p>${e(new Date(order.createdAt).toLocaleString('uz-UZ'))} · ${e(order.guestCount)} mehmon</p>
           ${order.processingBy ? `<p class="svc-warning">Kassir ${e(order.processingBy.fullName)} band</p>` : ''}
           ${order.notes ? `<p>Izoh: ${e(order.notes)} ${order.noteAcknowledgedAt ? '✓ Oshxona ko‘rgan' : '· Oshxona hali ko‘rmagan'}</p>` : ''}
-          ${order.items.map(item => `<div class="svc-item"><div class="svc-row"><strong>${e(item.menuItem?.name)} × ${e(Number(item.quantity) - Number(item.cancelledQuantity || 0))}</strong><span>${money(item.totalPrice)}</span></div>
+                    ${order.items.map(item => `<div class="svc-item"><div class="svc-row"><strong>${e(item.menuItem?.name)} × ${e(item.remainingQuantity ?? (Number(item.quantity) - Number(item.cancelledQuantity || 0)))}</strong><span>${money(item.remainingTotalPrice ?? item.totalPrice)}</span></div>
+                        ${Number(item.returnedQuantity || 0) > 0 ? `<p style="color:#b91c1c;font-weight:700">QAYTARILDI × ${e(item.returnedQuantity)}</p>` : ''}
             <p>${e(labels[item.status] || item.status)} · ${timer(item.createdAt, ['STOLGA_YETKAZILDI', 'BEKOR_QILINDI'].includes(item.status))}</p>
             ${item.notes ? `<p>${e(item.notes)} ${item.noteAcknowledgedAt ? '✓ Oshxona ko‘rgan' : ''}</p>` : ''}
             ${!history && mine && policy.deliver && ['TAYYOR', 'OLIB_KETILDI'].includes(item.status) ? button(item.status === 'TAYYOR' ? 'Olib ketdim' : 'Stolga yetkazdim', 'deliver', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-status="${item.status === 'TAYYOR' ? 'OLIB_KETILDI' : 'STOLGA_YETKAZILDI'}"`) : ''}
@@ -250,8 +251,11 @@
         }
         if (type === 'request') {
             const item = order.items.find(i => i.id === target.dataset.item);
-            dialog('Qisman so‘rov: ' + item.menuItem.name, `<form id="service-request-form"><label>Miqdor<input name="quantity" type="number" min="0.001" step="0.001" max="${e(Number(item.quantity) - Number(item.cancelledQuantity))}" value="1" required></label><label>Sabab<textarea name="reason" required maxlength="500"></textarea></label><p>Avval qaytarilgan va kutilayotgan miqdorlar serverda tekshiriladi.</p><button class="svc-button">So‘rov yuborish</button></form>`);
-            document.getElementById('service-request-form').onsubmit = async event => { event.preventDefault(); await sendForm(event, `/orders/${id}/requests`, { orderItemId: item.id, updatedAt: order.updatedAt, kind: target.dataset.kind }); }; return;
+            const returning = target.dataset.kind === 'RETURN';
+            const methods = [...new Set((order.payments || []).map(payment => payment.method).filter(method => ['NAQD', 'PLASTIK', 'ELEKTRON'].includes(method)))];
+            const methodOptions = (methods.length ? methods : ['NAQD', 'PLASTIK', 'ELEKTRON']).map(method => `<option value="${method}">${({ NAQD: 'Naqd', PLASTIK: 'Karta', ELEKTRON: 'Elektron' })[method]}</option>`).join('');
+            dialog(`${returning ? 'Qisman qaytarish' : 'Bekor qilish so‘rovi'}: ${item.menuItem.name}`, `<form id="service-request-form"><label>Miqdor<input name="quantity" type="number" min="0.001" step="0.001" max="${e(item.remainingQuantity ?? (Number(item.quantity) - Number(item.cancelledQuantity)))}" value="1" required></label>${returning && Number(order.balance?.paid || 0) > 0 ? `<label>Pulni qaytarish usuli<select name="method">${methodOptions}</select></label>` : ''}<label>Sabab<textarea name="reason" required maxlength="500"></textarea></label><p>${returning ? 'Qaytarish darhol serverda tekshiriladi va qayd etiladi.' : 'So‘rovni mas’ul xodim ko‘rib chiqadi.'}</p><button class="svc-button">${returning ? 'Qaytarishni tasdiqlash' : 'So‘rov yuborish'}</button></form>`);
+            document.getElementById('service-request-form').onsubmit = async event => { event.preventDefault(); await sendForm(event, `/orders/${id}/${returning ? 'return' : 'requests'}`, { orderItemId: item.id, updatedAt: order.updatedAt, ...(returning ? {} : { kind: target.dataset.kind }) }); }; return;
         }
         if (type === 'transfer') {
             dialog('Ko‘chirish / topshirish', `<form id="service-transfer-form">${policy.transfer ? `<label>Yangi stol<select name="tableId"><option value="">Stolni saqlash</option>${allRooms.flatMap(r => r.tables.map(t => `<option value="${e(t.id)}">${e(r.name)} · Stol #${e(t.number)}</option>`)).join('')}</select></label>` : ''}${policy.reassign ? `<label>Yangi ofitsant<select name="waiterId"><option value="">Ofitsantni saqlash</option>${staff.map(s => `<option value="${e(s.id)}">${e(s.fullName)}</option>`).join('')}</select></label>` : ''}<label>Sabab<textarea name="reason" required maxlength="500"></textarea></label><button class="svc-button">Saqlash</button></form>`);
@@ -297,6 +301,7 @@
         socket.removeAllListeners('call_waiter');
         socket.on('call_waiter', async data => { await loadActiveCalls(); if (activeCallsList.some(c => c.id === data.callId && c.kind === 'CUSTOMER')) { playAlertSound(); showNotification('Mijoz ofitsantni chaqirdi'); navigator.vibrate?.(250); } });
         socket.on('settings_updated', async () => { policy = (await client.get('/config')).data; loadWaiterStatistics(); loadActiveOrders(); });
+        socket.on('return_alert', data => { showNotification(`! QAYTARILDI: ${data.itemName} × ${data.quantity}`); loadActiveOrders(); loadCompletedOrders(); });
         socket.on('service_updated', () => { loadRequests(); loadWaiterStatistics(); if (selectedTableForModal) { const table = allRooms.flatMap(r => r.tables).find(t => t.id === selectedTableForModal); if (table) openTableModal(table.id, table.number, table.status); } });
         socket.on('waiter_new_order', async data => { try { if (policy.scope === 'OWN' && data.orderId) await findOrder(data.orderId); playAlertSound(); showNotification('Yangi mijoz buyurtmasi'); navigator.vibrate?.(200); loadPendingOrders(); } catch {} });
         socket.on('kitchen_order_ready', async data => { try { if (policy.scope === 'OWN' && data.orderId) await findOrder(data.orderId); playAlertSound(); showNotification('Taom tayyor — olib ketish mumkin'); navigator.vibrate?.(200); loadActiveOrders(); } catch {} });

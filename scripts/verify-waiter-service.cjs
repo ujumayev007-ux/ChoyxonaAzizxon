@@ -26,6 +26,7 @@ function fixture(options = {}) {
         createdAt: stamp, updatedAt: stamp, ...options.order };
     let state = { tables: [table, { ...table, id: 'table-2', assignedWaiterId: null, number: 2 }], menu: [menu], orders: [order], requests: [], calls: [], records: [], refundLines: [], history: [], audits: [], movements: [], inventories: [{ id: 'inventory-1', name: 'Mahsulot', quantity: D(5) }], inventoryHistory: [], queryLog: [], settings: options.settings || {} };
     const events = [];
+    const returnPrints = [];
     function models(get) {
         const hydrate = o => o && { ...copy(o), table: copy(get().tables.find(t => t.id === o.tableId)), waiter: o.waiterId ? { id: o.waiterId, fullName: o.waiterId } : null,
             serviceRequests: copy(get().requests.filter(r => r.orderId === o.id)), statusHistory: copy(get().history.filter(h => h.orderId === o.id)) };
@@ -87,7 +88,7 @@ function fixture(options = {}) {
             if (name === '../utils/db') return { prisma: db };
             if (name === '../middleware/auth') return { authenticateToken: (_req, _res, next) => next(), requireRole: roles => (req,res,next) => roles.includes(req.user.role) ? next() : res.status(403).json({message:'Ruxsat yo‘q'}) };
             if (name === '../socket') return { emitSocketEvent: (...args) => events.push(args) };
-            if (name === '../utils/kitchen-print') return { queueKitchenPrint: async () => {} };
+            if (name === '../utils/kitchen-print') return { queueKitchenPrint: async () => {}, queueKitchenReturnPrint: async (...args) => returnPrints.push(args) };
             if (name === '../utils/telegram') return { telegramToken: async () => 'test-bot-token' };
             if (name.startsWith('../utils/')) return require('../dist/utils/' + name.split('/').at(-1));
             return require(name);
@@ -99,7 +100,7 @@ function fixture(options = {}) {
     const service = load('src/routes/service.routes.ts'); app.use('/api/service', service.default); app.use('/api', service.serviceLegacyRouter); app.use('/api', load('src/routes/telegram.routes.ts').default);
     app.use((_req,res)=>res.status(404).json({success:false,message:'Test fixture route not mounted'}));
     let server, base, starting;
-    return { get state() { return state; }, events, db,
+    return { get state() { return state; }, events, returnPrints, db,
         async send(path, body, role = 'WAITER', user = 'waiter-1') {
             if (!starting) starting = (async () => { server = app.listen(0,'127.0.0.1'); await new Promise(resolve => server.once('listening', resolve)); base = `http://127.0.0.1:${server.address().port}`; })(); await starting;
             const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'x-role': role, 'x-user': user }, body: body ? JSON.stringify(body) : undefined });
@@ -211,6 +212,29 @@ test('To‘lanmagan taom qaytarilsa hisob kamayadi, pul qaytarish yozuvi yaratil
     const h=tracked(t); const request=await h.send('/api/service/orders/order-1/requests',body(h,{kind:'RETURN',orderItemId:'item-1',quantity:1,reason:'Taom qaytarildi'}));
     assert.equal((await h.send(`/api/service/requests/${request.body.data.id}/decision`,{idempotencyKey:'unpaid-return-decision-1234',status:'TASDIQLANDI',reason:'Hisobdan chiqarildi'},'CASHIER','cashier-1')).status,200);
     assert.equal(h.state.orders[0].totalAmount.toString(),'54.22');assert.equal(h.state.refundLines.length,0);assert.equal(h.state.movements.length,0);
+});
+test('Ofitsant to‘langan taomni darhol qaytaradi, kassa harakati va admin/kassa/oshxona ogohlantirishlari yaratiladi', async t => {
+    const h = tracked(t, { order: { status: 'TOLANDI', payments: [{ amount: D(82), method: 'NAQD' }] } });
+    const payload = body(h, { orderItemId: 'item-1', quantity: 1, reason: 'Mijoz qaytardi', method: 'NAQD' });
+    const result = await h.send('/api/service/orders/order-1/return', payload);
+    assert.equal(result.status, 201);
+    assert.equal(result.body.data.amount, '27.33');
+    assert.equal(h.state.refundLines[0].quantity.toString(), '1');
+    assert.equal(h.state.movements[0].amount.toString(), '-27.33');
+    assert.equal(h.returnPrints.length, 1);
+    assert.ok(h.events.some(([name, data]) => name === 'return_alert' && data.alert.startsWith('! QAYTARILDI:')));
+    assert.deepEqual((await h.send('/api/service/orders/order-1/return', payload)).body, result.body);
+    assert.equal(h.state.refundLines.length, 1, 'idempotent qayta yuborish qaytimni takrorlamasligi kerak');
+});
+test('Ofitsant to‘lanmagan taomni qaytarsa buyurtma summasi kamayadi va ortiqcha miqdor rad etiladi', async t => {
+    const h = tracked(t);
+    const result = await h.send('/api/service/orders/order-1/return', body(h, { orderItemId: 'item-1', quantity: 1, reason: 'Mijoz fikrini o‘zgartirdi' }));
+    assert.equal(result.status, 201);
+    assert.equal(h.state.orders[0].items[0].cancelledQuantity.toString(), '1');
+    assert.equal(h.state.orders[0].totalAmount.toString(), '54.22');
+    assert.equal(h.state.refundLines.length, 0);
+    assert.equal(result.body.data.amount, '27.78');
+    assert.equal((await h.send('/api/service/orders/order-1/return', body(h, { orderItemId: 'item-1', quantity: 3, reason: 'Ortiqcha' }))).status, 409);
 });
 test('Kutilayotgan miqdor rezervlanadi; rad etish rezervni bo‘shatadi',async t=>{
     const h=tracked(t); const r=await h.send('/api/service/orders/order-1/requests',body(h,{kind:'RETURN',orderItemId:'item-1',quantity:2,reason:'Qaytarish'})); assert.equal(r.status,201);

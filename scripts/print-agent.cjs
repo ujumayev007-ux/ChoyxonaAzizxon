@@ -17,7 +17,7 @@ function receipt(job) {
     const p = job.payload, width = job.printer.paperWidth === 58 ? 32 : 42;
     return [p.restaurantName, p.department, `Buyurtma: ${p.orderNumber}`, p.table,
         `Ofitsant: ${p.waiter}`, `Mijozlar: ${p.guestCount || 1}`, p.createdAt,
-        '-'.repeat(width), ...p.items.flatMap(i => [`${i.quantity}  ${i.name}`, ...(i.notes ? [i.notes] : [])]),
+        '-'.repeat(width), ...(p.returnAlert ? ['!!! QAYTARILDI !!!'] : []), ...p.items.flatMap(i => [...(Number(i.returnedQuantity || 0) > 0 ? [`${p.returnAlert ? 'QAYTARILDI' : '!!! QAYTARILDI !!!'} x ${i.returnedQuantity}  ${i.name}`] : []), ...(i.quantity ? [`${i.quantity}  ${i.name}`] : []), ...(i.notes ? [i.notes] : [])]),
         '-'.repeat(width), p.notes || '', p.footer || '', '', '', ''].join('\n');
 }
 async function print(job) {
@@ -34,7 +34,15 @@ async function print(job) {
     } else {
         // ESC/POS printerlar uchun mos lotincha matn; boshqaruv belgilarini tozalash.
         const ascii = text.replace(/[‘’ʻʼ]/g, "'").replace(/[^\x20-\x7e\n]/g, '?');
-        const bytes = Buffer.concat([Buffer.from([27, 64]), Buffer.from(ascii, 'ascii'), Buffer.from([29, 86, 0])]);
+        const lines = ascii.split('\n');
+        const output = [Buffer.from([27, 64])];
+        for (const line of lines) {
+            if (line.includes('!!! QAYTARILDI !!!')) output.push(Buffer.from([27, 114, 1]));
+            output.push(Buffer.from(`${line}\n`, 'ascii'));
+            if (line.includes('!!! QAYTARILDI !!!')) output.push(Buffer.from([27, 114, 0]));
+        }
+        output.push(Buffer.from([29, 86, 0]));
+        const bytes = Buffer.concat(output);
         await new Promise((resolve, reject) => {
             const socket = net.createConnection({ host: job.printer.ipAddress, port: job.printer.port });
             socket.setTimeout(15000, () => socket.destroy(new Error('Printer javob bermadi')));

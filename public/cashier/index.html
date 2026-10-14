@@ -136,7 +136,7 @@
         const newKey = () => typeof crypto.randomUUID === 'function' ? crypto.randomUUID() :
             Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
         const moneyCents = value => Math.round(Number(value || 0) * 100);
-        const orderBalance = order => Math.max(0, moneyCents(order.totalAmount) -
+        const orderBalance = order => Math.max(0, moneyCents(order.netTotal ?? order.totalAmount) -
             (order.payments || []).reduce((sum, payment) => sum + moneyCents(payment.amount), 0) - moneyCents(order.debt?.amount));
         const paymentDecimal = cents => (cents / 100).toFixed(2);
         const closedPaymentStatuses = ['TOLANDI', 'YAKUNLANDI', 'BEKOR_QILINDI', 'QAYTARILDI'];
@@ -268,7 +268,7 @@
                 ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim()
                 : order.customerName;
             const customerPhone = order.customer?.phone || order.customerPhone;
-            const items = (order.items || []).map(item => `<li class="flex justify-between gap-3 text-sm"><span>${esc(item.menuItem?.name || item.name)} × ${esc(item.quantity)}</span><b>${money(item.totalPrice)}</b></li>`).join('');
+            const items = (order.items || []).map(item => `<li class="flex justify-between gap-3 text-sm"><span>${esc(item.menuItem?.name || item.name)} × ${esc(item.remainingQuantity ?? item.quantity)}${Number(item.returnedQuantity || 0) > 0 ? `<small class="block font-bold text-rose-700">QAYTARILDI × ${esc(item.returnedQuantity)}</small>` : ''}</span><b>${money(item.remainingTotalPrice ?? item.totalPrice)}</b></li>`).join('');
             const locked = order.processingBy ? `<p class="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">🔒 ${esc(order.processingBy.fullName)} buyurtmani qayta ishlamoqda</p>` : '';
             const due = orderBalance(order) / 100;
             const hasPayments = (order.payments || []).some(payment => Number(payment.amount) > 0);
@@ -284,7 +284,7 @@
                 </div>
                 ${order.orderType === 'TAKEAWAY' ? `<p class="rounded-lg bg-violet-50 p-2 text-xs"><b>🥡 OLIB KETISH</b> · ${esc(customer || 'Mijoz ko‘rsatilmagan')} ${customerPhone ? `· ${esc(customerPhone)}` : ''}</p>` : ''}
                 <ul class="space-y-1 border-y border-slate-100 py-2">${items}</ul>
-                <div class="flex items-end justify-between"><div><p class="text-xs text-slate-500">Jami</p><b class="text-lg">${money(order.totalAmount)}</b><p class="text-xs text-slate-500">To‘lov: ${paymentStatus} · Qoldiq: ${money(due)}</p></div><span class="text-xs text-slate-500">${dateTime(order.createdAt)}</span></div>
+                <div class="flex items-end justify-between"><div><p class="text-xs text-slate-500">Jami</p><b class="text-lg">${money(order.netTotal ?? order.totalAmount)}</b><p class="text-xs text-slate-500">To‘lov: ${paymentStatus} · Qoldiq: ${money(due)}</p></div><span class="text-xs text-slate-500">${dateTime(order.createdAt)}</span></div>
                 ${locked}
                 <div class="flex flex-wrap gap-2">
                     ${due > 0 && !options.closed ? `<button class="btn bg-blue-600 px-3 py-2 text-xs text-white hover:bg-blue-700" data-action="pay" data-id="${esc(order.id)}">To‘lov</button>` : ''}
@@ -825,7 +825,7 @@
                 return map;
             }, {});
             openModal('Buyurtmadan mahsulot qaytarish', `<form id="refund-form" class="space-y-3"><input type="hidden" name="orderId" value="${esc(id)}"><div class="space-y-2">${order.items.map(item => {
-                const available = Math.max(0, Number(item.quantity) - (refunded[item.id] || 0));
+                const available = Math.max(0, Number(item.quantity) - Number(item.cancelledQuantity || 0) - (refunded[item.id] || 0));
                 return `<label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>${esc(item.menuItem.name)} · Qaytarish mumkin ${available} / ${esc(item.quantity)} × ${money(item.unitPrice)}</span><input class="field w-28" data-refund-item="${esc(item.id)}" type="number" min="0" max="${available}" step="0.01" value="0" ${available === 0 ? 'disabled' : ''} aria-label="${esc(item.menuItem.name)} qaytarish miqdori"></label>`;
             }).join('')}</div><label class="block text-sm font-semibold">Sabab<input name="reason" class="field mt-1" required></label><label class="block text-sm font-semibold">Qaytarish usuli<select name="method" class="field mt-1"><option value="NAQD">Naqd</option><option value="PLASTIK">Karta</option><option value="ELEKTRON">Elektron</option></select></label><p id="refund-error" class="hidden text-sm text-rose-700"></p><button class="btn w-full bg-rose-600 px-4 py-3 text-white">Qaytarishni saqlash</button></form>`);
             document.getElementById('refund-form').addEventListener('submit', async event => {
@@ -880,7 +880,7 @@
             if (!printWindow) { toast('Chop etish oynasini ochishga ruxsat bering', 'error'); return; }
             try {
                 const { data } = await api(`/api/cashier/receipts/${encodeURIComponent(id)}/reprint`, { method: 'POST' });
-                printWindow.document.write(`<html><head><title>Chek ${esc(data.payload.receiptNumber)}</title><style>body{font:14px monospace;max-width:320px;margin:16px auto}hr{border:0;border-top:1px dashed #444}p{display:flex;justify-content:space-between}</style></head><body><h2>${esc(data.payload.restaurantName)}</h2><p>Buyurtma: ${esc(data.payload.orderNumber)}</p><p>Chek: ${esc(data.payload.receiptNumber)}</p><hr>${data.payload.items.map(item => `<p>${esc(item.name)} × ${esc(item.quantity)} <b>${money(item.amount)}</b></p>`).join('')}<hr><p>Xizmat haqi: <b>${money(data.payload.serviceCharge || 0)}</b></p><p>Chegirma: <b>${money(data.payload.discount || 0)}</b></p><p><b>Jami</b><b>${money(data.payload.total)}</b></p><p>Chop etish vazifasi: ${esc(data.status)}</p><script>window.onload=()=>window.print()<\/script><a href="/service.html" style="position:fixed;bottom:125px;right:16px;z-index:40;background:#0369a1;color:white;padding:10px 14px;border-radius:12px">Xizmat amallari</a>
+                printWindow.document.write(`<html><head><title>Chek ${esc(data.payload.receiptNumber)}</title><style>body{font:14px monospace;max-width:320px;margin:16px auto}hr{border:0;border-top:1px dashed #444}p{display:flex;justify-content:space-between}.returned{color:#b91c1c;font-weight:700}</style></head><body><h2>${esc(data.payload.restaurantName)}</h2><p>Buyurtma: ${esc(data.payload.orderNumber)}</p><p>Chek: ${esc(data.payload.receiptNumber)}</p><hr>${data.payload.items.map(item => `${Number(item.returnedQuantity || 0) > 0 ? `<p class="returned">QAYTARILDI × ${esc(item.returnedQuantity)}</p>` : ''}<p>${esc(item.name)} × ${esc(item.quantity)} <b>${money(item.amount)}</b></p>`).join('')}<hr><p>Xizmat haqi: <b>${money(data.payload.serviceCharge || 0)}</b></p><p>Chegirma: <b>${money(data.payload.discount || 0)}</b></p><p><b>Jami</b><b>${money(data.payload.total)}</b></p><p>Chop etish vazifasi: ${esc(data.status)}</p><script>window.onload=()=>window.print()<\/script><a href="/service.html" style="position:fixed;bottom:125px;right:16px;z-index:40;background:#0369a1;color:white;padding:10px 14px;border-radius:12px">Xizmat amallari</a>
 </body></html>`);
                 printWindow.document.close();
             } catch (error) { printWindow.close(); toast(error.message, 'error'); }
@@ -1042,6 +1042,12 @@
             .forEach(eventName => socket.on(eventName, data => {
                 if (state.user) { switchTab(state.tab); refreshPaymentOrder(data || {}); }
             }));
+        socket.on('return_alert', data => {
+            if (!state.user) return;
+            toast(`! QAYTARILDI: №${data.orderNumber} · ${data.itemName} × ${data.quantity} · ${data.waiter}`, 'error');
+            switchTab(state.tab);
+            refreshPaymentOrder(data || {});
+        });
         setInterval(() => {
             document.getElementById('live-clock').textContent = new Date().toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' });
         }, 1000);
@@ -1056,5 +1062,7 @@
 <script src="/pin-login.js" data-role="CASHIER"></script>
 <a href="/attendance.html" class="fixed bottom-20 right-4 z-40 rounded-xl bg-sky-700 text-white px-4 py-2 shadow-lg">Davomat</a>
 <script src="/restaurant.js"></script>
+<script src="/js/subscription-guard.js"></script>
+<script src="/js/device-agent.js"></script>
 </body>
 </html>

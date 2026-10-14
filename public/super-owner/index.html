@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Owner — Markazlashtirilgan SaaS Boshqaruv Portali</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        crown: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-gold { background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(180, 83, 9, 0.04)); border: 1px solid rgba(245, 158, 11, 0.25); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-amber-500 selection:text-black">
+
+    <!-- LOGIN MODAL -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4">
+        <div class="glass w-full max-w-md p-8 rounded-3xl shadow-2xl border border-amber-500/25 text-center relative overflow-hidden">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 mx-auto flex items-center justify-center text-3xl shadow-xl shadow-amber-500/20 mb-4">
+                👑
+            </div>
+            <h2 class="text-2xl font-black tracking-tight text-white">Super Owner Portal</h2>
+            <p class="text-xs text-slate-400 mt-1">ChoyxonaAzizxon SaaS Tizimlar Boshqaruvi</p>
+
+            <form id="login-form" class="mt-6 space-y-4 text-left" onsubmit="handleSuperOwnerLogin(event)">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Foydalanuvchi nomi</label>
+                    <input type="text" id="login-username" value="superowner" required
+                        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Parol</label>
+                    <input type="password" id="login-password" value="SuperOwner2026!" required
+                        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-white text-sm">
+                </div>
+                <div id="login-error" class="hidden text-xs text-red-400 font-medium bg-red-950/50 p-2.5 rounded-lg border border-red-800/40"></div>
+                <button type="submit"
+                    class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition">
+                    Tizimga Kirish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app" class="hidden min-h-screen flex flex-col">
+
+        <!-- TOP BAR -->
+        <header class="glass sticky top-0 z-40 border-b border-slate-800/80 px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">👑</span>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                        Super Owner SaaS
+                        <span class="text-[10px] uppercase font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">Master HQ</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400">Barcha restoranlar, qurilmalar va oylik obunalar nazorati</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <span id="socket-badge" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    Live Sinxron
+                </span>
+                <button onclick="refreshAll()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700 transition">
+                    Yangilash
+                </button>
+                <button onclick="logoutSuperOwner()" class="px-3 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-xs font-semibold text-red-300 border border-red-800/40 transition">
+                    Chiqish
+                </button>
+            </div>
+        </header>
+
+        <!-- NAVIGATION TABS -->
+        <div class="bg-slate-900/60 border-b border-slate-800/80 px-6 overflow-x-auto">
+            <nav class="flex gap-2 py-2.5 min-w-max text-xs font-bold" id="nav-tabs">
+                <button onclick="switchTab('dashboard')" class="tab-btn px-4 py-2 rounded-xl transition bg-amber-500 text-slate-950 shadow-md" data-tab="dashboard">
+                    📊 Boshqaruv (Dashboard)
+                </button>
+                <button onclick="switchTab('tenants')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="tenants">
+                    🏢 Restoranlar (<span id="count-tenants">0</span>)
+                </button>
+                <button onclick="switchTab('devices')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800 relative" data-tab="devices">
+                    📱 Qurilmalar
+                    <span id="badge-pending-devices" class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px]">0</span>
+                </button>
+                <button onclick="switchTab('payments')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="payments">
+                    💳 Oylik To‘lovlar
+                </button>
+                <button onclick="switchTab('permissions')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="permissions">
+                    🎛️ Panel Ruxsatlari
+                </button>
+                <button onclick="switchTab('telegram')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="telegram">
+                    🤖 Telegram Bot
+                </button>
+                <button onclick="switchTab('audit')" class="tab-btn px-4 py-2 rounded-xl transition text-slate-400 hover:text-white hover:bg-slate-800" data-tab="audit">
+                    📜 Audit Jurnali
+                </button>
+            </nav>
+        </div>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+            <!-- TAB 1: DASHBOARD -->
+            <div id="tab-dashboard" class="tab-content space-y-6">
+                <!-- KPI METRIC CARDS -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="glass p-5 rounded-2xl">
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Jami Restoranlar</span>
+                        <p class="text-2xl font-black text-white mt-2" id="kpi-total-tenants">0</p>
+                        <p class="text-[11px] text-emerald-400 mt-1" id="kpi-active-tenants">Faol: 0 ta</p>
+                    </div>
+                    <div class="glass p-5 rounded-2xl">
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Kutilayotgan Qurilmalar</span>
+                        <p class="text-2xl font-black text-amber-400 mt-2" id="kpi-pending-devices">0</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Super Owner ruxsati kerak</p>
+                    </div>
+                    <div class="glass p-5 rounded-2xl">
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Tasdiqlangan Qurilmalar</span>
+                        <p class="text-2xl font-black text-sky-400 mt-2" id="kpi-approved-devices">0</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Telefon, Planshet va POS</p>
+                    </div>
+                    <div class="glass p-5 rounded-2xl">
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Jami Oylik Tushum</span>
+                        <p class="text-2xl font-black text-emerald-400 mt-2" id="kpi-total-revenue">0 UZS</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Barcha obunalar bo‘yicha</p>
+                    </div>
+                </div>
+
+                <!-- REAL-TIME PENDING ACTIONS BANNER -->
+                <div id="pending-actions-box" class="hidden glass-gold p-6 rounded-3xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                            <span class="text-xl">⚠️</span>
+                            <h3>Kutilayotgan Qurilma Ulanish So‘rovlari</h3>
+                        </div>
+                        <span class="text-xs text-slate-400">Telegram va Panelga kelgan so‘rovlar</span>
+                    </div>
+                    <div id="pending-devices-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+
+                <!-- RECENT RESTAURANTS SUMMARY -->
+                <div class="glass p-6 rounded-3xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-white text-sm">So‘nggi Restoranlar</h3>
+                        <button onclick="switchTab('tenants')" class="text-xs text-amber-400 font-semibold hover:underline">Barchasini ko‘rish &rarr;</button>
+                    </div>
+                    <div id="recent-tenants-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TENANTS (RESTORANLAR) -->
+            <div id="tab-tenants" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">SaaS Restoranlari</h2>
+                        <p class="text-xs text-slate-400">Tizimga ulangan barcha mijozlar, obuna muddatlari va litsenziyalar</p>
+                    </div>
+                    <button onclick="openNewTenantModal()" class="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5">
+                        <span>➕</span>
+                        <span>Yangi Restoran Qo‘shish</span>
+                    </button>
+                </div>
+
+                <div class="glass rounded-3xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-4">Restoran Nomi</th>
+                                    <th class="p-4">Rahbar & Telefon</th>
+                                    <th class="p-4">Holat</th>
+                                    <th class="p-4">Oylik To‘lov</th>
+                                    <th class="p-4">Obuna Muddati</th>
+                                    <th class="p-4 text-right">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tenants-table-body" class="divide-y divide-slate-800 text-slate-200">
+                                <tr><td colspan="6" class="p-8 text-center text-slate-500">Yuklanmoqda...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DEVICES (QURILMALAR) -->
+            <div id="tab-devices" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Qurilmalar Ruxsatlari (Device Approval)</h2>
+                        <p class="text-xs text-slate-400">Har bir telefon, planshet yoki POS kompyuter Super Owner ruxsati bilan ulanadi</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="filterDevices('ALL')" class="device-filter-btn px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold" data-filter="ALL">Barchasi</button>
+                        <button onclick="filterDevices('PENDING')" class="device-filter-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700" data-filter="PENDING">Kutilmoqda</button>
+                        <button onclick="filterDevices('APPROVED')" class="device-filter-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700" data-filter="APPROVED">Tasdiqlangan</button>
+                        <button onclick="filterDevices('BLOCKED')" class="device-filter-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700" data-filter="BLOCKED">Bloklangan</button>
+                    </div>
+                </div>
+
+                <div class="glass rounded-3xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-4">Qurilma / Model</th>
+                                    <th class="p-4">Restoran</th>
+                                    <th class="p-4">Rol</th>
+                                    <th class="p-4">IP & So‘rov Vaqti</th>
+                                    <th class="p-4">Holati</th>
+                                    <th class="p-4 text-right">Ruxsat Amallari</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devices-table-body" class="divide-y divide-slate-800 text-slate-200">
+                                <tr><td colspan="6" class="p-8 text-center text-slate-500">Yuklanmoqda...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: PAYMENTS & BILLING -->
+            <div id="tab-payments" class="tab-content hidden space-y-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-bold text-white">Oylik Obuna To‘lovlari</h2>
+                        <p class="text-xs text-slate-400">Mijozlar to‘lovlari, qarzdorliklar va hisob-kitob jurnali</p>
+                    </div>
+                </div>
+
+                <div id="billing-summary-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Injected via JS -->
+                </div>
+
+                <div class="glass p-6 rounded-3xl space-y-4">
+                    <h3 class="font-bold text-white text-sm">Restoranlar To‘lov Holati</h3>
+                    <div id="tenant-billing-list" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- TAB 5: PANEL PERMISSIONS (XUSUSIYATLARNI BOSHQARISH) -->
+            <div id="tab-permissions" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Panel Ruxsatlari va Funksiyalarni Yoqish/O‘chirish</h2>
+                    <p class="text-xs text-slate-400">Har bir restoran uchun panellar (Kassa, Ofitsiant, Oshxona, Ombor) dagi tugma va bo‘limlarni masofadan boshqaring</p>
+                </div>
+
+                <div class="glass p-5 rounded-2xl flex items-center gap-4">
+                    <label class="text-xs font-bold text-slate-300">Restoranni tanlang:</label>
+                    <select id="perm-tenant-select" onchange="loadTenantPermissions(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-amber-500 max-w-sm">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <!-- PERMISSION TOGGLES -->
+                <div id="permissions-editor" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <div class="flex justify-end pt-4">
+                    <button onclick="saveCurrentPermissions()" class="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition">
+                        Ruxsatlarni Saqlash va Barcha Ekranlarga Yuborish
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 6: TELEGRAM BOT -->
+            <div id="tab-telegram" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Super Owner Telegram Boti</h2>
+                    <p class="text-xs text-slate-400">Telegram orqali yangi qurilma va restoranlarni 1-bosishda tasdiqlash</p>
+                </div>
+
+                <div class="glass p-6 rounded-3xl max-w-2xl space-y-4">
+                    <form id="tg-config-form" onsubmit="saveTelegramSettings(event)" class="space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Telegram Bot Token</label>
+                            <input type="text" id="tg-bot-token" placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-amber-500 font-mono">
+                            <p class="text-[11px] text-slate-500 mt-1">BotFather orqali olingan token</p>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-300 mb-1">Super Owner Chat ID(lar)</label>
+                            <input type="text" id="tg-owner-chat-ids" placeholder="12345678, 87654321"
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-amber-500 font-mono">
+                            <p class="text-[11px] text-slate-500 mt-1">Bir nechta bo‘lsa vergul bilan ajrating</p>
+                        </div>
+
+                        <div class="space-y-2 pt-2 border-t border-slate-800">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="tg-notify-device" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                                <span>Yangi qurilma ulanish so‘rovi kelganda bildirish</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="tg-notify-reg" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                                <span>Yangi restoran ro‘yxatdan o‘tganda bildirish</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="tg-notify-unpaid" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                                <span>Oylik to‘lov muddati tugaganda ogohlantirish</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="tg-secure-approve" class="rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                                <span>Telegramdagi tugmalar orqali to‘g‘ridan-to‘g‘ri tasdiqlashga ruxsat</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition">
+                            Telegram Sozlamalarini Saqlash
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- TAB 7: AUDIT LOGS -->
+            <div id="tab-audit" class="tab-content hidden space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Super Owner Audit Jurnali</h2>
+                    <p class="text-xs text-slate-400">Tizimda amalga oshirilgan barcha xavfsizlik va boshqaruv amallari</p>
+                </div>
+
+                <div class="glass rounded-3xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-4">Sana & Vaqt</th>
+                                    <th class="p-4">Bajaruvchi</th>
+                                    <th class="p-4">Restoran</th>
+                                    <th class="p-4">Amal</th>
+                                    <th class="p-4">Tafsilot</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body" class="divide-y divide-slate-800 text-slate-300">
+                                <tr><td colspan="5" class="p-8 text-center text-slate-500">Yuklanmoqda...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- NEW RESTAURANT MODAL -->
+    <div id="new-tenant-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="glass w-full max-w-lg p-6 rounded-3xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-white text-base">Yangi Restoran Ro‘yxatga Olish</h3>
+                <button onclick="closeNewTenantModal()" class="text-slate-400 hover:text-white">&times;</button>
+            </div>
+            <form onsubmit="handleCreateTenant(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Restoran Nomi</label>
+                    <input type="text" id="nt-name" required placeholder="Masalan: Rayhon Choyxona" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Identifikator (Slug)</label>
+                    <input type="text" id="nt-slug" required placeholder="rayhon" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Rahbar Ismi</label>
+                        <input type="text" id="nt-owner" required placeholder="Alisher Akromov" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Telefon Raqami</label>
+                        <input type="text" id="nt-phone" required placeholder="+998 90 123-45-67" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Oylik To‘lov (UZS)</label>
+                        <input type="number" id="nt-fee" value="500000" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Tarif Rejasi</label>
+                        <select id="nt-plan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white">
+                            <option value="STANDART">STANDART</option>
+                            <option value="PREMIUM" selected>PREMIUM</option>
+                            <option value="VIP">VIP</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition mt-2">
+                    Ro‘yxatdan O‘tkazish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 px-5 py-3.5 rounded-2xl glass border border-amber-500/50 text-amber-300 text-xs font-bold shadow-2xl flex items-center gap-2"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let token = localStorage.getItem('super_owner_token') || '';
+        let tenantsList = [];
+        let devicesList = [];
+        let activeDeviceFilter = 'ALL';
+        let currentEditingTenantId = null;
+
+        function showToast(msg, isErr = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `fixed bottom-6 right-6 z-50 transform transition-all duration-300 px-5 py-3.5 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2 ${
+                isErr ? 'bg-red-950 border border-red-500 text-red-200' : 'bg-slate-900 border border-amber-500/50 text-amber-300'
+            }`;
+            t.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-24', 'opacity-0'), 4000);
+        }
+
+        // Auth
+        async function handleSuperOwnerLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const errBox = document.getElementById('login-error');
+            errBox.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/super-owner/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    errBox.textContent = data.message || 'Xatolik';
+                    errBox.classList.remove('hidden');
+                    return;
+                }
+                token = data.token;
+                localStorage.setItem('super_owner_token', token);
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                refreshAll();
+            } catch (err) {
+                errBox.textContent = 'Server bilan aloqa uzildi';
+                errBox.classList.remove('hidden');
+            }
+        }
+
+        function logoutSuperOwner() {
+            localStorage.removeItem('super_owner_token');
+            token = '';
+            fetch('/api/super-owner/logout', { method: 'POST' });
+            location.reload();
+        }
+
+        function api(path, opts = {}) {
+            opts.headers = opts.headers || {};
+            opts.headers['Authorization'] = `Bearer ${token}`;
+            opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+            return fetch(path, opts).then(async res => {
+                if (res.status === 401) { logoutSuperOwner(); }
+                return res.json();
+            });
+        }
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-amber-500', 'text-slate-950', 'shadow-md');
+                el.classList.add('text-slate-400');
+            });
+
+            const activeContent = document.getElementById(`tab-${tabId}`);
+            if (activeContent) activeContent.classList.remove('hidden');
+
+            const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-amber-500', 'text-slate-950', 'shadow-md');
+                activeBtn.classList.remove('text-slate-400');
+            }
+
+            if (tabId === 'tenants') renderTenantsTable();
+            if (tabId === 'devices') renderDevicesTable();
+            if (tabId === 'permissions' && tenantsList.length) loadTenantPermissions(tenantsList[0].id);
+            if (tabId === 'telegram') loadTelegramConfig();
+            if (tabId === 'audit') loadAuditLogs();
+        }
+
+        // Refresh Data
+        async function refreshAll() {
+            if (!token) return;
+            try {
+                const dash = await api('/api/super-owner/dashboard');
+                if (dash.success) {
+                    renderDashboard(dash);
+                }
+                const tenantsRes = await api('/api/super-owner/tenants');
+                if (tenantsRes.success) {
+                    tenantsList = tenantsRes.data;
+                    document.getElementById('count-tenants').textContent = tenantsList.length;
+                    populateTenantSelect();
+                }
+                const devicesRes = await api('/api/super-owner/devices');
+                if (devicesRes.success) {
+                    devicesList = devicesRes.data;
+                    const pendingCount = devicesList.filter(d => d.status === 'PENDING').length;
+                    const badge = document.getElementById('badge-pending-devices');
+                    if (pendingCount > 0) {
+                        badge.textContent = pendingCount;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderDashboard(data) {
+            const m = data.metrics;
+            document.getElementById('kpi-total-tenants').textContent = m.totalTenants;
+            document.getElementById('kpi-pending-devices').textContent = m.pendingDevices;
+            document.getElementById('kpi-approved-devices').textContent = m.approvedDevices;
+            document.getElementById('kpi-total-revenue').textContent = Number(m.totalRevenue).toLocaleString('uz-UZ') + ' UZS';
+
+            // Pending Actions
+            const pBox = document.getElementById('pending-actions-box');
+            const pList = document.getElementById('pending-devices-list');
+            if (data.recentPendingDevices && data.recentPendingDevices.length > 0) {
+                pBox.classList.remove('hidden');
+                pList.innerHTML = data.recentPendingDevices.map(d => `
+                    <div class="glass p-3.5 rounded-2xl flex items-center justify-between text-xs">
+                        <div>
+                            <p class="font-bold text-white">${escapeHtml(d.deviceName)}</p>
+                            <p class="text-[11px] text-slate-400">${escapeHtml(d.tenant?.name || '—')} • <b class="text-amber-400">${d.role}</b></p>
+                        </div>
+                        <div class="flex gap-1.5">
+                            <button onclick="approveDeviceAction('${d.id}')" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg">Ruxsat</button>
+                            <button onclick="rejectDeviceAction('${d.id}')" class="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg">Rad</button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                pBox.classList.add('hidden');
+            }
+
+            // Recent Tenants
+            const rGrid = document.getElementById('recent-tenants-grid');
+            rGrid.innerHTML = data.recentTenants.map(t => {
+                const days = Math.ceil((new Date(t.currentPeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                return `
+                    <div class="glass p-4 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-white text-xs">${escapeHtml(t.name)}</h4>
+                            <p class="text-[11px] text-slate-400">${escapeHtml(t.ownerPhone)}</p>
+                            <p class="text-[10px] text-amber-400 mt-1">${days} kun qoldi • ${t._count.devices} ta qurilma</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            t.isLocked ? 'bg-red-500/20 text-red-300' : t.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                        }">
+                            ${t.isLocked ? 'QULFLANGAN' : t.status}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render Tenants
+        function renderTenantsTable() {
+            const tbody = document.getElementById('tenants-table-body');
+            if (!tenantsList.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Hech qanday restoran topilmadi</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = tenantsList.map(t => {
+                const days = Math.ceil((new Date(t.currentPeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                const statusBadge = t.isLocked
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">QULFLANGAN</span>'
+                    : t.status === 'ACTIVE'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">FAOL</span>'
+                    : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">KUTILMOQDA</span>';
+
+                return `
+                    <tr class="hover:bg-slate-900/60 transition">
+                        <td class="p-4 font-bold text-white">
+                            ${escapeHtml(t.name)}
+                            <p class="text-[10px] text-slate-400 font-mono">slug: ${escapeHtml(t.slug)}</p>
+                        </td>
+                        <td class="p-4">
+                            <p>${escapeHtml(t.ownerName)}</p>
+                            <p class="text-[11px] text-slate-400">${escapeHtml(t.ownerPhone)}</p>
+                        </td>
+                        <td class="p-4">${statusBadge}</td>
+                        <td class="p-4 font-semibold text-amber-400">${Number(t.monthlyFee).toLocaleString('uz-UZ')} UZS</td>
+                        <td class="p-4 font-mono text-[11px]">${days > 0 ? `${days} kun qoldi` : '<span class="text-red-400">Muddati o‘tgan</span>'}</td>
+                        <td class="p-4 text-right space-x-1.5 whitespace-nowrap">
+                            ${t.status === 'PENDING_APPROVAL' ? `<button onclick="approveTenantAction('${t.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px]">Faollashtirish</button>` : ''}
+                            <button onclick="toggleTenantLockAction('${t.id}', ${t.isLocked})" class="px-2.5 py-1 ${t.isLocked ? 'bg-emerald-600' : 'bg-red-600'} text-white font-bold rounded-lg text-[11px]">
+                                ${t.isLocked ? 'Ochish 🔓' : 'Qulflash 🔒'}
+                            </button>
+                            <button onclick="extendTenantAction('${t.id}')" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px]">+30 Kun</button>
+                            <button onclick="generateLicenseAction('${t.id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-lg text-[11px]">Kalit 🔑</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Render Devices
+        function renderDevicesTable() {
+            const tbody = document.getElementById('devices-table-body');
+            let filtered = devicesList;
+            if (activeDeviceFilter !== 'ALL') {
+                filtered = devicesList.filter(d => d.status === activeDeviceFilter);
+            }
+
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">Qurilmalar topilmadi</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(d => {
+                const statusBadge = d.status === 'APPROVED'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">TASDIQLANGAN</span>'
+                    : d.status === 'BLOCKED'
+                    ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">BLOKLANGAN</span>'
+                    : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">KUTILMOQDA</span>';
+
+                return `
+                    <tr class="hover:bg-slate-900/60 transition">
+                        <td class="p-4 font-bold text-white">
+                            ${escapeHtml(d.deviceName)}
+                            <p class="text-[10px] text-slate-400 font-mono">id: ${escapeHtml(d.deviceId)}</p>
+                        </td>
+                        <td class="p-4 font-semibold text-slate-300">${escapeHtml(d.tenant?.name || '—')}</td>
+                        <td class="p-4 font-semibold text-amber-400">${d.role}</td>
+                        <td class="p-4 text-[11px] text-slate-400">
+                            <p>${escapeHtml(d.ipAddress || '—')}</p>
+                            <p class="text-[10px]">${new Date(d.requestedAt).toLocaleString('uz-UZ')}</p>
+                        </td>
+                        <td class="p-4">${statusBadge}</td>
+                        <td class="p-4 text-right space-x-1.5 whitespace-nowrap">
+                            ${d.status !== 'APPROVED' ? `<button onclick="approveDeviceAction('${d.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px]">Ruxsat berish ✅</button>` : ''}
+                            ${d.status !== 'BLOCKED' ? `<button onclick="blockDeviceAction('${d.id}')" class="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[11px]">Bloklash ⛔</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterDevices(status) {
+            activeDeviceFilter = status;
+            document.querySelectorAll('.device-filter-btn').forEach(btn => {
+                if (btn.dataset.filter === status) {
+                    btn.className = 'device-filter-btn px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold';
+                } else {
+                    btn.className = 'device-filter-btn px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700';
+                }
+            });
+            renderDevicesTable();
+        }
+
+        // Actions
+        async function approveDeviceAction(id) {
+            const res = await api(`/api/super-owner/devices/${id}/approve`, { method: 'POST' });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function rejectDeviceAction(id) {
+            const reason = prompt('Rad etish sababini kiriting:', 'Qurilma tasdiqlanmadi');
+            if (reason === null) return;
+            const res = await api(`/api/super-owner/devices/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function blockDeviceAction(id) {
+            const reason = prompt('Bloklash sababini kiriting:', 'Xavfsizlik sababli bloklandi');
+            if (reason === null) return;
+            const res = await api(`/api/super-owner/devices/${id}/block`, { method: 'POST', body: JSON.stringify({ reason }) });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function approveTenantAction(id) {
+            const res = await api(`/api/super-owner/tenants/${id}/approve`, { method: 'POST', body: JSON.stringify({ initialDays: 30 }) });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function toggleTenantLockAction(id, isCurrentlyLocked) {
+            let reason = '';
+            if (!isCurrentlyLocked) {
+                reason = prompt('Qulflash sababi (mijoz ekranida ko‘rinadi):', 'Oylik obuna to‘lovi to‘lanmadi');
+                if (reason === null) return;
+            }
+            const res = await api(`/api/super-owner/tenants/${id}/lock`, { method: 'POST', body: JSON.stringify({ lock: !isCurrentlyLocked, reason }) });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function extendTenantAction(id) {
+            if (!confirm('Ushbu restoranning obunasini +30 kunga uzaytirishni tasdiqlaysizmi?')) return;
+            const res = await api(`/api/super-owner/tenants/${id}/extend`, { method: 'POST', body: JSON.stringify({ days: 30 }) });
+            if (res.success) { showToast(res.message); refreshAll(); }
+            else { showToast(res.message, true); }
+        }
+
+        async function generateLicenseAction(id) {
+            const days = prompt('Litsenziya kaliti necha kunga berilsin?', '30');
+            if (!days) return;
+            const res = await api(`/api/super-owner/tenants/${id}/license-key`, { method: 'POST', body: JSON.stringify({ days: parseInt(days, 10) }) });
+            if (res.success) {
+                navigator.clipboard.writeText(res.licenseKey);
+                alert(`Litsenziya kaliti yaratildi va nusxalandi:\n\n${res.licenseKey}\n\nMijozga ushbu kodni yuboring.`);
+            } else {
+                showToast(res.message, true);
+            }
+        }
+
+        // Permissions Editor
+        function populateTenantSelect() {
+            const sel = document.getElementById('perm-tenant-select');
+            if (!sel) return;
+            sel.innerHTML = tenantsList.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+        }
+
+        async function loadTenantPermissions(tenantId) {
+            currentEditingTenantId = tenantId;
+            const res = await api(`/api/super-owner/tenants/${tenantId}/permissions`);
+            if (!res.success) return;
+
+            const p = res.data;
+            const ed = document.getElementById('permissions-editor');
+            ed.innerHTML = `
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">💼 Admin Paneli</h4>
+                    ${makeToggle('admin', 'reports', 'Hisobotlar bo‘limi', p.admin.reports)}
+                    ${makeToggle('admin', 'inventory', 'Omborxona bo‘limi', p.admin.inventory)}
+                    ${makeToggle('admin', 'finance', 'Moliya va Xarajatlar', p.admin.finance)}
+                    ${makeToggle('admin', 'employees', 'Xodimlar va Davomat', p.admin.employees)}
+                    ${makeToggle('admin', 'deleteOrder', 'Buyurtmalarni butunlay o‘chirish', p.admin.deleteOrder)}
+                </div>
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">💳 Kassa (POS) Paneli</h4>
+                    ${makeToggle('cashier', 'discounts', 'Chegirma qo‘llash', p.cashier.discounts)}
+                    ${makeToggle('cashier', 'refunds', 'Chekni qaytarish (Refund)', p.cashier.refunds)}
+                    ${makeToggle('cashier', 'debts', 'Nasiya / Qarzga yozish', p.cashier.debts)}
+                    ${makeToggle('cashier', 'splitPayments', 'Bo‘lib to‘lash (Aralash)', p.cashier.splitPayments)}
+                    ${makeToggle('cashier', 'shiftControl', 'Smenani yopish / ochish', p.cashier.shiftControl)}
+                </div>
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">📱 Ofitsiant Terminali</h4>
+                    ${makeToggle('waiter', 'tableTransfer', 'Stolni ko‘chirish', p.waiter.tableTransfer)}
+                    ${makeToggle('waiter', 'cancelDish', 'Taomni bekor qilish', p.waiter.cancelDish)}
+                    ${makeToggle('waiter', 'callService', 'Oshxona chaqiruvi', p.waiter.callService)}
+                    ${makeToggle('waiter', 'takeaway', 'Olib ketish (Takeaway)', p.waiter.takeaway)}
+                </div>
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">🍳 Oshxona & TV</h4>
+                    ${makeToggle('kitchen', 'tvDisplay', 'Oshxona TV ekrani', p.kitchen.tvDisplay)}
+                    ${makeToggle('kitchen', 'soundAlerts', 'Ovozli ogohlantirish', p.kitchen.soundAlerts)}
+                    ${makeToggle('kitchen', 'fishSection', 'Baliqxona alohida bo‘limi', p.kitchen.fishSection)}
+                    ${makeToggle('kitchen', 'fastFoodSection', 'FastFood bo‘limi', p.kitchen.fastFoodSection)}
+                </div>
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">📦 Ombor & Xaridlar</h4>
+                    ${makeToggle('warehouse', 'stockAlerts', 'Kam qolgan mahsulot xabari', p.warehouse.stockAlerts)}
+                    ${makeToggle('warehouse', 'manualAdjustment', 'Qoldiqni qo‘lda tuzatish', p.warehouse.manualAdjustment)}
+                    ${makeToggle('warehouse', 'purchaseCosts', 'Tannarxlarni ko‘rish', p.warehouse.purchaseCosts)}
+                </div>
+                <div class="glass p-5 rounded-2xl space-y-3">
+                    <h4 class="font-bold text-amber-400 text-xs uppercase">👥 Mijoz & QR Menyu</h4>
+                    ${makeToggle('customer', 'webMenu', 'Online QR Menyu', p.customer.webMenu)}
+                    ${makeToggle('customer', 'onlineOrder', 'Stoldan to‘g‘ridan-to‘g‘ri buyurtma', p.customer.onlineOrder)}
+                    ${makeToggle('customer', 'feedback', 'Fikr-mulohaza qoldirish', p.customer.feedback)}
+                </div>
+            `;
+        }
+
+        function makeToggle(panel, key, label, val) {
+            return `
+                <label class="flex items-center justify-between text-xs cursor-pointer py-1">
+                    <span class="text-slate-300">${label}</span>
+                    <input type="checkbox" data-panel="${panel}" data-key="${key}" ${val ? 'checked' : ''} class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-0">
+                </label>
+            `;
+        }
+
+        async function saveCurrentPermissions() {
+            if (!currentEditingTenantId) return;
+            const perms = { admin: {}, cashier: {}, waiter: {}, kitchen: {}, warehouse: {}, customer: {} };
+            document.querySelectorAll('#permissions-editor input[type="checkbox"]').forEach(cb => {
+                perms[cb.dataset.panel][cb.dataset.key] = cb.checked;
+            });
+
+            const res = await api(`/api/super-owner/tenants/${currentEditingTenantId}/permissions`, {
+                method: 'PUT',
+                body: JSON.stringify(perms)
+            });
+            if (res.success) { showToast('Panel ruxsatlari muvaffaqiyatli saqlandi!'); }
+            else { showToast(res.message, true); }
+        }
+
+        // Telegram Settings
+        async function loadTelegramConfig() {
+            const res = await api('/api/super-owner/telegram/config');
+            if (!res.success) return;
+            const c = res.data;
+            document.getElementById('tg-bot-token').value = c.botToken || '';
+            document.getElementById('tg-owner-chat-ids').value = (c.ownerChatIds || []).join(', ');
+            document.getElementById('tg-notify-device').checked = c.notifyOnDevice;
+            document.getElementById('tg-notify-reg').checked = c.notifyOnRegistration;
+            document.getElementById('tg-notify-unpaid').checked = c.notifyOnUnpaid;
+            document.getElementById('tg-secure-approve').checked = c.secureApproveEnabled;
+        }
+
+        async function saveTelegramSettings(e) {
+            e.preventDefault();
+            const body = {
+                botToken: document.getElementById('tg-bot-token').value.trim(),
+                ownerChatIds: document.getElementById('tg-owner-chat-ids').value.split(',').map(s => s.trim()).filter(Boolean),
+                notifyOnDevice: document.getElementById('tg-notify-device').checked,
+                notifyOnRegistration: document.getElementById('tg-notify-reg').checked,
+                notifyOnUnpaid: document.getElementById('tg-notify-unpaid').checked,
+                secureApproveEnabled: document.getElementById('tg-secure-approve').checked
+            };
+            const res = await api('/api/super-owner/telegram/config', { method: 'PUT', body: JSON.stringify(body) });
+            if (res.success) showToast(res.message);
+            else showToast(res.message, true);
+        }
+
+        // Audit Logs
+        async function loadAuditLogs() {
+            const res = await api('/api/super-owner/audit');
+            const tbody = document.getElementById('audit-table-body');
+            if (!res.success || !res.data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-500">Audit yozuvlari topilmadi</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.data.map(l => `
+                <tr class="hover:bg-slate-900/60">
+                    <td class="p-4 text-[11px] text-slate-400">${new Date(l.createdAt).toLocaleString('uz-UZ')}</td>
+                    <td class="p-4 font-semibold text-white">${escapeHtml(l.superOwner?.fullName || 'Tizim')}</td>
+                    <td class="p-4 text-amber-400 font-semibold">${escapeHtml(l.tenant?.name || '—')}</td>
+                    <td class="p-4 font-mono text-[11px] text-emerald-400">${escapeHtml(l.action)}</td>
+                    <td class="p-4 text-slate-300 text-[11px] font-mono">${escapeHtml(JSON.stringify(l.details || ''))}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Modal Controls
+        function openNewTenantModal() { document.getElementById('new-tenant-modal').classList.remove('hidden'); }
+        function closeNewTenantModal() { document.getElementById('new-tenant-modal').classList.add('hidden'); }
+        async function handleCreateTenant(e) {
+            e.preventDefault();
+            const body = {
+                name: document.getElementById('nt-name').value,
+                slug: document.getElementById('nt-slug').value,
+                ownerName: document.getElementById('nt-owner').value,
+                ownerPhone: document.getElementById('nt-phone').value,
+                monthlyFee: document.getElementById('nt-fee').value,
+                subscriptionPlan: document.getElementById('nt-plan').value
+            };
+            const res = await api('/api/super-owner/tenants', { method: 'POST', body: JSON.stringify(body) });
+            if (res.success) {
+                showToast('Yangi restoran ro‘yxatga olindi!');
+                closeNewTenantModal();
+                refreshAll();
+            } else {
+                showToast(res.message, true);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        }
+
+        // Real-Time Sockets
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            socket.on('connect', () => {
+                document.getElementById('socket-badge')?.classList.remove('hidden');
+            });
+            socket.on('owner_device_request', () => {
+                showToast('Yangi qurilma ulanish so‘rovi keldi!');
+                refreshAll();
+            });
+            socket.on('owner_new_registration', () => {
+                showToast('Yangi restoran ro‘yxatdan o‘tdi!');
+                refreshAll();
+            });
+            socket.on('tenant_status_updated', () => refreshAll());
+            socket.on('device_status_changed', () => refreshAll());
+        }
+
+        // Init
+        if (token) {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            refreshAll();
+        }
+    </script>
+</body>
+</html>
+

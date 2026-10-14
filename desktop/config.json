@@ -1,0 +1,11 @@
+{
+  "serverUrl": "http://localhost:3000",
+  "kioskMode": {
+    "cashier": false,
+    "waiter": false,
+    "admin": false
+  },
+  "autoReconnect": true,
+  "reconnectIntervalMs": 3000
+}
+

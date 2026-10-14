@@ -1061,7 +1061,8 @@
 
         async function loadAdminData(key, url) {
             try {
-                const records = await requestJson(url);
+                const response = await requestJson(url);
+                const records = Array.isArray(response) ? response : response?.data;
                 if (!Array.isArray(records)) throw new Error('Serverdan noto‘g‘ri ma’lumot olindi');
                 adminData[key] = records;
                 loadedAdminData[key] = true;
@@ -2741,6 +2742,10 @@
             loadRooms();
             loadOrders();
         });
+        socket.on('return_alert', data => {
+            showToast(`! QAYTARILDI: №${data.orderNumber} · ${data.itemName} × ${data.quantity} · ${data.waiter}`, 'error');
+            refreshOrderPanels();
+        });
         socket.on('restaurant_structure_updated', () => loadRooms());
         socket.on('menu_updated', () => { if (adminCurrentUser) loadMenu(); });
         socket.on('inventory_updated', () => { if (adminCurrentUser) loadInventory(); });
@@ -2854,6 +2859,8 @@
 <link rel="stylesheet" href="/admin-settings.css">
 <script src="/admin-settings.js"></script>
 <script src="/admin-attendance-settings.js"></script>
+<script src="/js/subscription-guard.js"></script>
+<script src="/js/device-agent.js"></script>
 <a href="/service.html" style="position:fixed;bottom:125px;right:16px;z-index:40;background:#0369a1;color:white;padding:10px 14px;border-radius:12px">Xizmat amallari</a>
 </body>
 </html>

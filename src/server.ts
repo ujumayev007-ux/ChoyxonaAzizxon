@@ -38,6 +38,13 @@ import { queueKitchenPrint } from './utils/kitchen-print';
 import serviceRoutes, { serviceLegacyRouter } from './routes/service.routes';
 import { authorizeService } from './utils/service-policy';
 
+import { subscriptionGuard } from './middleware/subscription';
+import { deviceGuard } from './middleware/device-guard';
+import ownerRoutes from './routes/owner.routes';
+import superOwnerRoutes from './routes/super-owner.routes';
+import systemVersionRoutes from './routes/system-version.routes';
+import { initSuperOwnerTelegramBot } from './services/telegram-control.service';
+
 dotenv.config();
 
 const app = express();
@@ -103,6 +110,21 @@ const io = new Server(server, {
   }
 });
 initSocket(io);
+
+app.get('/owner', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'owner', 'index.html'));
+});
+
+app.get('/super-owner', (_req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'super-owner', 'index.html'));
+});
+
+// Device Authorization Guard & SaaS Subscription Lock Guard
+app.use(deviceGuard);
+app.use(subscriptionGuard);
+app.use('/api', superOwnerRoutes);
+app.use('/api', ownerRoutes);
+app.use('/api/system', systemVersionRoutes);
 app.use('/api/service', serviceRoutes);
 // Exact compatibility paths use the same guarded service handlers as the new panel.
 app.use('/api', serviceLegacyRouter);
@@ -1373,6 +1395,7 @@ Promise.resolve().then(() => {
         startReportSchedule();
         startAlertMonitor();
         startTelegramBot();
+        initSuperOwnerTelegramBot().catch(() => {});
         console.log(`Server ${PORT}-portda ishga tushdi!`);
     });
 }).catch(error => {
