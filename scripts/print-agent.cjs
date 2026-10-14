@@ -15,7 +15,7 @@ async function api(route, body = {}) {
 }
 function receipt(job) {
     const p = job.payload, width = job.printer.paperWidth === 58 ? 32 : 42;
-    return [p.restaurantName, p.department, `Buyurtma: ${p.orderNumber}`, p.table,
+    return [p.restaurantName, p.department, ...(p.heading ? [p.heading] : []), `Buyurtma: ${p.orderNumber}`, p.table,
         `Ofitsant: ${p.waiter}`, `Mijozlar: ${p.guestCount || 1}`, p.createdAt,
         '-'.repeat(width), ...p.items.flatMap(i => [`${i.quantity}  ${i.name}`, ...(i.notes ? [i.notes] : [])]),
         '-'.repeat(width), p.notes || '', p.footer || '', '', '', ''].join('\n');

@@ -43,7 +43,7 @@ function changed(data: any) {
 }
 async function audit(tx: Prisma.TransactionClient, userId: string, order: any, action: string, detail: any) {
     await tx.auditLog.create({ data: { userId, action, entity: 'Order', entityId: order.id, newValue: JSON.stringify(detail) } });
-    const labels = { ORDER_CREATED: 'Buyurtma yaratildi', ORDER_APPROVED: 'Buyurtma tasdiqlandi va ofitsant biriktirildi', ORDER_REJECTED: 'Buyurtma rad etildi', ORDER_ASSIGNED: 'Ofitsant buyurtmani oldi', ITEM_STATUS_CHANGED: 'Taom holati yangilandi', KITCHEN_NOTE_READ: 'Oshxona izohni ko‘rdi', SERVICE_NOTE_ADDED: 'Yangi izoh', WAITER_RETURN_REQUESTED: 'Qaytarish so‘rovi yuborildi', WAITER_CANCEL_REQUESTED: 'Bekor qilish so‘rovi yuborildi', SERVICE_REQUEST_DECIDED: 'So‘rovga qaror berildi', ORDER_TRANSFERRED: 'Buyurtma ko‘chirildi / topshirildi', SHIFT_HANDOVER: 'Smena topshirildi' };
+    const labels = { ORDER_CREATED: 'Buyurtma yaratildi', ORDER_APPROVED: 'Buyurtma tasdiqlandi va ofitsant biriktirildi', ORDER_REJECTED: 'Buyurtma rad etildi', ORDER_ASSIGNED: 'Ofitsant buyurtmani oldi', ORDER_ITEM_EDITED: 'Buyurtma taomi tahrirlandi', ITEM_STATUS_CHANGED: 'Taom holati yangilandi', KITCHEN_NOTE_READ: 'Oshxona izohni ko‘rdi', SERVICE_NOTE_ADDED: 'Yangi izoh', WAITER_RETURN_REQUESTED: 'Qaytarish so‘rovi yuborildi', WAITER_CANCEL_REQUESTED: 'Bekor qilish so‘rovi yuborildi', SERVICE_REQUEST_DECIDED: 'So‘rovga qaror berildi', ORDER_TRANSFERRED: 'Buyurtma ko‘chirildi / topshirildi', SHIFT_HANDOVER: 'Smena topshirildi' };
     const statuses = { TAYYORLANMOQDA: 'tayyorlanmoqda', TAYYOR: 'tayyor', OLIB_KETILDI: 'olib ketildi', STOLGA_YETKAZILDI: 'stolga yetkazildi', TASDIQLANDI: 'tasdiqlandi', RAD_ETILDI: 'rad etildi' };
     const comment = [labels[action] || action, detail.name, statuses[detail.status], detail.note, detail.decisionReason || detail.reason,
         detail.quantity ? `${detail.quantity} miqdor` : '', detail.amount ? `${detail.amount} so‘m` : ''].filter(Boolean).join(' · ');
@@ -207,8 +207,44 @@ router.post('/orders/:id/assign', wrap(async (req, res) => {
         if (order.waiterId && order.waiterId !== req.user!.id) fail(409, 'Buyurtmani boshqa ofitsant olgan');
         const updated = await tx.order.update({ where: { id: order.id }, data: { waiterId: req.user!.id } });
         if (order.tableId) await tx.table.updateMany({ where: { id: order.tableId, assignedWaiterId: null }, data: { assignedWaiterId: req.user!.id } });
-        await audit(tx, req.user!.id, updated, 'ORDER_ASSIGNED', { waiterId: req.user!.id }); return updated;
+        await audit(tx, req.user!.id, updated, 'ORDER_ASSIGNED', { waiterId: req.user!.id });
+        if (!pendingStatuses.includes(order.status)) await queueKitchenPrint(tx, order.id, 'initial');
+        return updated;
     }); changed({ orderId: result.id, tableId: result.tableId }); res.json({ success: true, data: result });
+}));
+
+router.post('/orders/:id/items/:itemId/edit', wrap(async (req, res) => {
+    const quantity = qty(req.body?.quantity);
+    const result = await serviceMutation(req, 'WAITER_EDIT_ITEM', async tx => {
+        const order = await lockOrder(tx, req.params.id);
+        await authorizeService(tx, req.user!, 'editOrder', order);
+        assertOrderFresh(order, req.body.updatedAt);
+        assertEditable(order);
+        const item = order.items.find(entry => entry.id === req.params.itemId);
+        if (!item) fail(404, 'Taom topilmadi');
+        if (item.status !== 'YANGI' || !item.cancelledQuantity.isZero() ||
+            order.serviceRequests.some(request => request.orderItemId === item.id)) {
+            fail(409, 'Faqat oshxona tayyorlashni boshlamagan taomni tahrirlash mumkin');
+        }
+        const previousQuantity = item.quantity;
+        const totalPrice = item.unitPrice.mul(quantity).toDecimalPlaces(2);
+        const subtotal = order.subtotal.minus(item.totalPrice).plus(totalPrice);
+        const serviceCharge = subtotal.mul(order.serviceFeePercent).div(100).toDecimalPlaces(2);
+        const discount = Prisma.Decimal.min(order.discount, subtotal.plus(serviceCharge));
+        const updatedItem = await tx.orderItem.update({ where: { id: item.id }, data: { quantity, totalPrice } });
+        const updated = await tx.order.update({ where: { id: order.id }, data: {
+            subtotal, serviceCharge, discount, totalAmount: subtotal.plus(serviceCharge).minus(discount)
+        } });
+        await audit(tx, req.user!.id, updated, 'ORDER_ITEM_EDITED', {
+            name: item.menuItem.name, quantity: quantity.toString(), previousQuantity: previousQuantity.toString()
+        });
+        if (!pendingStatuses.includes(order.status)) {
+            await queueKitchenPrint(tx, order.id, req.body.idempotencyKey, [item.id], 'BUYURTMA TAHRIRLANDI');
+        }
+        return { ...updated, item: updatedItem };
+    });
+    changed({ orderId: result.id, tableId: result.tableId, status: result.status });
+    res.json({ success: true, data: result });
 }));
 
 router.post('/orders/:id/items/:itemId/status', wrap(async (req, res) => {

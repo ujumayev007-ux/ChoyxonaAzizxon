@@ -13,7 +13,7 @@ export async function authorizeService(tx: Prisma.TransactionClient, user: { id:
     const policy = await servicePolicy(tx);
     if (user.role === 'ADMIN') return policy;
     const roles: Record<string, string[]> = {
-        assign: ['WAITER'], deliver: ['WAITER'], requestReturn: ['WAITER'], requestCancel: ['WAITER'],
+        assign: ['WAITER'], editOrder: ['WAITER'], deliver: ['WAITER'], requestReturn: ['WAITER'], requestCancel: ['WAITER'],
         transfer: ['WAITER'], reassign: ['WAITER'], takePayment: ['WAITER', 'CASHIER'],
         review: ['CASHIER'], cancelReview: ['CASHIER', 'KITCHEN'], kitchen: ['KITCHEN'], read: ['WAITER', 'CASHIER', 'KITCHEN']
     };
@@ -23,7 +23,7 @@ export async function authorizeService(tx: Prisma.TransactionClient, user: { id:
     if (user.role === 'WAITER' && order) {
         const owner = order.waiterId || order.table?.assignedWaiterId;
         if (policy.scope === 'OWN' && owner && owner !== user.id) fail(403, 'Bu buyurtma boshqa ofitsantga biriktirilgan');
-        if (['deliver', 'requestReturn', 'requestCancel', 'transfer', 'reassign'].includes(action) && order.waiterId !== user.id) fail(403, 'Faqat o‘zingizga biriktirilgan buyurtmada ishlang');
+        if (['editOrder', 'deliver', 'requestReturn', 'requestCancel', 'transfer', 'reassign'].includes(action) && order.waiterId !== user.id) fail(403, 'Faqat o‘zingizga biriktirilgan buyurtmada ishlang');
     }
     return policy;
 }

@@ -65,7 +65,8 @@
             <p>${e(labels[item.status] || item.status)} · ${timer(item.createdAt, ['STOLGA_YETKAZILDI', 'BEKOR_QILINDI'].includes(item.status))}</p>
             ${item.notes ? `<p>${e(item.notes)} ${item.noteAcknowledgedAt ? '✓ Oshxona ko‘rgan' : ''}</p>` : ''}
             ${!history && mine && policy.deliver && ['TAYYOR', 'OLIB_KETILDI'].includes(item.status) ? button(item.status === 'TAYYOR' ? 'Olib ketdim' : 'Stolga yetkazdim', 'deliver', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-status="${item.status === 'TAYYOR' ? 'OLIB_KETILDI' : 'STOLGA_YETKAZILDI'}"`) : ''}
-            ${mine && item.status !== 'BEKOR_QILINDI' ? `<div class="svc-row">${policy.requestReturn ? button('Qisman qaytarish', 'request', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-kind="RETURN"`) : ''}${!history && policy.requestCancel ? button('Bekor qilish so‘rovi', 'request', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-kind="CANCEL"`) : ''}</div>` : ''}</div>`).join('')}
+            ${!history && mine && item.status === 'YANGI' && !order.payments?.length && !order.debt ? button('Miqdorini tahrirlash', 'edit-item', `data-order="${e(order.id)}" data-item="${e(item.id)}"`) : ''}
+            ${mine && item.status !== 'BEKOR_QILINDI' ? `<div class="svc-row">${policy.requestReturn ? button('Ortiqcha taomni qaytarish', 'request', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-kind="RETURN"`) : ''}${!history && policy.requestCancel ? button('Bekor qilish so‘rovi', 'request', `data-order="${e(order.id)}" data-item="${e(item.id)}" data-kind="CANCEL"`) : ''}</div>` : ''}</div>`).join('')}
           <strong>Jami ${money(order.totalAmount)}</strong>
           ${order.balance ? `<p>To‘langan: ${money(order.balance.paid)} · Qarz: ${money(order.balance.debtRemaining)} · Qoldiq: ${money(order.balance.remaining)} · Qaytarilgan: ${money(order.balance.refunds)}</p>` : ''}
           <div class="svc-row">${button('Voqealar tarixi', 'timeline', `data-order="${e(order.id)}"`)}${!history && mine ? button('Oshxonaga izoh', 'note', `data-order="${e(order.id)}"`) : ''}${history ? button('Taomlarni qayta tanlash', 'repeat', `data-order="${e(order.id)}"`) : ''}
@@ -238,6 +239,14 @@
         }
         const order = await findOrder(id);
         if (type === 'note') { const note = prompt('Oshxonaga izoh'); if (!note) return; await client.post(`/orders/${id}/notes`, { note, updatedAt: order.updatedAt }); showNotification('Izoh saqlandi'); return loadActiveOrders(); }
+        if (type === 'edit-item') {
+            const item = order.items.find(entry => entry.id === target.dataset.item); if (!item) return;
+            const quantity = prompt(`Yangi miqdor: ${item.menuItem.name}`, String(item.quantity));
+            if (quantity === null) return;
+            if (!/^\d{1,6}(?:\.\d{1,3})?$/.test(quantity) || Number(quantity) <= 0) { showNotification('Miqdorni to‘g‘ri kiriting'); return; }
+            await client.post(`/orders/${id}/items/${item.id}/edit`, { quantity, updatedAt: order.updatedAt }, `edit-item:${id}:${item.id}`);
+            showNotification('Taom miqdori saqlandi'); return loadActiveOrders();
+        }
         if (type === 'deliver') { await client.post(`/orders/${id}/items/${target.dataset.item}/status`, { status: target.dataset.status, updatedAt: order.updatedAt }); showNotification('Saqlandi'); await loadActiveOrders(); return; }
         if (type === 'assign') { await client.post(`/orders/${id}/assign`, { updatedAt: order.updatedAt }); showNotification('Buyurtma biriktirildi'); return loadActiveOrders(); }
         if (type === 'timeline') { dialog('Buyurtma voqealari', order.statusHistory.map(h => `<article class="svc-card"><strong>${e(h.user?.fullName || 'Tizim')}</strong><p>${e(new Date(h.createdAt).toLocaleString('uz-UZ'))}</p><p>${e(getOrderStatusUz(h.status))} · ${e(h.comment || '')}</p></article>`).join('')); return; }

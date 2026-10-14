@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 
-export async function queueKitchenPrint(tx: Prisma.TransactionClient, orderId: string, batch: string, itemIds?: string[]) {
+export async function queueKitchenPrint(tx: Prisma.TransactionClient, orderId: string, batch: string, itemIds?: string[], heading?: string) {
     const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: {
         table: { include: { room: true } }, waiter: { select: { fullName: true } },
         items: { where: itemIds ? { id: { in: itemIds } } : {}, include: { menuItem: { include: { category: true } } } }
@@ -24,7 +24,7 @@ export async function queueKitchenPrint(tx: Prisma.TransactionClient, orderId: s
     }
     for (const [key, group] of groups) {
         const id = createHash('sha256').update(`${orderId}:${batch}:${key}`).digest('hex');
-        const payload = JSON.stringify({ restaurantName: config?.header || 'ChoyxonaAzizxon', footer: config?.footer || '',
+        const payload = JSON.stringify({ restaurantName: config?.header || 'ChoyxonaAzizxon', footer: config?.footer || '', heading,
             department: group.department, categoryIds: [...new Set(group.categoryIds)], orderNumber: order.orderNumber,
             table: order.table ? `${order.table.room.name} / Stol ${order.table.number}` : 'Olib ketish',
             waiter: order.waiter?.fullName || 'Ofitsant', guestCount: order.guestCount,

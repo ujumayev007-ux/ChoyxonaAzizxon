@@ -19,13 +19,13 @@ function fixture(options = {}) {
     const stamp = new Date('2026-10-11T05:00:00Z');
     const table = { id: 'table-1', number: 1, assignedWaiterId: 'waiter-1', isActive: true, room: { id: 'room-1', name: 'Xona', isActive: true }, roomId: 'room-1' };
     const menu = { id: 'food-1', name: 'Taom', available: true, isActive: true, sellingPrice: D('25.25'), category: { id: 'category-1', isActive: true } };
-    const item = { id: 'item-1', orderId: 'order-1', menuItemId: menu.id, menuItem: menu, quantity: D(3), cancelledQuantity: D(0), unitPrice: D('25.25'), totalPrice: D('75.75'), status: 'TAYYOR', createdAt: stamp, updatedAt: stamp };
+    const item = { id: 'item-1', orderId: 'order-1', menuItemId: menu.id, menuItem: menu, quantity: D(3), cancelledQuantity: D(0), unitPrice: D('25.25'), totalPrice: D('75.75'), status: 'TAYYOR', createdAt: stamp, updatedAt: stamp, ...options.item };
     const order = { id: 'order-1', orderNumber: 'TEST-1', waiterId: 'waiter-1', tableId: table.id, table,
         items: [item], payments: [], refunds: [], debt: null, processingById: null, serviceRequests: [],
         status: 'TAYYOR', subtotal: D('75.75'), serviceFeePercent: D(10), serviceCharge: D('7.58'), discount: D('1.33'), totalAmount: D(82), guestCount: 3,
         createdAt: stamp, updatedAt: stamp, ...options.order };
     let state = { tables: [table, { ...table, id: 'table-2', assignedWaiterId: null, number: 2 }], menu: [menu], orders: [order], requests: [], calls: [], records: [], refundLines: [], history: [], audits: [], movements: [], inventories: [{ id: 'inventory-1', name: 'Mahsulot', quantity: D(5) }], inventoryHistory: [], queryLog: [], settings: options.settings || {} };
-    const events = [];
+    const events = [], printCalls = [];
     function models(get) {
         const hydrate = o => o && { ...copy(o), table: copy(get().tables.find(t => t.id === o.tableId)), waiter: o.waiterId ? { id: o.waiterId, fullName: o.waiterId } : null,
             serviceRequests: copy(get().requests.filter(r => r.orderId === o.id)), statusHistory: copy(get().history.filter(h => h.orderId === o.id)) };
@@ -87,7 +87,7 @@ function fixture(options = {}) {
             if (name === '../utils/db') return { prisma: db };
             if (name === '../middleware/auth') return { authenticateToken: (_req, _res, next) => next(), requireRole: roles => (req,res,next) => roles.includes(req.user.role) ? next() : res.status(403).json({message:'Ruxsat yo‘q'}) };
             if (name === '../socket') return { emitSocketEvent: (...args) => events.push(args) };
-            if (name === '../utils/kitchen-print') return { queueKitchenPrint: async () => {} };
+            if (name === '../utils/kitchen-print') return { queueKitchenPrint: async (...args) => printCalls.push(args.slice(1)) };
             if (name === '../utils/telegram') return { telegramToken: async () => 'test-bot-token' };
             if (name.startsWith('../utils/')) return require('../dist/utils/' + name.split('/').at(-1));
             return require(name);
@@ -99,7 +99,7 @@ function fixture(options = {}) {
     const service = load('src/routes/service.routes.ts'); app.use('/api/service', service.default); app.use('/api', service.serviceLegacyRouter); app.use('/api', load('src/routes/telegram.routes.ts').default);
     app.use((_req,res)=>res.status(404).json({success:false,message:'Test fixture route not mounted'}));
     let server, base, starting;
-    return { get state() { return state; }, events, db,
+    return { get state() { return state; }, events, printCalls, db,
         async send(path, body, role = 'WAITER', user = 'waiter-1') {
             if (!starting) starting = (async () => { server = app.listen(0,'127.0.0.1'); await new Promise(resolve => server.once('listening', resolve)); base = `http://127.0.0.1:${server.address().port}`; })(); await starting;
             const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'x-role': role, 'x-user': user }, body: body ? JSON.stringify(body) : undefined });
@@ -282,6 +282,43 @@ test('Smena topshirish ruxsat, aniq faol ro‘yxat va kassir bandligini tekshira
     h.state.orders[0].processingById=null;h.state.calls.push({id:'call-1',tableId:'table-1',kind:'CUSTOMER',status:'QABUL_QILINDI',acceptedById:'waiter-1'});
     assert.equal((await h.send('/api/service/handover',payload)).status,200);assert.equal(h.state.orders[0].waiterId,'waiter-2');assert.equal(h.state.tables[0].assignedWaiterId,'waiter-2');assert.equal(h.state.calls[0].acceptedById,'waiter-2');
     assert.equal((await h.send('/api/service/handover',payload)).status,200);assert.equal(h.state.audits.filter(a=>a.action==='SHIFT_HANDOVER').length,2);
+});
+
+test('Ofitsant miqdorni tahrirlaydi, jami qayta hisoblanadi va oshxonaga yangilangan bo‘lim cheki boradi',async t=>{
+    const h=tracked(t,{order:{status:'TAYYORLANMOQDA'},item:{status:'YANGI'}});
+    const result=await h.send('/api/service/orders/order-1/items/item-1/edit',body(h,{quantity:'4'}));
+    assert.equal(result.status,200);
+    assert.equal(h.state.orders[0].items[0].quantity.toString(),'4');
+    assert.equal(h.state.orders[0].subtotal.toString(),'101');
+    assert.equal(h.state.orders[0].serviceCharge.toString(),'10.1');
+    assert.equal(h.state.orders[0].totalAmount.toString(),'109.77');
+    assert.equal(h.printCalls.length,1);
+    assert.equal(h.printCalls[0][2][0],'item-1');
+    assert.equal(h.printCalls[0][3],'BUYURTMA TAHRIRLANDI');
+    assert.equal(h.state.audits.some(a=>a.action==='ORDER_ITEM_EDITED'),true);
+});
+test('Tayyorlanishi boshlangan, qaytarish so‘rovi bor yoki kassirda band buyurtma tahrirlanmaydi',async t=>{
+    for(const options of [
+        {order:{status:'TAYYORLANMOQDA'}},
+        {order:{status:'TAYYORLANMOQDA'},item:{status:'YANGI'},request:{orderItemId:'item-1'}},
+        {order:{status:'TAYYORLANMOQDA',processingById:'cashier-1',processingAt:new Date()},item:{status:'YANGI'}}
+    ]) {
+        const h=tracked(t,options);
+        if(options.request) h.state.requests.push({...options.request,id:'request-1',orderId:'order-1',status:'KUTILMOQDA'});
+        const result=await h.send('/api/service/orders/order-1/items/item-1/edit',body(h,{quantity:'2'}));
+        assert.equal(result.status,409);
+        assert.equal(h.state.orders[0].subtotal.toString(),'75.75');
+    }
+});
+test('Ofitsant tasdiqlangan buyurtmani olganda printer bo‘limlariga yuboradi, tasdiq kutayotganini chop etmaydi',async t=>{
+    const accepted=tracked(t);
+    assert.equal((await accepted.send('/api/service/orders/order-1/assign',body(accepted))).status,200);
+    assert.equal(accepted.printCalls.length,1);
+    assert.equal(accepted.printCalls[0][1],'initial');
+
+    const waiting=tracked(t,{order:{status:'YANGI'}});
+    assert.equal((await waiting.send('/api/service/orders/order-1/assign',body(waiting))).status,200);
+    assert.equal(waiting.printCalls.length,0);
 });
 
 test('Natijasi noma’lum frontend so‘rovi qayta yuklanganda ham ayni kalit va asl payload bilan yuboriladi',async()=>{
