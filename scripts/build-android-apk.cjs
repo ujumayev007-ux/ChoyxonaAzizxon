@@ -94,16 +94,20 @@ async function buildApk() {
 
     // 7. Sign the APK with keystore
     console.log('\n[7/7] 🔑 apksigner orqali APK ni raqamli imzolash...');
-    const keystorePath = path.join(androidDir, 'release.keystore');
+    const keystorePath = process.env.ANDROID_KEYSTORE_PATH || path.join(androidDir, 'release.keystore');
+    const keyAlias = process.env.ANDROID_KEY_ALIAS || 'choyxona';
     if (!fs.existsSync(keystorePath)) {
-        console.log('   Yangi release.keystore yaratilmoqda...');
-        execSync(`"${keytool}" -genkey -v -keystore "${keystorePath}" -alias choyxona -keyalg RSA -keysize 2048 -validity 10000 -storepass Azizxon2026! -keypass Azizxon2026! -dname "CN=ChoyxonaAzizxon, OU=IT, O=Azizxon, L=Tashkent, C=UZ"`, { stdio: 'inherit' });
+        throw new Error(`Keystore topilmadi: ${keystorePath}. ANDROID_KEYSTORE_PATH ni belgilang (yangi kalit avtomatik yaratilmaydi).`);
     }
+    if (!process.env.ANDROID_KEYSTORE_PASSWORD) {
+        throw new Error('ANDROID_KEYSTORE_PASSWORD muhit o\'zgaruvchisi belgilanmagan.');
+    }
+    const keyPassEnv = process.env.ANDROID_KEY_PASSWORD ? 'ANDROID_KEY_PASSWORD' : 'ANDROID_KEYSTORE_PASSWORD';
 
     const finalApk = path.join(outputDir, 'ChoyxonaAzizxon.apk');
     fs.copyFileSync(alignedApk, finalApk);
 
-    execSync(`"${apksigner}" sign --ks "${keystorePath}" --ks-pass pass:Azizxon2026! --ks-key-alias choyxona --key-pass pass:Azizxon2026! "${finalApk}"`, {
+    execSync(`"${apksigner}" sign --ks "${keystorePath}" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --ks-key-alias "${keyAlias}" --key-pass env:${keyPassEnv} "${finalApk}"`, {
         stdio: 'inherit',
         env: { ...process.env, PATH: `${jdkBin};${process.env.PATH}`, JAVA_HOME: path.dirname(jdkBin) }
     });

@@ -80,6 +80,7 @@ const device_guard_1 = require("./middleware/device-guard");
 const owner_routes_1 = __importDefault(require("./routes/owner.routes"));
 const super_owner_routes_1 = __importDefault(require("./routes/super-owner.routes"));
 const system_version_routes_1 = __importDefault(require("./routes/system-version.routes"));
+const lan_discovery_1 = require("./utils/lan-discovery");
 const telegram_control_service_1 = require("./services/telegram-control.service");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -152,6 +153,7 @@ app.use(device_guard_1.deviceGuard);
 app.use(subscription_1.subscriptionGuard);
 app.use('/api', super_owner_routes_1.default);
 app.use('/api', owner_routes_1.default);
+app.get('/api/system/discovery', (_req, res) => res.json((0, lan_discovery_1.getServerIdentity)(Number(process.env.PORT || 3000))));
 app.use('/api/system', system_version_routes_1.default);
 app.use('/api/service', service_routes_1.default);
 // Exact compatibility paths use the same guarded service handlers as the new panel.
@@ -1431,6 +1433,7 @@ Promise.resolve().then(() => {
     return ensureInitialAdmin();
 }).then(() => {
     server.listen(PORT, () => {
+        (0, lan_discovery_1.startLanDiscovery)(Number(PORT));
         (0, telegram_reports_1.startReportSchedule)();
         (0, alerts_1.startAlertMonitor)();
         (0, telegram_bot_1.startTelegramBot)();

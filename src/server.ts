@@ -43,6 +43,7 @@ import { deviceGuard } from './middleware/device-guard';
 import ownerRoutes from './routes/owner.routes';
 import superOwnerRoutes from './routes/super-owner.routes';
 import systemVersionRoutes from './routes/system-version.routes';
+import { startLanDiscovery, getServerIdentity } from './utils/lan-discovery';
 import { initSuperOwnerTelegramBot } from './services/telegram-control.service';
 
 dotenv.config();
@@ -124,6 +125,7 @@ app.use(deviceGuard);
 app.use(subscriptionGuard);
 app.use('/api', superOwnerRoutes);
 app.use('/api', ownerRoutes);
+app.get('/api/system/discovery', (_req, res) => res.json(getServerIdentity(Number(process.env.PORT || 3000))));
 app.use('/api/system', systemVersionRoutes);
 app.use('/api/service', serviceRoutes);
 // Exact compatibility paths use the same guarded service handlers as the new panel.
@@ -1392,6 +1394,7 @@ Promise.resolve().then(() => {
     return ensureInitialAdmin();
 }).then(() => {
     server.listen(PORT, () => {
+        startLanDiscovery(Number(PORT));
         startReportSchedule();
         startAlertMonitor();
         startTelegramBot();
