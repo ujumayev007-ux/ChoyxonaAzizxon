@@ -20,3 +20,5 @@ dist-installers/
 desktop/node_modules/
 desktop/role.json
 desktop/icon.png
+desktop/icon.ico
+desktop/builder.tmp.json

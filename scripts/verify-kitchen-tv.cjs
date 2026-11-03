@@ -8,9 +8,9 @@ let chromium;try{({chromium}=require('playwright'));}catch{({chromium}=require(p
         browser=await chromium.launch({channel:'chrome',headless:true});
         const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
         let count=1,unauthorized=false,offline=false,delivered=false,tvSettings={showReady:true,textScale:100,refreshSeconds:15,kitchenSection:''};
-        await page.route('**/api/kitchen/tv-settings',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(tvSettings)}));
+        await page.route('**/api/kitchen/tv/settings',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(tvSettings)}));
         await page.route('**/socket.io/**',r=>r.fulfill({contentType:'application/javascript',body:'window.tvHandlers={};window.io=()=>({on(event,fn){window.tvHandlers[event]=fn}});'}));
-        await page.route('**/api/kitchen/orders',r=>offline?r.abort():r.fulfill({status:unauthorized?401:200,contentType:'application/json',body:JSON.stringify({success:!unauthorized,data:[{id:'o1',orderNumber:'101',table:{number:7,room:{name:'Asosiy zal'}},waiter:{fullName:'Ali'},createdAt:new Date(Date.now()-300000).toISOString(),notes:'Kam tuzli',items:Array.from({length:count},(_,i)=>({id:`i${i}`,status:delivered&&i===0?'OLIB_KETILDI':i%2?'TAYYOR':'TAYYORLANMOQDA',quantity:'2',cancelledQuantity:'0.5',menuItem:{name:i===0?'Osh <img src=x onerror=alert(1)>':`Taom ${i+1}`,unit:'dona'},notes:'Piyozsiz'}))}]})}));
+        await page.route('**/api/kitchen/tv/orders',r=>offline?r.abort():r.fulfill({status:unauthorized?401:200,contentType:'application/json',body:JSON.stringify({success:!unauthorized,data:[{id:'o1',orderNumber:'101',table:{number:7,room:{name:'Asosiy zal'}},waiter:{fullName:'Ali'},createdAt:new Date(Date.now()-300000).toISOString(),notes:'Kam tuzli',items:Array.from({length:count},(_,i)=>({id:`i${i}`,status:delivered&&i===0?'OLIB_KETILDI':i%2?'TAYYOR':'TAYYORLANMOQDA',quantity:'2',cancelledQuantity:'0.5',menuItem:{name:i===0?'Osh <img src=x onerror=alert(1)>':`Taom ${i+1}`,unit:'dona'},notes:'Piyozsiz'}))}]})}));
         await page.goto(`http://127.0.0.1:${server.address().port}/kitchen-tv.html`);
         async function refresh(n){count=n;await page.evaluate(()=>window.tvHandlers.service_updated());await page.waitForFunction(n=>document.querySelectorAll('.tv-food-card').length===n,n);}
         for(const n of [1,2,10]){
@@ -29,7 +29,7 @@ let chromium;try{({chromium}=require('playwright'));}catch{({chromium}=require(p
         await page.setViewportSize({width:1080,height:1920});await page.waitForTimeout(150);assert.ok(await page.locator('.tv-food-card').evaluateAll(cards=>cards.every(c=>c.getBoundingClientRect().bottom<=1920&&c.getBoundingClientRect().right<=1080)));
         delivered=true;await page.evaluate(()=>window.tvHandlers.order_status_updated());await page.waitForFunction(()=>document.querySelectorAll('.tv-food-card').length===9);
         count=0;await page.evaluate(()=>window.tvHandlers.service_updated());await page.getByText('Oshxonada faol taomlar yo‘q',{exact:true}).waitFor();
-        unauthorized=true;await page.evaluate(()=>window.tvHandlers.connect());await page.getByText('TV uchun oshxona panelida tizimga kiring.',{exact:false}).waitFor();
+        unauthorized=true;await page.evaluate(()=>window.tvHandlers.connect());await page.getByText('Bu TV qurilmasi hali tasdiqlanmagan.',{exact:false}).waitFor();
         unauthorized=false;offline=true;await page.evaluate(()=>window.tvHandlers.connect());await page.getByText('Buyurtmalarni yuklab bo‘lmadi. Avtomatik qayta tekshiriladi.',{exact:true}).waitFor();
         offline=false;count=2;delivered=false;await page.evaluate(()=>window.dispatchEvent(new Event('online')));await page.waitForFunction(()=>document.querySelectorAll('.tv-food-card').length===2);
         assert.deepEqual(errors,[]);console.log('PASS: TV 1/2/10 taom, 1920×1080/1080×1920, real-time, olib ketish, bo‘sh holat, sessiya, qayta ulanish va xavfsiz matn.');

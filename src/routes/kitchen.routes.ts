@@ -3,11 +3,49 @@ import { OrderStatus } from '@prisma/client';
 import { prisma } from '../utils/db';
 import { emitSocketEvent } from '../socket';
 import { authenticateToken, requireRole } from '../middleware/auth';
-import type { Request } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { authorizeService } from '../utils/service-policy';
 import { getSettings } from '../utils/settings';
+import { checkDeviceAuthorization } from '../services/device.service';
 
 const router = Router();
+
+// TV ekrani xodim PIN-kodisiz ishlaydi, lekin faqat Super Owner tasdiqlagan qurilmaga javob beradi
+async function requireApprovedDevice(req: Request, res: Response, next: NextFunction) {
+    const deviceId = req.headers['x-device-id'] as string | undefined;
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'choyxona-azizxon-default-tenant';
+    try {
+        const check = deviceId ? await checkDeviceAuthorization(tenantId, deviceId, req.headers['x-device-token'] as string | undefined) : { authorized: false };
+        if (!check.authorized) return res.status(403).json({ success: false, code: 'DEVICE_UNAUTHORIZED', message: 'TV qurilmasi tasdiqlanmagan' });
+        next();
+    } catch {
+        res.status(500).json({ success: false, message: 'Qurilmani tekshirib bo‘lmadi' });
+    }
+}
+
+const activeOrdersQuery = () => prisma.order.findMany({
+    where: { status: { in: ['TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR'] } },
+    include: {
+        waiter: { select: { fullName: true } },
+        table: { select: { number: true, room: { select: { name: true } } } },
+        items: { include: { menuItem: { select: { id: true, name: true, unit: true, kitchenSection: true, category: { select: { name: true } } } } } },
+    },
+    orderBy: { createdAt: 'asc' }
+});
+
+router.get('/tv/settings', requireApprovedDevice, async (_req, res) => {
+    try { res.json(await getSettings(prisma, 'kitchenTv')); }
+    catch { res.status(500).json({ message: 'TV sozlamalari yuklanmadi' }); }
+});
+
+router.get('/tv/orders', requireApprovedDevice, async (_req, res) => {
+    try { res.json({ success: true, data: await activeOrdersQuery() }); }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Buyurtmani yuklashda xatolik' });
+    }
+});
+
 router.use(authenticateToken, requireRole(['KITCHEN', 'ADMIN']));
 const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
     TASDIQLANDI: 'TAYYORLANMOQDA',
@@ -21,15 +59,7 @@ router.get('/tv-settings', async (_req, res) => {
 
 router.get('/orders', async (_req, res) => {
     try {
-        const orders = await prisma.order.findMany({
-            where: { status: { in: ['TASDIQLANDI', 'OSHXONAGA_YUBORILDI', 'TAYYORLANMOQDA', 'TAYYOR'] } },
-            include: {
-                waiter: { select: { fullName: true } },
-                table: { select: { number: true, room: { select: { name: true } } } },
-                items: { include: { menuItem: { select: { id: true, name: true, unit: true, kitchenSection: true, category: { select: { name: true } } } } } },
-            },
-            orderBy: { createdAt: 'asc' }
-        });
+        const orders = await activeOrdersQuery();
         res.json({ success: true, data: orders });
     } catch (error) {
         console.error(error);

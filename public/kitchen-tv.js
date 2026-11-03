@@ -6,7 +6,7 @@
     let settings = { showReady:true, soundEnabled:false, textScale:100, refreshSeconds:15, kitchenSection:'' }, lastPoll=0, audio=null, previousStates=null;
     document.addEventListener('click',()=>{if(!audio){const Audio=window.AudioContext||window.webkitAudioContext;if(Audio)audio=new Audio();}audio?.resume().catch(()=>{});});
     function readySound(next){const states=new Map(next.flatMap(order=>(order.items||[]).map(item=>[item.id,item.status])));if(previousStates&&settings.soundEnabled&&audio?.state==='running'&&[...states].some(([id,status])=>status==='TAYYOR'&&previousStates.get(id)!=='TAYYOR')){const tone=audio.createOscillator(),gain=audio.createGain();tone.frequency.value=880;gain.gain.setValueAtTime(.12,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.35);tone.connect(gain);gain.connect(audio.destination);tone.start();tone.stop(audio.currentTime+.35);}previousStates=states;}
-    async function loadSettings(){try{const response=await fetch('/api/kitchen/tv-settings',{cache:'no-store'});if(response.ok){settings={...settings,...await response.json()};if(orders.length)render();}}catch{connection.textContent='TV sozlamalari qayta tekshiriladi';}}
+    async function loadSettings(){try{const response=await fetch('/api/kitchen/tv/settings',{cache:'no-store'});if(response.ok){settings={...settings,...await response.json()};if(orders.length)render();}}catch{connection.textContent='TV sozlamalari qayta tekshiriladi';}}
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     function layout() {
         const cards = [...grid.querySelectorAll('.tv-food-card')], count = cards.length;
@@ -49,8 +49,8 @@
     async function load() {
         if(loading){reloadNeeded=true;return;}loading=true;
         try {
-            const response=await fetch('/api/kitchen/orders',{cache:'no-store'});
-            if(response.status===401||response.status===403){orders=[];grid.innerHTML='<div class="tv-empty">TV uchun oshxona panelida tizimga kiring.<a href="/kitchen/">Oshxona panelini ochish</a></div>';document.getElementById('tv-summary').textContent='Kirish talab qilinadi';connection.textContent='Sessiya yo‘q';return;}
+            const response=await fetch('/api/kitchen/tv/orders',{cache:'no-store'});
+            if(response.status===401||response.status===403){orders=[];grid.innerHTML='<div class="tv-empty">Bu TV qurilmasi hali tasdiqlanmagan. Super Owner (Owner ilovasi) orqali ruxsat bering.</div>';document.getElementById('tv-summary').textContent='Qurilma tasdig‘i kutilmoqda';connection.textContent='Tasdiqlanmagan';return;}
             const result=await response.json();if(!response.ok||!result.success||!Array.isArray(result.data))throw new Error('Yuklab bo‘lmadi');
             readySound(result.data);orders=result.data;failed=false;connection.textContent='Yangilandi';render();
         } catch(error) {failed=true;connection.textContent='Aloqa uzildi — qayta tekshirilmoqda';if(!grid.querySelector('.tv-food-card'))grid.innerHTML='<div class="tv-empty">Buyurtmalarni yuklab bo‘lmadi. Avtomatik qayta tekshiriladi.</div>';}
